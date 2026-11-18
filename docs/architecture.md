@@ -40,7 +40,7 @@ xyz.etkn.mobile
 - **返回手势**：清单启用 `enableOnBackInvokedCallback`；NavHost 的 pop 转场即预测性返回的预览动画。每个目的地包在 `PageFrame` 里：不透明背景 + 随转场进度变化的圆角裁剪，避免透明页面缩小时与下层页面叠在一起。
 - **页面大小**：`UiScale` 在 `attachBaseContext` 用 `applyOverrideConfiguration` 只覆盖 `densityDpi`，对话框、底部面板、菜单等独立窗口同样生效；改设置后 `recreate()`。窗口尺寸一律用 `windowSizeDp()`（像素 / 当前密度），不用 `Configuration.screenWidthDp`。
 - **播放器面板**：音轨/字幕/倍速/版本/选集/弹幕都在右侧独立窗口（`ComponentDialog`）中显示；与长按菜单同一套玻璃配方（玻璃色调 + 细描边 + 浅色文字，轻微压暗）。Android 12+ 由系统合成器做窗口背景模糊（可模糊 SurfaceView 视频），不支持时退化为高不透明度面板。
-- **蓝光原盘 ISO**：`player/bluray`（移植自 ETKN TV）。`BlurayMediaSourceFactory` 识别 `.iso`，`BlurayInput` 以 HTTP Range 读原文件，CI 构建的 `libetkn_bluray.so`（libbluray + libudfread + 仅解封装的 FFmpeg）选正片并拆出 MPEG-TS 流，`DiscExtractor` 交给 Media3 硬件解码；杜比视界 profile 7 映射为 HEVC 基础层（普通文件同样适用）。
+- **蓝光原盘 ISO**：`player/bluray`（移植自 ETKN TV）。`BlurayMediaSourceFactory` 按 `BlurayTag` 走原盘（`PlaybackAddress.isDisc`：`Container`/`Path` 的 iso 标记或服务端原盘探测的 `BlurayPlaylist`/`TransportStreamId`；普通解析报容器不支持时再按原盘重试一次），`BlurayInput` 以 HTTP Range 读原文件，CI 构建的 `libetkn_bluray.so`（libbluray + libudfread + 仅解封装的 FFmpeg）选正片并拆出 MPEG-TS 流，`DiscExtractor` 交给 Media3 硬件解码；杜比视界 profile 7 映射为 HEVC 基础层（普通文件同样适用）。
 - **条目菜单**：`ui/actions`。`ItemMenu` 在外壳最上层：海报卡片 / 继续观看卡片长按、详情页“更多”打开；毛玻璃菜单从卡片位置弹出（同窗口 Haze 模糊），刷新/删除/编辑元数据/编辑图片/提取缩略图按 Web 端规则与权限显示。变化经 `AppGraph.itemChanges` 广播，列表就地修补、首页静默重载、详情页重载或退出。
 - **毛玻璃**：同窗口浮层（顶栏、底栏、菜单、提示）用 Haze；对话框与底部面板是独立窗口，Android 12+ 用 `GlassDialog` / `GlassSheet`（`FLAG_BLUR_BEHIND` 模糊背后整屏 + 半透明容器）。人物、音乐列表、设置、账号页改为悬浮玻璃标题栏。
 - **导航**：`visibleTabs()` 决定底栏/侧栏项目（用户可选，首页固定；手机底栏最多 5 项；探索需权限）；宽屏可选侧边或底部。

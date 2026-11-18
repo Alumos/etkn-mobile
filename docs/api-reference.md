@@ -210,14 +210,16 @@
 
 **视频：**
 - 使用 `DirectStreamUrl`：相对路径拼到服务器地址上；绝对地址必须**同源**（scheme、host、port 都相同），否则拒绝。
-- ISO 例外：`Container == iso` 或 `Path` 含 `.iso` 时改用 `Path`。如果它与服务器同源，补上 `X-Emby-Token` 和 `UserId` 查询参数。
+- ISO 例外：原盘（判定见下）且 `Path` 含 `.iso` 时改用 `Path`；其余原盘（如 115 STRM）仍用 `DirectStreamUrl`。地址与服务器同源时补上 `X-Emby-Token` 和 `UserId` 查询参数。
 
 **音乐：**
 - 以上述地址为基础，再设置查询参数 `X-Emby-Token`、`UserId`、`PlaySessionId`、`MediaSourceId`。
 - 播放到这首曲目时才请求 PlaybackInfo，不要整张专辑预先请求。
 
 **蓝光原盘 ISO：**
-- 判定为原盘的条件：`Container == iso`，或 `Path` 含 `.iso`。不要只看最终 URL 的后缀：云端 STRM 原盘的 `Path` 是 STRM 指向的链接，可能没有 `.iso` 后缀。地址取 `Path`，见上一条的 ISO 规则。
+- 判定为原盘的条件（任一）：`Container == iso`；`Path` 含 `.iso`；有 `BlurayPlaylist`；任一 `MediaStreams[]` 带 `TransportStreamId`。后两项来自服务端的原盘探测，只出现在 `/api/tv` 的 PlaybackInfo 里。
+- 115 STRM 原盘：`Container` 是 `strm`，`Path` 是 `/api/p115/play/{PickCode}` 形式的 STRM 目标（主机为服务端 `service_ip`，外网未必可达），都不带 `.iso`。地址用同源的 `DirectStreamUrl`（`/api/tv/Videos/{id}/original.strm`，由服务端 302 到网盘直链）。
+- 本客户端的兜底：普通解析报 `ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED` 时，对同一地址再按原盘打开一次。
 - 客户端用 HTTP `Range` 随机读取原文件，存储端必须返回 `206` 和 `Content-Range`。
 - `MediaSources[].BlurayPlaylist`：服务端探测到的正片播放列表编号，可选；没有时由 libbluray 自己选正片。
 - 本仓库的做法：libbluray 加 libudfread 读取原盘，只做解封装的 FFmpeg 拆出流，交给 Media3 硬件解码；见 `third_party/bluray`。

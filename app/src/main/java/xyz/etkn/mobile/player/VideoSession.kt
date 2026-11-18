@@ -97,6 +97,7 @@ class VideoSession(
 
     private var item: Item? = null
     private var source: MediaSource? = null
+    private var discTried = false
     private var playSession = ""
     private var started = false
     private var stopped = true
@@ -147,6 +148,12 @@ class VideoSession(
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                // An ISO the server did not mark as one: give the disc reader one try.
+                val current = source
+                if (error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED && !discTried && current != null) {
+                    playSource(current, player.currentPosition, disc = true)
+                    return
+                }
                 _ui.update { it.copy(loading = false, error = describe(error)) }
             }
         })
@@ -208,9 +215,11 @@ class VideoSession(
         if (detail.isEpisode) loadNext(detail.id)
     }
 
-    private fun playSource(chosen: MediaSource, startMs: Long) {
+    private fun playSource(chosen: MediaSource, startMs: Long, disc: Boolean = PlaybackAddress.isDisc(chosen)) {
         val current = item ?: return
+        if (source !== chosen) discTried = false
         source = chosen
+        discTried = discTried || disc
         started = false
         stopped = false
         completedBySkip = false
@@ -233,7 +242,7 @@ class VideoSession(
             .setSubtitleConfigurations(subtitles)
             .setMediaMetadata(MediaMetadata.Builder().setTitle(_ui.value.title).setSubtitle(_ui.value.subtitle).build())
             // Full-disc ISO: libbluray opens the server's probed main playlist when it sent one.
-            .setTag(BlurayTag(PlaybackAddress.isDisc(chosen), chosen.raw.int("BlurayPlaylist", -1)))
+            .setTag(BlurayTag(disc, chosen.raw.int("BlurayPlaylist", -1)))
             .build()
         player.setMediaItem(media, startMs.coerceAtLeast(0))
         player.prepare()

@@ -3,6 +3,8 @@ package xyz.etkn.mobile.player
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import xyz.etkn.mobile.data.model.MediaSource
+import xyz.etkn.mobile.data.net.has
+import xyz.etkn.mobile.data.net.objects
 import xyz.etkn.mobile.data.net.sameOrigin
 
 /**
@@ -15,7 +17,10 @@ object PlaybackAddress {
     fun resolve(source: MediaSource, server: String, token: String, userId: String): String {
         val direct = source.directStreamUrl ?: throw IllegalStateException("服务器未提供播放地址")
         val iso = isDisc(source)
-        var address = if (iso && source.path.isNotBlank()) source.path.trim() else direct
+        // A disc whose Path names the image (local ISO / linked .iso) is read from Path like the TV
+        // client; a 115 STRM disc's Path is the STRM target, so it plays from DirectStreamUrl.
+        val fromPath = iso && source.path.lowercase().contains(".iso")
+        var address = if (fromPath) source.path.trim() else direct
         address = when {
             address.startsWith("/") -> server + address
             address.matches(Regex("(?i)^https?://.*")) -> address
@@ -34,9 +39,16 @@ object PlaybackAddress {
         return resolved.toString()
     }
 
-    /** Blu-ray image per the server's media source (the stream URL may not carry the suffix). */
+    /**
+     * Blu-ray image per the server's media source. A 115 STRM disc reports `Container: strm` and
+     * a pick-code `Path`, so the disc probe's own markers (`BlurayPlaylist`, per-track
+     * `TransportStreamId`) also count.
+     */
     fun isDisc(source: MediaSource): Boolean =
-        source.container.equals("iso", true) || source.path.lowercase().contains(".iso")
+        source.container.equals("iso", true) ||
+            source.path.lowercase().contains(".iso") ||
+            source.raw.has("BlurayPlaylist") ||
+            source.raw.objects("MediaStreams").any { it.has("TransportStreamId") }
 
     /** Music streams additionally carry token / user / session as query parameters. */
     fun music(source: MediaSource, server: String, token: String, userId: String, playSession: String): String {
