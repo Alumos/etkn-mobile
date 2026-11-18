@@ -100,7 +100,7 @@ fun GlassBackBar(title: String, collapsed: Boolean, haze: HazeState, onBack: () 
             .height(52.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BackButton(onBack, Modifier.padding(start = 2.dp), onGlass = collapsed)
+        ArtworkBackButton(onBack, Modifier.padding(start = 2.dp), onGlass = collapsed)
         if (collapsed) {
             Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 8.dp))
         }
@@ -108,7 +108,7 @@ fun GlassBackBar(title: String, collapsed: Boolean, haze: HazeState, onBack: () 
 }
 
 @Composable
-private fun BackButton(onBack: () -> Unit, modifier: Modifier = Modifier, onGlass: Boolean = false) {
+fun ArtworkBackButton(onBack: () -> Unit, modifier: Modifier = Modifier, onGlass: Boolean = false) {
     FilledTonalIconButton(
         onClick = onBack,
         modifier = modifier,

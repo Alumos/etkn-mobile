@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
+import xyz.etkn.mobile.ui.components.ArtworkBackButton
 import xyz.etkn.mobile.ui.components.GlassBackBar
 import xyz.etkn.mobile.ui.components.glassSource
 import androidx.compose.foundation.lazy.LazyListScope
@@ -116,7 +117,7 @@ fun DetailScreen(id: String) {
         Load.Loading -> LoadingState()
         is Load.Failed -> Box(Modifier.fillMaxSize()) {
             ErrorState(s.message, vm::load)
-            BackButton(nav::back, Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(8.dp))
+            ArtworkBackButton(nav::back, Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(8.dp))
         }
         is Load.Ready -> DetailContent(s.value, episodes, vm, nav)
     }
