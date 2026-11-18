@@ -20,5 +20,6 @@
 - 构建 job 不接触签名凭据，产出一次性未签名 APK；签名 job 为全新 runner，不 checkout、不运行 Gradle，仅用 `apksigner` 以固定 PKCS#12 发行密钥签名并校验证书 SHA-256。
 - 签名 Secrets：`ETKN_KEYSTORE_BASE64`、`ETKN_KEYSTORE_PASSWORD`、`ETKN_KEY_ALIAS`、`ETKN_KEY_PASSWORD`、`ETKN_SIGNER_SHA256`。私钥离线备份在仓库外私有目录 `~/.etkn-mobile-signing`（0700/0600），不得提交、公开或打印。
 - 推送 `v*` 标签会把签名后的分 ABI APK（arm64-v8a / armeabi-v7a / x86_64 / universal）发布到 GitHub Release；versionCode = (1000 + run_number) × 10 + ABI 位。
+- 蓝光 ISO 原生库 `libetkn_bluray.so` 只由 CI 用 `scripts/build_bluray_native.py`（NDK r27c、上游源码 SHA-256 校验）构建到被忽略的 `app/src/main/jniLibs/`；JNI 名称与 `third_party/bluray/bluray_jni.cpp` 保持一致，并保留 `proguard-rules.pro` 中的 keep 规则。
 - 研究用的参考仓库（CineIsle、md3e-skill 等）只放在被 `.gitignore` 忽略的 `.ref/`，不参与构建。
 - 区分“源码完成 / CI 构建通过 / 真机验证”，未经真机验证的行为不得写成已验证。

@@ -15,3 +15,10 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
+
+# Blu-ray ISO bridge (libetkn_bluray.so): JNI binds these names and signatures.
+-keep class xyz.etkn.mobile.player.bluray.BlurayNative { native <methods>; }
+-keep class xyz.etkn.mobile.player.bluray.BlurayNative$Track { <init>(...); }
+-keepclassmembers class xyz.etkn.mobile.player.bluray.BlurayInput { byte[] read(long, int); }
+# Native code calls ExtractorInput.read(byte[], int, int) on Media3's concrete input class.
+-keepclassmembers class * implements androidx.media3.extractor.ExtractorInput { int read(byte[], int, int); }

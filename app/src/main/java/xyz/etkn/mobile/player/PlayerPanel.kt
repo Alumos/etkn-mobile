@@ -10,8 +10,10 @@ import androidx.activity.ComponentDialog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -28,6 +30,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.findViewTreeViewModelStoreOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import xyz.etkn.mobile.R
+import xyz.etkn.mobile.ui.theme.Etkn
 
 /**
  * Floating panel docked to the right edge of the player, so the picture stays visible on the left.
@@ -45,7 +48,13 @@ fun PlayerSidePanel(onDismiss: () -> Unit, content: @Composable () -> Unit) {
     val parent = rememberCompositionContext()
     val currentContent by rememberUpdatedState(content)
     val currentDismiss by rememberUpdatedState(onDismiss)
-    val panelColor = MaterialTheme.colorScheme.surfaceContainer
+    // Same glass recipe as the long-press menu: the theme's glass tint over a real blur,
+    // a hairline border, and light content colour (the panel window has no Surface of its own).
+    val tokens = Etkn.tokens
+    val tint = tokens.glassTint
+    val flat = tokens.glassFlat
+    val border = tokens.glassBorder
+    val onPanel = MaterialTheme.colorScheme.onSurface
     val dialog = remember(host) {
         ComponentDialog(host.context).apply {
             requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -53,13 +62,17 @@ fun PlayerSidePanel(onDismiss: () -> Unit, content: @Composable () -> Unit) {
             setOnCancelListener { currentDismiss() }
             val view = ComposeView(context).apply {
                 setParentCompositionContext(parent)
-                setContent { Column(Modifier.fillMaxSize().padding(top = 16.dp, bottom = 8.dp)) { currentContent() } }
+                setContent {
+                    CompositionLocalProvider(LocalContentColor provides onPanel) {
+                        Column(Modifier.fillMaxSize().padding(top = 16.dp, bottom = 8.dp)) { currentContent() }
+                    }
+                }
             }
             setContentView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             window?.decorView?.setViewTreeViewModelStoreOwner(host.findViewTreeViewModelStoreOwner())
         }
     }
-    DisposableEffect(dialog, panelColor) {
+    DisposableEffect(dialog, tint, flat, border) {
         dialog.window?.let { window ->
             val metrics = host.resources.displayMetrics
             val dp = metrics.density
@@ -71,16 +84,18 @@ fun PlayerSidePanel(onDismiss: () -> Unit, content: @Composable () -> Unit) {
                 width = (host.width * 0.42f).toInt().coerceIn((320 * dp).toInt(), (440 * dp).toInt()).coerceAtMost(host.width - margin * 2)
                 height = host.height - margin * 2
                 x = margin
-                dimAmount = 0.2f
+                // Barely dimmed: the picture stays the subject, the blur separates the panel.
+                dimAmount = 0.08f
             }
             window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             window.setBackgroundDrawable(
                 GradientDrawable().apply {
                     cornerRadius = 28 * dp
-                    setColor(panelColor.copy(alpha = if (blur) 0.62f else 0.94f).toArgb())
+                    setColor((if (blur) tint else flat).toArgb())
+                    setStroke(dp.toInt().coerceAtLeast(1), border.toArgb())
                 },
             )
-            if (blur && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) window.setBackgroundBlurRadius((36 * dp).toInt())
+            if (blur && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) window.setBackgroundBlurRadius((40 * dp).toInt())
             // The player is immersive; a focused dialog window would otherwise bring the bars back.
             WindowCompat.getInsetsController(window, window.decorView).apply {
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE

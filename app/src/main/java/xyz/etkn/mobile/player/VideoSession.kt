@@ -30,6 +30,8 @@ import kotlinx.serialization.json.put
 import xyz.etkn.mobile.AppGraph
 import xyz.etkn.mobile.data.api.EtknApi
 import xyz.etkn.mobile.data.model.Item
+import xyz.etkn.mobile.player.bluray.BlurayTag
+import xyz.etkn.mobile.data.net.int
 import xyz.etkn.mobile.data.model.MediaSource
 import xyz.etkn.mobile.data.model.MediaStream
 import xyz.etkn.mobile.data.model.TICKS_PER_MS
@@ -230,6 +232,8 @@ class VideoSession(
             .setMediaId(current.id)
             .setSubtitleConfigurations(subtitles)
             .setMediaMetadata(MediaMetadata.Builder().setTitle(_ui.value.title).setSubtitle(_ui.value.subtitle).build())
+            // Full-disc ISO: libbluray opens the server's probed main playlist when it sent one.
+            .setTag(BlurayTag(chosen.raw.int("BlurayPlaylist", -1)))
             .build()
         player.setMediaItem(media, startMs.coerceAtLeast(0))
         player.prepare()

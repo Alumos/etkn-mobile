@@ -2,7 +2,7 @@
 
 本文列出 ETKN Mobile 当前**实际调用**的全部服务端接口，供移植 Windows 等其他客户端时参考。
 
-- 来源是本仓库源码（2026-11-18，v0.4.0）。契约与 ETKN TV 客户端一致，TV 仓库 `docs/etkn-mobile-api.md` 是更早的观察记录。
+- 来源是本仓库源码（2026-11-18，v0.5.0）。契约与 ETKN TV 客户端一致，TV 仓库 `docs/etkn-mobile-api.md` 是更早的观察记录。
 - 括号里的文件路径相对于 `app/src/main/java/xyz/etkn/mobile/`。
 
 ## 1. 通用约定
@@ -215,6 +215,14 @@
 **音乐：**
 - 以上述地址为基础，再设置查询参数 `X-Emby-Token`、`UserId`、`PlaySessionId`、`MediaSourceId`。
 - 播放到这首曲目时才请求 PlaybackInfo，不要整张专辑预先请求。
+
+**蓝光原盘 ISO：**
+- 地址取 `Path`（`.iso` 结尾），见上一条的 ISO 规则。
+- 客户端用 HTTP `Range` 随机读取原文件，存储端必须返回 `206` 和 `Content-Range`。
+- `MediaSources[].BlurayPlaylist`：服务端探测到的正片播放列表编号，可选；没有时由 libbluray 自己选正片。
+- 本仓库的做法：libbluray 加 libudfread 读取原盘，只做解封装的 FFmpeg 拆出流，交给 Media3 硬件解码；见 `third_party/bluray`。
+- 加密原盘和 BD-J 菜单不支持。
+- 杜比视界 profile 7（双层）只解码 HDR10 基础层。
 
 **外挂字幕：**
 - 来源是 `IsExternal == true` 的流的 `DeliveryUrl`，必须同源。

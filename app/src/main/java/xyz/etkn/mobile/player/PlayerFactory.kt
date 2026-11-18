@@ -1,5 +1,6 @@
 package xyz.etkn.mobile.player
 
+import xyz.etkn.mobile.player.bluray.BlurayMediaSourceFactory
 import android.content.Context
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -53,7 +54,7 @@ object PlayerFactory {
         return ExoPlayer.Builder(context, renderers)
             .setTrackSelector(selector)
             .setLoadControl(load)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSource(client, userAgent)))
+            .setMediaSourceFactory(videoSources(client, userAgent))
             .setSeekBackIncrementMs(10_000)
             .setSeekForwardIncrementMs(10_000)
             .setAudioAttributes(
@@ -78,6 +79,16 @@ object PlayerFactory {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
+    }
+
+    /**
+     * `.iso` sources go through libbluray (full-disc Blu-ray / UHD Blu-ray); everything else through
+     * the default extractors. Both present Dolby Vision profile 7 as its HEVC HDR10 base layer.
+     */
+    private fun videoSources(client: OkHttpClient, userAgent: String): BlurayMediaSourceFactory {
+        val data = dataSource(client, userAgent)
+        val ordinary = DefaultMediaSourceFactory(data, BlurayMediaSourceFactory.baseLayerExtractors())
+        return BlurayMediaSourceFactory(ordinary, client, userAgent, data)
     }
 
     private fun preferredLanguages(): Array<String> {
