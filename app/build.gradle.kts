@@ -77,7 +77,8 @@ android {
         abortOnError = true
         checkReleaseBuilds = false
         warningsAsErrors = false
-        disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion", "MissingTranslation")
+        // Media3 @UnstableApi is opted in module-wide via -opt-in; lint does not see compiler opt-ins.
+        disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion", "MissingTranslation", "UnsafeOptInUsageError")
     }
 
     packaging {
