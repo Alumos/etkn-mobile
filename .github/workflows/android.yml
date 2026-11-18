@@ -123,8 +123,13 @@ jobs:
             "$tools/apksigner" sign --ks "$keydir/release.p12" --ks-type PKCS12 --ks-key-alias "$KEY_ALIAS" \
               --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEY_PASSWORD --v4-signing-enabled false --out "$out" "$apk"
             result=$("$tools/apksigner" verify --print-certs "$out")
-            cert=$(printf '%s\n' "$result" | awk '/^Signer #1 certificate SHA-256 digest: / {print tolower($NF)}')
-            [[ "$cert" == "$expected" ]] || { echo "Signer mismatch for $(basename "$out")" >&2; exit 1; }
+            cert=$(printf '%s\n' "$result" | grep -iE 'certificate SHA-256 digest' | head -1 | awk '{print tolower($NF)}' | tr -d ' :\r\n')
+            if [[ "$cert" != "$expected" ]]; then
+              echo "Signer mismatch for $(basename "$out")" >&2
+              printf '%s\n' "$result" | grep -iE 'certificate (DN|SHA-256)' >&2 || printf '%s\n' "$result" | head -5 >&2
+              echo "expected prefix ${expected:0:12} (${#expected} chars), got prefix ${cert:0:12} (${#cert} chars)" >&2
+              exit 1
+            fi
           done
           (cd "$RUNNER_TEMP/signed" && sha256sum *.apk | tee SHA256SUMS.txt)
       - name: Signed APKs
