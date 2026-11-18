@@ -1,0 +1,16 @@
+.gradle/
+**/build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+*.jks
+*.keystore
+*.p12
+signing.properties
+keystore.properties
+# Reference checkouts used for research only (CineIsle, md3e-skill, …)
+.ref/

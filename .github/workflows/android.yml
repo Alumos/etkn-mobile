@@ -1,0 +1,159 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths-ignore: ["**.md", "docs/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  build:
+    name: Test, lint and build (unsigned)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      artifact: ${{ steps.unsigned.outputs.artifact-id }}
+      version_name: ${{ steps.version.outputs.name }}
+      version_code: ${{ steps.version.outputs.code }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          base=$(sed -n 's/^val baseVersionName = "\(.*\)"/\1/p' app/build.gradle.kts)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then name="${GITHUB_REF#refs/tags/v}"; else name="$base"; fi
+          [[ "$name" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Invalid version $name" >&2; exit 1; }
+          code=$(( 1000 + GITHUB_RUN_NUMBER ))
+          printf 'name=%s\ncode=%s\n' "$name" "$code" >> "$GITHUB_OUTPUT"
+      - name: Unit tests, lint, release build (no signing credentials in this job)
+        shell: bash
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: |
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          unset ETKN_KEYSTORE_FILE ETKN_KEYSTORE_PASSWORD ETKN_KEY_ALIAS ETKN_KEY_PASSWORD
+          ./gradlew --console=plain --stacktrace \
+            "-PetknVersionName=$VERSION_NAME" "-PetknVersionCode=$VERSION_CODE" \
+            :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
+          mkdir -p "$RUNNER_TEMP/unsigned"
+          find app/build/outputs/apk/release -name '*-release-unsigned.apk' -exec install -m 0644 {} "$RUNNER_TEMP/unsigned/" \;
+          ls -la "$RUNNER_TEMP/unsigned"
+      - name: Lint report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lint-report-${{ github.run_attempt }}
+          path: app/build/reports/lint-results-release.html
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Hand off unsigned APKs
+        id: unsigned
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: unsigned-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/unsigned/*.apk
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  sign:
+    name: Sign with the fixed release key
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: {}
+    outputs:
+      artifact: ${{ steps.signed.outputs.artifact-id }}
+    steps:
+      # Fresh runner: no checkout, no Gradle, no cache in the job that sees the key.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact }}
+          path: ${{ runner.temp }}/unsigned
+          merge-multiple: true
+      - name: Sign and verify
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ETKN_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ETKN_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ETKN_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ETKN_KEY_PASSWORD }}
+          SIGNER_SHA256: ${{ secrets.ETKN_SIGNER_SHA256 }}
+          VERSION_NAME: ${{ needs.build.outputs.version_name }}
+        shell: bash
+        run: |
+          : "${KEYSTORE_BASE64:?Missing ETKN_KEYSTORE_BASE64}"
+          : "${KEYSTORE_PASSWORD:?Missing ETKN_KEYSTORE_PASSWORD}"
+          : "${KEY_ALIAS:?Missing ETKN_KEY_ALIAS}"
+          : "${KEY_PASSWORD:?Missing ETKN_KEY_PASSWORD}"
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          tools="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          umask 077
+          keydir=$(mktemp -d "$RUNNER_TEMP/key.XXXXXXXX")
+          trap 'rm -f -- "$keydir/release.p12"; rmdir -- "$keydir"' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keydir/release.p12"
+          unset KEYSTORE_BASE64
+          expected=${SIGNER_SHA256//:/}; expected=${expected,,}
+          mkdir -p "$RUNNER_TEMP/signed"
+          for apk in "$RUNNER_TEMP"/unsigned/*-release-unsigned.apk; do
+            abi=$(basename "$apk" | sed -E 's/^app-(.*)-release-unsigned\.apk$/\1/')
+            out="$RUNNER_TEMP/signed/ETKN-Mobile-$VERSION_NAME-$abi.apk"
+            "$tools/zipalign" -c -P 16 4 "$apk" >/dev/null || { "$tools/zipalign" -f -P 16 4 "$apk" "$apk.aligned"; mv "$apk.aligned" "$apk"; }
+            "$tools/apksigner" sign --ks "$keydir/release.p12" --ks-type PKCS12 --ks-key-alias "$KEY_ALIAS" \
+              --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEY_PASSWORD --v4-signing-enabled false --out "$out" "$apk"
+            result=$("$tools/apksigner" verify --print-certs "$out")
+            cert=$(printf '%s\n' "$result" | awk '/^Signer #1 certificate SHA-256 digest: / {print tolower($NF)}')
+            if [[ -n "$expected" && "$cert" != "$expected" ]]; then echo "Signer mismatch for $out" >&2; exit 1; fi
+          done
+          (cd "$RUNNER_TEMP/signed" && sha256sum *.apk | tee SHA256SUMS.txt)
+      - name: Signed APKs
+        id: signed
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ETKN-Mobile-${{ needs.build.outputs.version_name }}-${{ needs.build.outputs.version_code }}
+          path: ${{ runner.temp }}/signed/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  release:
+    name: Publish GitHub Release
+    needs: [build, sign]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.sign.outputs.artifact }}
+          path: ${{ runner.temp }}/release
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          gh release create "$TAG" "$RUNNER_TEMP"/release/* --repo "$GITHUB_REPOSITORY" --title "ETKN Mobile $TAG" --generate-notes

@@ -1,0 +1,78 @@
+package xyz.etkn.mobile
+
+import android.app.Application
+import android.content.Context
+import android.os.Build
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import xyz.etkn.mobile.data.api.EtknApi
+import xyz.etkn.mobile.data.api.ImageUrls
+import xyz.etkn.mobile.data.api.ServerProbe
+import xyz.etkn.mobile.data.net.ApiClient
+import xyz.etkn.mobile.data.net.ClientIdentity
+import xyz.etkn.mobile.data.net.HttpClients
+import xyz.etkn.mobile.data.net.str
+import xyz.etkn.mobile.data.session.ActiveSession
+import xyz.etkn.mobile.data.session.SessionManager
+import xyz.etkn.mobile.data.session.SessionStore
+import xyz.etkn.mobile.data.settings.AppSettings
+import xyz.etkn.mobile.music.MusicConnection
+import java.util.UUID
+
+/** Manual dependency graph: a handful of long-lived singletons, no reflection, no DI startup cost. */
+class AppGraph(val app: Application) {
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    val identity = ClientIdentity(
+        clientName = CLIENT_NAME,
+        device = Build.MODEL ?: "Android",
+        deviceId = deviceId(app),
+        version = BuildConfig.VERSION_NAME,
+    )
+
+    val settings = AppSettings(app)
+    private val sessionStore = SessionStore(app)
+
+    val http = HttpClients(
+        currentServer = { sessions.current?.server },
+        currentToken = { sessions.current?.token },
+        userAgent = identity.userAgent,
+    )
+
+    val sessions: SessionManager = SessionManager(sessionStore, ServerProbe(http.probe, identity.userAgent), scope)
+
+    val api = EtknApi(
+        client = ApiClient(http.api, identity),
+        session = { sessions.require() },
+        onExpired = { stale -> if (sessions.current?.generation == stale.generation) sessions.expire() },
+    )
+
+    val music by lazy { MusicConnection(app, this) }
+
+    init {
+        sessions.api = api
+    }
+
+    fun images(session: ActiveSession): ImageUrls = ImageUrls(session.server, session.userId)
+
+    /** Pulls the account's shared appearance (theme colour / mode) used by the TV and Web clients. */
+    suspend fun syncServerAppearance() {
+        val prefs = runCatching { api.clientPreferences() }.getOrNull() ?: return
+        val color = prefs.str("theme_color").ifEmpty { null }
+        val mode = prefs.str("mode").ifEmpty { null }
+        settings.setServerAppearance(color, mode?.let { it == "dark" })
+    }
+
+    companion object {
+        const val CLIENT_NAME = "ETKN Mobile"
+
+        private fun deviceId(context: Context): String {
+            val prefs = context.getSharedPreferences("etkn_device", Context.MODE_PRIVATE)
+            prefs.getString("id", null)?.let { return it }
+            val created = UUID.randomUUID().toString()
+            prefs.edit().putString("id", created).apply()
+            return created
+        }
+    }
+}

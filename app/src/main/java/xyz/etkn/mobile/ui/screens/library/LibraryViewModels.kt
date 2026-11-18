@@ -1,0 +1,132 @@
+package xyz.etkn.mobile.ui.screens.library
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import xyz.etkn.mobile.AppGraph
+import xyz.etkn.mobile.data.api.EtknApi
+import xyz.etkn.mobile.data.api.LibraryQuery
+import xyz.etkn.mobile.data.api.SortKey
+import xyz.etkn.mobile.data.model.Item
+import xyz.etkn.mobile.data.model.ItemsPage
+import xyz.etkn.mobile.ui.common.Load
+import xyz.etkn.mobile.ui.common.Paged
+import xyz.etkn.mobile.ui.common.userMessage
+
+class LibrariesViewModel(graph: AppGraph) : ViewModel() {
+    private val api = graph.api
+    private val _state = MutableStateFlow<Load<List<Item>>>(Load.Loading)
+    val state: StateFlow<Load<List<Item>>> = _state.asStateFlow()
+
+    init { load() }
+
+    fun load() {
+        _state.value = Load.Loading
+        viewModelScope.launch {
+            _state.value = runCatching { api.views() }.fold({ Load.Ready(it) }, { Load.Failed(it.userMessage()) })
+        }
+    }
+}
+
+/**
+ * Generic paged grid. [fetch] receives the start index and page size; StartIndex advances by
+ * rows actually returned, stopping at TotalRecordCount or an empty page.
+ */
+abstract class PagedViewModel : ViewModel() {
+    protected val _paged = MutableStateFlow(Paged<Item>())
+    val paged: StateFlow<Paged<Item>> = _paged.asStateFlow()
+    private var job: Job? = null
+    private var generation = 0
+    protected open val pageSize = 60
+
+    protected abstract suspend fun fetch(start: Int, limit: Int): ItemsPage
+
+    fun reset() {
+        job?.cancel()
+        generation++
+        _paged.value = Paged()
+        loadMore()
+    }
+
+    fun retry() {
+        _paged.update { it.copy(error = null) }
+        loadMore()
+    }
+
+    fun loadMore() {
+        val current = _paged.value
+        if (!current.canLoadMore) return
+        val ticket = generation
+        _paged.value = current.copy(loading = true)
+        job = viewModelScope.launch {
+            try {
+                val start = current.items.size
+                val page = fetch(start, pageSize)
+                if (ticket != generation) return@launch
+                val seen = current.items.mapTo(HashSet()) { it.id }
+                val merged = current.items + page.items.filter { seen.add(it.id) }
+                _paged.value = Paged(
+                    items = merged,
+                    total = page.total,
+                    loading = false,
+                    endReached = page.items.isEmpty() || merged.size >= page.total,
+                )
+            } catch (error: Exception) {
+                if (ticket != generation) return@launch
+                _paged.update { it.copy(loading = false, error = error.userMessage()) }
+            }
+        }
+    }
+
+    fun replace(item: Item) {
+        _paged.update { p -> p.copy(items = p.items.map { if (it.id == item.id) item else it }) }
+    }
+}
+
+class LibraryViewModel(graph: AppGraph, private val libraryId: String, private val collectionType: String?) : PagedViewModel() {
+    private val api = graph.api
+    private val _query = MutableStateFlow(
+        LibraryQuery(
+            parentId = libraryId,
+            includeTypes = EtknApi.includeTypesFor(collectionType),
+            sort = if (collectionType == "boxsets") SortKey.SortName else SortKey.DateCreated,
+            descending = collectionType != "boxsets",
+        ),
+    )
+    val query: StateFlow<LibraryQuery> = _query.asStateFlow()
+
+    /** Groups and plain folders list their direct children only (no recursion, no type filter). */
+    val isFolderView = collectionType == "group" || collectionType == "folder"
+
+    init { reset() }
+
+    override suspend fun fetch(start: Int, limit: Int): ItemsPage {
+        if (isFolderView) {
+            if (start > 0) return ItemsPage(emptyList(), start)
+            val children = api.children(libraryId)
+            return ItemsPage(children, children.size)
+        }
+        return api.libraryItems(_query.value, start, limit)
+    }
+
+    fun setSort(sort: SortKey) {
+        _query.update { if (it.sort == sort) it.copy(descending = !it.descending) else it.copy(sort = sort, descending = sort != SortKey.SortName) }
+        reset()
+    }
+
+    fun toggleFavorites() {
+        _query.update { it.copy(favoritesOnly = !it.favoritesOnly) }
+        reset()
+    }
+}
+
+class FavoritesViewModel(graph: AppGraph) : PagedViewModel() {
+    private val api = graph.api
+    init { reset() }
+    override suspend fun fetch(start: Int, limit: Int): ItemsPage = api.favorites(start, limit)
+}

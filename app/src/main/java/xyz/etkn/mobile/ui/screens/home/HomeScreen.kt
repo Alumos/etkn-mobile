@@ -1,0 +1,175 @@
+package xyz.etkn.mobile.ui.screens.home
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import xyz.etkn.mobile.data.session.SessionState
+import xyz.etkn.mobile.graph
+import xyz.etkn.mobile.ui.common.Load
+import xyz.etkn.mobile.ui.common.graphViewModel
+import xyz.etkn.mobile.ui.components.Artwork
+import xyz.etkn.mobile.ui.components.ErrorState
+import xyz.etkn.mobile.ui.components.HeroCarousel
+import xyz.etkn.mobile.ui.components.LibraryCard
+import xyz.etkn.mobile.ui.components.LoadingState
+import xyz.etkn.mobile.ui.components.PosterCard
+import xyz.etkn.mobile.ui.components.SquareCard
+import xyz.etkn.mobile.ui.components.WideCard
+import xyz.etkn.mobile.ui.components.glass
+import xyz.etkn.mobile.ui.components.images
+import xyz.etkn.mobile.ui.components.shelf
+import xyz.etkn.mobile.ui.nav.FavoritesRoute
+import xyz.etkn.mobile.ui.nav.LibraryRoute
+import xyz.etkn.mobile.ui.nav.LocalBottomInset
+import xyz.etkn.mobile.ui.nav.LocalNav
+import xyz.etkn.mobile.ui.nav.TopLevel
+
+@Composable
+fun HomeScreen() {
+    val vm = graphViewModel { HomeViewModel(it) }
+    val state by vm.state.collectAsStateWithLifecycle()
+    val refreshing by vm.refreshing.collectAsStateWithLifecycle()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.onResume() }
+
+    when (val s = state) {
+        Load.Loading -> LoadingState()
+        is Load.Failed -> ErrorState(s.message, vm::refresh)
+        is Load.Ready -> PullToRefreshBox(isRefreshing = refreshing, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize()) {
+            HomeContent(s.value, vm)
+        }
+    }
+}
+
+@Composable
+private fun HomeContent(data: HomeData, vm: HomeViewModel) {
+    val nav = LocalNav.current
+    val list = rememberLazyListState()
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val heroHeight = (screenHeight * 0.64f).coerceIn(420.dp, 620.dp)
+    val collapsed by remember { derivedStateOf { list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > 200 } }
+
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(state = list, modifier = Modifier.fillMaxSize()) {
+            if (data.hero.isNotEmpty()) {
+                item(key = "hero", contentType = "hero") {
+                    HeroCarousel(
+                        items = data.hero,
+                        height = heroHeight,
+                        scrollOffsetPx = { if (list.firstVisibleItemIndex == 0) list.firstVisibleItemScrollOffset else 0 },
+                        onPlay = { nav.play(it) },
+                        onOpen = { nav.open(it) },
+                    )
+                }
+            } else {
+                item(key = "top-space") { Spacer(Modifier.windowInsetsPadding(WindowInsets.statusBars).height(64.dp)) }
+            }
+            shelf("resume", "继续观看", data.resume) { item ->
+                WideCard(item, onClick = { nav.play(item) }, onLongClick = { vm.hideFromResume(item) })
+            }
+            shelf("libraries", "媒体库", data.libraries, onMore = { nav.top(TopLevel.Libraries) }) { library ->
+                LibraryCard(library, onClick = { nav.openLibrary(library) })
+            }
+            data.latest.forEach { shelfData ->
+                val library = shelfData.library
+                shelf("latest-${library.id}", "最新 · ${library.name}", shelfData.items, onMore = {
+                    nav.to(LibraryRoute(library.id, library.name, library.collectionType))
+                }) { item -> PosterCard(item, onClick = { nav.open(item) }) }
+            }
+            data.musicLatest?.let { (library, albums) ->
+                shelf("music-${library.id}", "新专辑", albums, onMore = { nav.openLibrary(library) }) { album ->
+                    SquareCard(album, onClick = { nav.open(album) })
+                }
+            }
+            item(key = "bottom") { Spacer(Modifier.height(LocalBottomInset.current + 16.dp)) }
+        }
+        HomeTopBar(collapsed = collapsed || data.hero.isEmpty(), onSearch = { nav.top(TopLevel.Search) }, onFavorites = { nav.to(FavoritesRoute) }, onMe = { nav.top(TopLevel.Me) })
+    }
+}
+
+@Composable
+private fun HomeTopBar(collapsed: Boolean, onSearch: () -> Unit, onFavorites: () -> Unit, onMe: () -> Unit) {
+    val graph = LocalContext.current.graph
+    val session = (graph.sessions.state.collectAsStateWithLifecycle().value as? SessionState.SignedIn)?.session ?: return
+    val urls = images()
+    var menu by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(26.dp)
+    Box(
+        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth()
+                .then(if (collapsed) Modifier.glass(shape, elevation = 8.dp) else Modifier)
+                .padding(start = 16.dp, end = 4.dp).height(52.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val onImage = !collapsed
+            Text(
+                session.serverName,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = if (onImage) Color.White else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onSearch) {
+                Icon(Icons.Rounded.Search, "搜索", tint = if (onImage) Color.White else MaterialTheme.colorScheme.onSurface)
+            }
+            Box {
+                IconButton(onClick = { menu = true }) {
+                    Artwork(
+                        urls.user(tag = session.imageTag),
+                        Modifier.size(32.dp).clip(CircleShape),
+                        session.userName,
+                        placeholder = Icons.Rounded.Person,
+                    )
+                }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, shape = RoundedCornerShape(16.dp)) {
+                    DropdownMenuItem(text = { Text("我的收藏") }, onClick = { menu = false; onFavorites() })
+                    DropdownMenuItem(text = { Text("账号与设置") }, onClick = { menu = false; onMe() })
+                }
+            }
+        }
+    }
+}

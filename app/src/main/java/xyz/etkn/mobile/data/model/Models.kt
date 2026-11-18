@@ -1,0 +1,413 @@
+package xyz.etkn.mobile.data.model
+
+import androidx.compose.runtime.Immutable
+import kotlinx.serialization.json.JsonObject
+import xyz.etkn.mobile.data.net.arr
+import xyz.etkn.mobile.data.net.bool
+import xyz.etkn.mobile.data.net.double
+import xyz.etkn.mobile.data.net.has
+import xyz.etkn.mobile.data.net.int
+import xyz.etkn.mobile.data.net.intOrNull
+import xyz.etkn.mobile.data.net.long
+import xyz.etkn.mobile.data.net.longOrNull
+import xyz.etkn.mobile.data.net.obj
+import xyz.etkn.mobile.data.net.rows
+import xyz.etkn.mobile.data.net.objects
+import xyz.etkn.mobile.data.net.str
+import xyz.etkn.mobile.data.net.strList
+import xyz.etkn.mobile.data.net.strMap
+import xyz.etkn.mobile.data.net.strOrNull
+
+const val TICKS_PER_MS = 10_000L
+
+@Immutable
+data class UserData(
+    val played: Boolean = false,
+    val isFavorite: Boolean = false,
+    val playbackPositionTicks: Long = 0,
+    val playedPercentage: Double? = null,
+    val unplayedItemCount: Int? = null,
+    val playCount: Int = 0,
+) {
+    companion object {
+        fun from(o: JsonObject?): UserData = if (o == null) UserData() else UserData(
+            played = o.bool("Played"),
+            isFavorite = o.bool("IsFavorite"),
+            playbackPositionTicks = o.long("PlaybackPositionTicks"),
+            playedPercentage = o.double("PlayedPercentage"),
+            unplayedItemCount = o.intOrNull("UnplayedItemCount"),
+            playCount = o.int("PlayCount"),
+        )
+    }
+
+    fun merge(o: JsonObject): UserData = copy(
+        played = if (o.has("Played")) o.bool("Played") else played,
+        isFavorite = if (o.has("IsFavorite")) o.bool("IsFavorite") else isFavorite,
+        playbackPositionTicks = o.longOrNull("PlaybackPositionTicks") ?: playbackPositionTicks,
+        playedPercentage = o.double("PlayedPercentage") ?: playedPercentage,
+        unplayedItemCount = o.intOrNull("UnplayedItemCount") ?: unplayedItemCount,
+    )
+}
+
+@Immutable
+data class PersonRef(
+    val id: String,
+    val name: String,
+    val role: String,
+    val type: String,
+    val imageTag: String?,
+) {
+    companion object {
+        fun from(o: JsonObject) = PersonRef(
+            id = o.str("Id"),
+            name = o.str("Name"),
+            role = o.str("Role"),
+            type = o.str("Type"),
+            imageTag = o.strOrNull("PrimaryImageTag"),
+        )
+    }
+}
+
+@Immutable
+data class MediaStream(
+    val index: Int,
+    val type: String,
+    val codec: String,
+    val language: String,
+    val title: String,
+    val displayTitle: String,
+    val isDefault: Boolean,
+    val isExternal: Boolean,
+    val deliveryUrl: String?,
+    val width: Int,
+    val height: Int,
+    val channels: Int,
+    val bitRate: Long,
+    val videoRange: String,
+    val videoRangeType: String,
+    val colorTransfer: String,
+    val profile: String,
+) {
+    val label: String get() = displayTitle.ifEmpty { title.ifEmpty { language.ifEmpty { codec.uppercase() } } }
+    val previewLabel: String get() = title.ifEmpty { displayTitle.ifEmpty { language.ifEmpty { codec.uppercase() } } }
+
+    companion object {
+        fun from(o: JsonObject) = MediaStream(
+            index = o.int("Index", -1),
+            type = o.str("Type"),
+            codec = o.str("Codec"),
+            language = o.str("Language"),
+            title = o.str("Title"),
+            displayTitle = o.str("DisplayTitle"),
+            isDefault = o.bool("IsDefault"),
+            isExternal = o.bool("IsExternal"),
+            deliveryUrl = o.strOrNull("DeliveryUrl"),
+            width = o.int("Width"),
+            height = o.int("Height"),
+            channels = o.int("Channels"),
+            bitRate = o.long("BitRate"),
+            videoRange = o.str("VideoRange"),
+            videoRangeType = o.str("VideoRangeType"),
+            colorTransfer = o.str("ColorTransfer"),
+            profile = o.str("Profile"),
+        )
+    }
+}
+
+@Immutable
+data class Chapter(
+    val startTicks: Long,
+    val name: String,
+    val markerType: String,
+    val imageTag: String?,
+    val imagePath: String?,
+    val index: Int,
+) {
+    companion object {
+        fun from(o: JsonObject, position: Int) = Chapter(
+            startTicks = o.long("StartPositionTicks"),
+            name = o.str("Name"),
+            markerType = o.str("MarkerType"),
+            imageTag = o.strOrNull("ImageTag"),
+            imagePath = o.strOrNull("ImagePath"),
+            index = o.int("ChapterIndex", position),
+        )
+    }
+}
+
+@Immutable
+data class MediaSource(
+    val id: String,
+    val name: String,
+    val path: String,
+    val container: String,
+    val directStreamUrl: String?,
+    val runTimeTicks: Long,
+    val size: Long,
+    val bitrate: Long,
+    val streams: List<MediaStream>,
+    val defaultAudioIndex: Int?,
+    val defaultSubtitleIndex: Int?,
+    val chapters: List<Chapter>,
+    val raw: JsonObject,
+) {
+    val video: MediaStream? get() = streams.firstOrNull { it.type == "Video" }
+    val audio: List<MediaStream> get() = streams.filter { it.type == "Audio" }
+    val subtitles: List<MediaStream> get() = streams.filter { it.type == "Subtitle" }
+
+    /** Short slot label like the TV version button: "4K HDR" / "1080p". */
+    val slotLabel: String
+        get() = name.ifEmpty {
+            val v = video ?: return container.uppercase()
+            listOfNotNull(resolutionLabel(v.width, v.height), v.videoRangeType.takeIf { it.isNotEmpty() && it != "SDR" })
+                .joinToString(" ")
+        }
+
+    companion object {
+        fun from(o: JsonObject) = MediaSource(
+            id = o.str("Id"),
+            name = o.str("Name"),
+            path = o.str("Path"),
+            container = o.str("Container"),
+            directStreamUrl = o.strOrNull("DirectStreamUrl"),
+            runTimeTicks = o.long("RunTimeTicks"),
+            size = o.long("Size"),
+            bitrate = o.long("Bitrate"),
+            streams = o.objects("MediaStreams").map(MediaStream::from),
+            defaultAudioIndex = o.intOrNull("DefaultAudioStreamIndex"),
+            defaultSubtitleIndex = o.intOrNull("DefaultSubtitleStreamIndex"),
+            chapters = o.objects("Chapters").mapIndexed { i, c -> Chapter.from(c, i) },
+            raw = o,
+        )
+    }
+}
+
+fun resolutionLabel(width: Int, height: Int): String? = when {
+    width >= 3800 || height >= 2100 -> "4K"
+    width >= 2500 || height >= 1400 -> "2K"
+    width >= 1900 || height >= 1000 -> "1080p"
+    width >= 1260 || height >= 700 -> "720p"
+    width > 0 -> "${height}p"
+    else -> null
+}
+
+/**
+ * Unified media item (Emby-style BaseItem subset). Also used for music groups returned by
+ * `U/Music` (albums / artists / folders), which carry `Kind`, `Key` and `ArtworkHash`.
+ */
+@Immutable
+data class Item(
+    val id: String,
+    val name: String,
+    val type: String,
+    val collectionType: String?,
+    val sourceType: String?,
+    val overview: String?,
+    val taglines: List<String>,
+    val productionYear: Int?,
+    val premiereDate: String?,
+    val endDate: String?,
+    val officialRating: String?,
+    val communityRating: Double?,
+    val criticRating: Double?,
+    val tmdbRating: Double?,
+    val doubanRating: Double?,
+    val imdbRating: Double?,
+    val runTimeTicks: Long,
+    val genres: List<String>,
+    val studios: List<String>,
+    val seriesId: String?,
+    val seriesName: String?,
+    val seasonId: String?,
+    val seasonName: String?,
+    val parentIndexNumber: Int?,
+    val indexNumber: Int?,
+    val indexNumberEnd: Int?,
+    val imageTags: Map<String, String>,
+    val backdropTags: List<String>,
+    val parentBackdropItemId: String?,
+    val parentBackdropTags: List<String>,
+    val parentLogoItemId: String?,
+    val parentLogoTag: String?,
+    val parentThumbItemId: String?,
+    val parentThumbTag: String?,
+    val seriesPrimaryTag: String?,
+    val primaryAspectRatio: Double?,
+    val userData: UserData,
+    val people: List<PersonRef>,
+    val mediaSources: List<MediaSource>,
+    val childCount: Int?,
+    val recursiveItemCount: Int?,
+    val providerIds: Map<String, String>,
+    val isFolder: Boolean,
+    val locationType: String?,
+    val isMissing: Boolean,
+    val status: String?,
+    val artists: List<String>,
+    val album: String?,
+    val albumKey: String?,
+    val kind: String?,
+    val key: String?,
+    val artworkHash: String?,
+    val artistImage: JsonObject?,
+    val count: Int?,
+    val chapters: List<Chapter>,
+) {
+    val isSeries get() = type == "Series"
+    val isSeason get() = type == "Season"
+    val isEpisode get() = type == "Episode"
+    val isMovie get() = type == "Movie"
+    val isAudio get() = type == "Audio"
+    val isMusicGroup get() = !kind.isNullOrEmpty()
+    val isPlayable get() = type in PLAYABLE_TYPES
+
+    val runtimeMs: Long get() = runTimeTicks / TICKS_PER_MS
+    val positionMs: Long get() = userData.playbackPositionTicks / TICKS_PER_MS
+    val progress: Float
+        get() = when {
+            runTimeTicks > 0 && userData.playbackPositionTicks > 0 ->
+                (userData.playbackPositionTicks.toFloat() / runTimeTicks).coerceIn(0f, 1f)
+            else -> ((userData.playedPercentage ?: 0.0) / 100.0).toFloat().coerceIn(0f, 1f)
+        }
+
+    val bestRating: Double? get() = tmdbRating ?: doubanRating ?: communityRating ?: imdbRating
+
+    val episodeCode: String?
+        get() {
+            val s = parentIndexNumber ?: return null
+            val e = indexNumber ?: return null
+            return if (indexNumberEnd != null && indexNumberEnd > e) "S${s}E$e-$indexNumberEnd" else "S${s}E$e"
+        }
+
+    val artistLine: String get() = artists.joinToString(" / ")
+
+    fun withUserData(update: JsonObject): Item = copy(userData = userData.merge(update))
+
+    companion object {
+        private val PLAYABLE_TYPES = setOf("Movie", "Episode", "Video", "MusicVideo", "Audio", "Trailer")
+
+        fun from(o: JsonObject): Item = Item(
+            id = o.str("Id"),
+            name = o.str("Name").ifEmpty { o.str("title").ifEmpty { o.str("name") } },
+            type = o.str("Type"),
+            collectionType = o.strOrNull("CollectionType"),
+            sourceType = o.strOrNull("SourceType"),
+            overview = o.strOrNull("Overview"),
+            taglines = o.strList("Taglines"),
+            productionYear = o.intOrNull("ProductionYear"),
+            premiereDate = o.strOrNull("PremiereDate"),
+            endDate = o.strOrNull("EndDate"),
+            officialRating = o.strOrNull("OfficialRating"),
+            communityRating = o.double("CommunityRating"),
+            criticRating = o.double("CriticRating"),
+            tmdbRating = o.double("TMDbRating"),
+            doubanRating = o.double("DoubanRating"),
+            imdbRating = o.double("IMDbRating"),
+            runTimeTicks = o.long("RunTimeTicks"),
+            genres = o.strList("Genres"),
+            studios = o.objects("Studios").map { it.str("Name") }.filter(String::isNotEmpty),
+            seriesId = o.strOrNull("SeriesId"),
+            seriesName = o.strOrNull("SeriesName"),
+            seasonId = o.strOrNull("SeasonId"),
+            seasonName = o.strOrNull("SeasonName"),
+            parentIndexNumber = o.intOrNull("ParentIndexNumber"),
+            indexNumber = o.intOrNull("IndexNumber"),
+            indexNumberEnd = o.intOrNull("IndexNumberEnd"),
+            imageTags = o.strMap("ImageTags"),
+            backdropTags = o.strList("BackdropImageTags").ifEmpty { listOfNotNull(o.strOrNull("BackdropImageTag")) },
+            parentBackdropItemId = o.strOrNull("ParentBackdropItemId"),
+            parentBackdropTags = o.strList("ParentBackdropImageTags"),
+            parentLogoItemId = o.strOrNull("ParentLogoItemId"),
+            parentLogoTag = o.strOrNull("ParentLogoImageTag"),
+            parentThumbItemId = o.strOrNull("ParentThumbItemId"),
+            parentThumbTag = o.strOrNull("ParentThumbImageTag"),
+            seriesPrimaryTag = o.strOrNull("SeriesPrimaryImageTag"),
+            primaryAspectRatio = o.double("PrimaryImageAspectRatio"),
+            userData = UserData.from(o.obj("UserData")),
+            people = o.objects("People").map(PersonRef::from),
+            mediaSources = o.objects("MediaSources").map(MediaSource::from),
+            childCount = o.intOrNull("ChildCount"),
+            recursiveItemCount = o.intOrNull("RecursiveItemCount"),
+            providerIds = o.strMap("ProviderIds"),
+            isFolder = o.bool("IsFolder"),
+            locationType = o.strOrNull("LocationType"),
+            isMissing = o.bool("IsMissing") || o.str("LocationType") == "Virtual",
+            status = o.strOrNull("Status"),
+            artists = o.strList("Artists").ifEmpty { listOfNotNull(o.strOrNull("Artist")) },
+            album = o.strOrNull("Album"),
+            albumKey = o.strOrNull("AlbumKey"),
+            kind = o.strOrNull("Kind"),
+            key = o.strOrNull("Key"),
+            artworkHash = o.strOrNull("ArtworkHash"),
+            artistImage = o.obj("ArtistImage"),
+            count = o.intOrNull("Count"),
+            chapters = o.objects("Chapters").mapIndexed { i, c -> Chapter.from(c, i) },
+        )
+    }
+}
+
+@Immutable
+data class ItemsPage(val items: List<Item>, val total: Int, val nextCursor: String? = null)
+
+@Immutable
+data class EpisodePage(
+    val items: List<Item>,
+    val startIndex: Int,
+    val nextStartIndex: Int,
+    val total: Int,
+)
+
+@Immutable
+data class UserInfo(
+    val id: String,
+    val name: String,
+    val isAdmin: Boolean,
+    val privateAccount: Boolean,
+    val canRefreshMetadata: Boolean,
+    val canDeleteMedia: Boolean,
+    val imageTag: String?,
+) {
+    companion object {
+        fun from(o: JsonObject, topLevelPrivate: Boolean? = null) = UserInfo(
+            id = o.str("Id"),
+            name = o.str("Name"),
+            isAdmin = o.obj("Policy")?.bool("IsAdministrator") ?: false,
+            privateAccount = topLevelPrivate ?: o.bool("PrivateAccount"),
+            canRefreshMetadata = o.obj("TvPermissions")?.bool("CanRefreshMetadata") ?: false,
+            canDeleteMedia = o.obj("TvPermissions")?.bool("CanDeleteMedia") ?: false,
+            imageTag = o.strOrNull("PrimaryImageTag"),
+        )
+    }
+}
+
+@Immutable
+data class PlaybackInfo(
+    val playSessionId: String,
+    val sources: List<MediaSource>,
+)
+
+@Immutable
+data class ServerIdentity(val url: String, val name: String, val id: String)
+
+/** Root of `U/Music?Tab=recommended`. */
+@Immutable
+data class MusicHome(val latest: List<Item>, val recent: List<Item>, val frequent: List<Item>)
+
+@Immutable
+data class MusicPage(
+    val items: List<Item>,
+    val folders: List<Item>,
+    val total: Int,
+    val title: String,
+    val artistOverview: String?,
+)
+
+@Immutable
+data class Playlist(val key: String, val name: String, val count: Int)
+
+fun JsonObject.items(): List<Item> = rows().map(Item::from)
+
+fun List<JsonObject>.toItems(): List<Item> = map(Item::from)
+
+/** Helper for arrays that are not under one of the standard list keys. */
+fun JsonObject.itemList(key: String): List<Item> = (arr(key) ?: return emptyList()).mapNotNull { it as? JsonObject }.map(Item::from)
