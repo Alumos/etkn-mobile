@@ -39,7 +39,10 @@ import java.util.Locale
  * iso or an `.iso` path — the stream URL itself may lack the suffix, e.g. a cloud STRM target),
  * and the probed main [playlist] or -1 for libbluray's own pick.
  */
-data class BlurayTag(val disc: Boolean, val playlist: Int)
+data class BlurayTag(val disc: Boolean, val playlist: Int, val hints: Map<Int, DiscHint> = emptyMap())
+
+/** What the server's disc probe knows about one PID; fills gaps the demuxer leaves (size, channels). */
+data class DiscHint(val width: Int, val height: Int, val channels: Int)
 
 /**
  * Full-disc ISO playback, ported from ETKN TV. A `.iso` URI goes through libbluray: the ISO is
@@ -60,7 +63,7 @@ class BlurayMediaSourceFactory(
         val tag = config.tag as? BlurayTag
         if (tag?.disc != true && !isIso(uri)) return ordinary.createMediaSource(mediaItem)
         val playlist = tag?.playlist ?: -1
-        val session = Session(BlurayInput(http, uri, userAgent), playlist)
+        val session = Session(BlurayInput(http, uri, userAgent), playlist, tag?.hints.orEmpty())
         val data = DataSource.Factory { DiscDataSource(session, uri, upstream.createDataSource()) }
         val fallback = baseLayerExtractors()
         val extractors = object : ExtractorsFactory {
@@ -138,7 +141,7 @@ class BlurayMediaSourceFactory(
      * playback thread, which may outlive the handle: those calls go through [seekPoint] / [durationUs]
      * and never touch a closed native handle.
      */
-    private class Session(val input: BlurayInput, val playlist: Int) {
+    private class Session(val input: BlurayInput, val playlist: Int, val hints: Map<Int, DiscHint>) {
         @Volatile var handle = 0L
         @Volatile var durationUs = C.TIME_UNSET
 
@@ -260,8 +263,20 @@ class BlurayMediaSourceFactory(
                     if (first) {
                         val format = Format.Builder().setId(identity).setSampleMimeType(track.mime)
                             .setContainerMimeType(MimeTypes.VIDEO_MP2T).setLanguage(track.language.ifEmpty { null })
-                        if (track.type == C.TRACK_TYPE_VIDEO) format.setWidth(track.width).setHeight(track.height).setMaxInputSize(buffer.size)
-                        if (track.type == C.TRACK_TYPE_AUDIO) format.setChannelCount(track.channels).setSampleRate(track.sampleRate).setPcmEncoding(track.pcmEncoding)
+                        val hint = session.hints[track.pid]
+                        if (track.type == C.TRACK_TYPE_VIDEO) {
+                            // The demux-only FFmpeg reports no picture size; hardware decoders refuse
+                            // 0×0, so take it from the stream's own SPS, then from the server's probe.
+                            val header = VideoHeader.parse(track.mime, track.initialization)
+                            format.setWidth(header?.width ?: track.width.takeIf { it > 0 } ?: hint?.width ?: Format.NO_VALUE)
+                                .setHeight(header?.height ?: track.height.takeIf { it > 0 } ?: hint?.height ?: Format.NO_VALUE)
+                                .setMaxInputSize(buffer.size)
+                            header?.color?.let(format::setColorInfo)
+                        }
+                        if (track.type == C.TRACK_TYPE_AUDIO) {
+                            format.setChannelCount(track.channels.takeIf { it > 0 } ?: hint?.channels?.takeIf { it > 0 } ?: Format.NO_VALUE)
+                                .setSampleRate(track.sampleRate).setPcmEncoding(track.pcmEncoding)
+                        }
                         if (track.initialization.isNotEmpty()) {
                             val nals = if (track.mime == MimeTypes.VIDEO_H264) CodecSpecificDataUtil.splitNalUnits(track.initialization) else null
                             format.setInitializationData(nals?.toList() ?: listOf(track.initialization))

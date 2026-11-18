@@ -81,14 +81,16 @@ def main():
         build = args.work / abi
         ffbuild = build / "ffmpeg"
         ffbuild.mkdir(parents=True, exist_ok=True)
-        # Demux-only FFmpeg: MPEG-TS, the parsers it needs, and the Blu-ray LPCM decoder.
+        # Demux-only FFmpeg: MPEG-TS, the parsers it needs, the Blu-ray LPCM decoder, and the
+        # extract_extradata filter: without a video decoder it is the only way find_stream_info
+        # recovers the parameter sets (VPS/SPS/PPS) that hardware decoders need as csd.
         configure = [str(ffmpeg / "configure"), "--target-os=android", "--enable-cross-compile", f"--arch={arch}",
                      f"--cc={cc} --target={target}", f"--cxx={cxx} --target={target}",
                      *[f"--{tool}={toolbin / ('llvm-' + tool)}" for tool in ["ar", "nm", "ranlib", "strip"]],
                      "--disable-programs", "--disable-doc", "--disable-debug", "--disable-autodetect", "--disable-everything",
                      "--disable-network", "--disable-avdevice", "--disable-avfilter", "--disable-swscale", "--disable-swresample",
                      "--disable-postproc", "--disable-shared", "--enable-static", "--enable-pic", "--disable-x86asm",
-                     "--extra-cflags=-O2 -fPIC", "--enable-demuxer=mpegts", "--enable-decoder=pcm_bluray",
+                     "--extra-cflags=-O2 -fPIC", "--enable-demuxer=mpegts", "--enable-decoder=pcm_bluray", "--enable-bsf=extract_extradata",
                      "--enable-parser=h264,hevc,mpegvideo,vc1,ac3,dca,mlp,aac,aac_latm,mpegaudio"]
         config = ffbuild / "ffbuild/config.mak"
         if not config.exists():

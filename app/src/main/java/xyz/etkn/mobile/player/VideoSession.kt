@@ -35,6 +35,7 @@ import xyz.etkn.mobile.data.api.EtknApi
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.player.bluray.BlurayMediaSourceFactory
 import xyz.etkn.mobile.player.bluray.BlurayTag
+import xyz.etkn.mobile.player.bluray.DiscHint
 import xyz.etkn.mobile.data.net.int
 import xyz.etkn.mobile.data.model.MediaSource
 import xyz.etkn.mobile.data.model.MediaStream
@@ -264,7 +265,7 @@ class VideoSession(
             .setSubtitleConfigurations(subtitles)
             .setMediaMetadata(MediaMetadata.Builder().setTitle(_ui.value.title).setSubtitle(_ui.value.subtitle).build())
             // Full-disc ISO: libbluray opens the server's probed main playlist when it sent one.
-            .setTag(BlurayTag(disc, chosen.raw.int("BlurayPlaylist", -1)))
+            .setTag(BlurayTag(disc, chosen.raw.int("BlurayPlaylist", -1), discHints(chosen)))
             .build()
         Log.i(TAG, "play ${chosen.id} container=${chosen.container} disc=$disc playlist=${chosen.raw.int("BlurayPlaylist", -1)} " +
             "host=${Uri.parse(url).host} streams=" + chosen.streams.filterNot { it.isExternal }.joinToString(" ") {
@@ -413,6 +414,11 @@ class VideoSession(
         "eac3" -> mime == MimeTypes.AUDIO_E_AC3
         else -> codec.lowercase(Locale.ROOT).startsWith("dts") && mime == MimeTypes.AUDIO_DTS_HD
     }
+
+    /** Per-PID facts from the server's disc probe (size, channels) for gaps the demuxer leaves. */
+    private fun discHints(chosen: MediaSource): Map<Int, DiscHint> =
+        chosen.streams.filter { it.transportStreamId > 0 }
+            .associate { it.transportStreamId to DiscHint(it.width, it.height, it.channels) }
 
     /** Disc: start on the server's default audio (its user preferences), matched by PID. */
     private fun applyDiscAudio(tracks: Tracks) {

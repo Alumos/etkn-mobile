@@ -141,6 +141,9 @@ static bool demux(Disc *d,jobject input,int64_t position){
 JNI(tracks) jobjectArray JNICALL METHOD(tracks)(JNIEnv *env,jclass,jlong handle,jobject input,jlong position){
     Disc *d=disc(handle);d->env=env;
     if(!demux(d,input,position)){fail(env,"蓝光正片音视频解析失败");return nullptr;}
+    // A Java read error during probing leaves its exception pending (FFmpeg only sees EIO and may
+    // still report success); no further JNI call is allowed until it propagates.
+    if(env->ExceptionCheck())return nullptr;
     jclass cls=env->FindClass("xyz/etkn/mobile/player/bluray/BlurayNative$Track");
     jmethodID constructor=env->GetMethodID(cls,"<init>","(IIIIIIIILjava/lang/String;Ljava/lang/String;[B)V");
     unsigned count=0;for(unsigned i=0;i<d->format->nb_streams;i++)if(mime(d->format->streams[i]->codecpar->codec_id))count++;
