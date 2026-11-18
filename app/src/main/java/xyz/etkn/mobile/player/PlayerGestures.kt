@@ -1,0 +1,185 @@
+package xyz.etkn.mobile.player
+
+import android.app.Activity
+import android.content.Context
+import android.media.AudioManager
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Brightness6
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import xyz.etkn.mobile.ui.components.formatClock
+
+internal sealed interface GestureFeedback {
+    data class Seek(val targetMs: Long, val deltaMs: Long) : GestureFeedback
+    data class Level(val icon: ImageVector, val fraction: Float) : GestureFeedback
+    data class Text(val text: String) : GestureFeedback
+}
+
+@Composable
+internal fun GestureLayer(
+    enabled: Boolean,
+    session: VideoSession,
+    onToggle: () -> Unit,
+    onFeedback: (GestureFeedback?) -> Unit,
+) {
+    val context = LocalContext.current
+    val player = session.player
+    val audio = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    val activity = context as? Activity
+    val scope = rememberCoroutineScope()
+    Box(
+        Modifier.fillMaxSize()
+            .pointerInput(enabled) {
+                detectTapGestures(
+                    onTap = { onToggle() },
+                    onDoubleTap = { offset ->
+                        if (!enabled) return@detectTapGestures
+                        val delta = when {
+                            offset.x < size.width * 0.35f -> -10_000L
+                            offset.x > size.width * 0.65f -> 10_000L
+                            else -> 0L
+                        }
+                        if (delta == 0L) {
+                            if (player.isPlaying) player.pause() else player.play()
+                        } else {
+                            val target = (player.currentPosition + delta).coerceAtLeast(0)
+                            player.seekTo(target)
+                            onFeedback(GestureFeedback.Seek(target, delta))
+                        }
+                    },
+                    // Consumes the long press so releasing it does not count as a tap.
+                    onLongPress = { },
+                    onPress = {
+                        var boosted = false
+                        var previous = 1f
+                        val boost = scope.launch {
+                            delay(450)
+                            if (enabled && player.isPlaying) {
+                                boosted = true
+                                previous = player.playbackParameters.speed
+                                player.setPlaybackSpeed(2f)
+                                onFeedback(GestureFeedback.Text("2× 倍速"))
+                            }
+                        }
+                        tryAwaitRelease()
+                        boost.cancel()
+                        if (boosted) {
+                            player.setPlaybackSpeed(previous)
+                            onFeedback(null)
+                        }
+                    },
+                )
+            }
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                var mode = 0 // 1 seek, 2 brightness, 3 volume
+                var startPosition = 0L
+                var seekTarget = 0L
+                var level = 0f
+                var accumulated = androidx.compose.ui.geometry.Offset.Zero
+                detectDragGestures(
+                    onDragStart = { start ->
+                        mode = 0
+                        accumulated = androidx.compose.ui.geometry.Offset.Zero
+                        startPosition = player.currentPosition
+                        seekTarget = startPosition
+                        level = if (start.x < size.width / 2) {
+                            activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0 } ?: 0.5f
+                        } else {
+                            audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                        }
+                    },
+                    onDragEnd = {
+                        if (mode == 1) player.seekTo(seekTarget)
+                        onFeedback(null)
+                    },
+                    onDragCancel = { onFeedback(null) },
+                    onDrag = { change, drag ->
+                        change.consume()
+                        accumulated += drag
+                        if (mode == 0) {
+                            if (abs(accumulated.x) < 24f && abs(accumulated.y) < 24f) return@detectDragGestures
+                            mode = if (abs(accumulated.x) > abs(accumulated.y)) 1 else if (change.position.x < size.width / 2) 2 else 3
+                        }
+                        when (mode) {
+                            1 -> {
+                                val duration = player.duration.takeIf { it > 0 } ?: return@detectDragGestures
+                                val span = minOf(duration, 10 * 60_000L)
+                                val delta = (accumulated.x / size.width * span).toLong()
+                                seekTarget = (startPosition + delta).coerceIn(0, duration)
+                                onFeedback(GestureFeedback.Seek(seekTarget, seekTarget - startPosition))
+                            }
+                            2 -> {
+                                level = (level - drag.y / (size.height * 0.8f)).coerceIn(0.01f, 1f)
+                                activity?.window?.let { w ->
+                                    val attrs = w.attributes
+                                    attrs.screenBrightness = level
+                                    w.attributes = attrs
+                                }
+                                onFeedback(GestureFeedback.Level(Icons.Rounded.Brightness6, level))
+                            }
+                            3 -> {
+                                level = (level - drag.y / (size.height * 0.8f)).coerceIn(0f, 1f)
+                                val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                                audio.setStreamVolume(AudioManager.STREAM_MUSIC, (level * max).toInt(), 0)
+                                onFeedback(GestureFeedback.Level(Icons.AutoMirrored.Rounded.VolumeUp, level))
+                            }
+                        }
+                    },
+                )
+            },
+    )
+}
+
+@Composable
+internal fun GestureBadge(feedback: GestureFeedback, modifier: Modifier) {
+    Box(
+        modifier.clip(RoundedCornerShape(20.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 20.dp, vertical = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        when (feedback) {
+            is GestureFeedback.Seek -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(formatClock(feedback.targetMs), color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                val sign = if (feedback.deltaMs >= 0) "+" else "-"
+                Text("$sign${formatClock(abs(feedback.deltaMs))}", color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.labelLarge)
+            }
+            is GestureFeedback.Level -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(feedback.icon, null, tint = Color.White)
+                Spacer(Modifier.width(12.dp))
+                LinearProgressIndicator(progress = { feedback.fraction }, modifier = Modifier.width(140.dp).height(6.dp), drawStopIndicator = {})
+            }
+            is GestureFeedback.Text -> Text(feedback.text, color = Color.White, style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}

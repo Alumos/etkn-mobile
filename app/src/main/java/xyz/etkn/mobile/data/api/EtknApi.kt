@@ -119,9 +119,6 @@ class EtknApi(
 
     suspend fun clientPreferences(): JsonObject = get("/api/tv/Users/Me/ClientPreferences")
 
-    suspend fun canAccessDiscovery(): Boolean =
-        runCatching { get("/api/tv/auth/check_status").obj("user")?.bool("can_access_discovery") == true }.getOrDefault(false)
-
     // ---------- Home ----------
 
     suspend fun views(): List<Item> = get("${u()}/Views").items()

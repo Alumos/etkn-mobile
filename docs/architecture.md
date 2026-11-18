@@ -12,14 +12,14 @@ xyz.etkn.mobile
 │   ├── session    SessionManager（登录/恢复/切换/过期）、SessionStore（DataStore）、SecureBox（Keystore AES-GCM）
 │   ├── discover   影视探索模型（DiscoverItem/Season/Filter、DiscoverStore 跨页传递）、CloudResources（共享池/re0/频道资源解析，移植自 TV）
 │   ├── update     Releases（GitHub 发行解析、版本比较、ABI 选包）、UpdateManager（检查、镜像下载、SHA-256 校验、安装）
-│   └── settings   AppSettings（主题、配色来源、解码、片头片尾、倍速、自动下一集；缓存服务器主题色）
+│   └── settings   AppSettings（主题、配色来源、首页推荐、解码、片头片尾、倍速、自动下一集；缓存服务器主题色）；UiScale（页面大小，同步 SharedPreferences）
 ├── player         danmaku/（DanmakuTimeline/Layout 解析与分道、DanmakuFeed 120 s 窗口拉取、DanmakuView 位图缓存绘制）
-│                  PlayerActivity（横屏、沉浸、画中画）、VideoSession（ExoPlayer + 上报 + 下一集 + 跳过）、PlayerScreen（手势与控件）、PlayerFactory、PlaybackAddress
+│                  PlayerActivity（横屏、沉浸、画中画）、VideoSession（ExoPlayer + 上报 + 下一集 + 跳过）、PlayerScreen（画面与浮层）、PlayerControls、PlayerGestures、PlayerSheets + PlayerPanel（右侧独立窗口面板）、PlayerFactory、PlaybackAddress
 ├── music          MusicConnection（共享 ExoPlayer、ResolvingDataSource 按需解析、上报）、MusicService（MediaSession 后台播放）、Lyrics（LRC）
 └── ui
     ├── theme      MaterialExpressiveTheme + HCT 种子配色 + 8 档形状 + 语义 Tokens
     ├── components Artwork / Glass(Haze) / Cards / Sections / Hero / States
-    ├── nav        Routes（类型安全）、AppNav、MainShell（手机悬浮玻璃 ShortNavigationBar / 平板 WideNavigationRail + 迷你播放器）
+    ├── nav        Routes（类型安全）、AppNav、MainShell（外壳与迷你播放器）、NavGraph（目的地 + 转场 + PageFrame）、Dock（手机悬浮玻璃底栏，色块包住图标与文字）；平板 WideNavigationRail
     └── screens    connect · home · library · search · detail · person · music · me
 ```
 
@@ -37,7 +37,10 @@ xyz.etkn.mobile
 - **影视探索**：`auth/check_status` 的 `user.can_access_discovery` 决定是否出现「探索」（手机底栏取代「搜索」位，搜索仍在首页顶栏；平板侧栏全部显示）。浏览 `D/query/{movie|series}` 按页（≤500）无限滚动，筛选（排序/类型/年代/评分/隐藏已入库）与 TMDb 搜索走同一请求体；详情补全 `D/series`、`D/media/{kind}/credits`，可订阅影片 / 单季 / 全部缺失季（逐季提交、首错停止）；人物页读 `D/person/{id}/credits`。云资源三源并行搜索、分别显示失败，获取前必须确认（可能消耗积分），只提交不重试；获取进度跟踪（TV 的 AcquireTracker 通知）未移植。
 - **应用更新**：启动时（可关）请求 `api.github.com/repos/Alumos/etkn-mobile/releases/latest`，失败则经镜像读该发行的 `SHA256SUMS.txt`。按本机 ABI 选包，默认经 `gh-proxy.com` 加速、失败自动换 GitHub 直连（可手动换源），Android 10+ 写入 MediaStore 下载目录（8–9 申请存储权限写公共 Download），边下边算 SHA-256 并与 GitHub 摘要比对；失败/取消即删除未完成文件。安装走系统安装器（首次需允许“安装未知应用”），签名由系统校验与旧版一致。外部请求用不带任何 ETKN 凭据的独立 OkHttp 客户端。
 - **自适应布局**：`WindowLayout`（Compact <600 / Medium / Expanded ≥840 dp）。平板：侧栏（≥840 展开带标签）、首页 Hero 改为横幅并左对齐文案、海报与卡片加宽、网格列宽加大、详情头图改横幅、「我的」与设置居中限宽 720 dp、迷你播放器靠右限宽。
-- **返回手势**：清单启用 `enableOnBackInvokedCallback`；NavHost 的 pop 转场（缩小+平移+淡出）即预测性返回的预览动画，底部面板与对话框自带预测性返回。
+- **返回手势**：清单启用 `enableOnBackInvokedCallback`；NavHost 的 pop 转场即预测性返回的预览动画。每个目的地包在 `PageFrame` 里：不透明背景 + 随转场进度变化的圆角裁剪，避免透明页面缩小时与下层页面叠在一起。
+- **页面大小**：`UiScale` 在 `attachBaseContext` 用 `applyOverrideConfiguration` 只覆盖 `densityDpi`，对话框、底部面板、菜单等独立窗口同样生效；改设置后 `recreate()`。窗口尺寸一律用 `windowSizeDp()`（像素 / 当前密度），不用 `Configuration.screenWidthDp`。
+- **播放器面板**：音轨/字幕/倍速/版本/选集/弹幕都在右侧独立窗口（`ComponentDialog`）中显示；Android 12+ 由系统合成器做窗口背景模糊（可模糊 SurfaceView 视频），不支持时退化为高不透明度面板。
+- **搜索**：库内无结果且有探索权限时，并发查询 TMDb 电影与剧集（`SearchViewModel`）。
 
 ## 性能要点
 

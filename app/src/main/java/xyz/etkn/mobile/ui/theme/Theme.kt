@@ -15,6 +15,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -143,6 +144,9 @@ fun isAppDark(settings: Settings): Boolean = when (settings.themeMode) {
     ThemeMode.Dark -> true
 }
 
+/** The app settings the theme was built from, for screens that only read a preference. */
+val LocalSettings = compositionLocalOf { Settings() }
+
 @Composable
 fun EtknTheme(
     settings: Settings,
@@ -162,7 +166,10 @@ fun EtknTheme(
         }
     }
     val tokens = remember(scheme, dark) { etknTokens(scheme, dark) }
-    CompositionLocalProvider(LocalEtknTokens provides tokens) {
+    CompositionLocalProvider(
+        LocalEtknTokens provides tokens,
+        LocalSettings provides settings,
+    ) {
         MaterialExpressiveTheme(
             colorScheme = scheme,
             motionScheme = MotionScheme.expressive(),

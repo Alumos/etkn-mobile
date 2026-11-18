@@ -1,6 +1,7 @@
 package xyz.etkn.mobile.data.discover
 
 import androidx.compose.runtime.Immutable
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -185,6 +186,9 @@ class DiscoverStore {
     private val items = HashMap<String, DiscoverItem>()
     val options = HashMap<DiscoverKind, JsonObject>()
 
+    /** `can_access_discovery` of the signed-in account; false until checked. */
+    val allowed = MutableStateFlow(false)
+
     fun put(item: DiscoverItem) {
         items[key(item.kind, item.id)] = item
     }
@@ -194,6 +198,7 @@ class DiscoverStore {
     fun clear() {
         items.clear()
         options.clear()
+        allowed.value = false
     }
 
     private fun key(kind: DiscoverKind, id: String) = "${kind.wire}:$id"

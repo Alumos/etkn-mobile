@@ -2,6 +2,7 @@ package xyz.etkn.mobile.data.settings
 
 import android.content.Context
 import androidx.compose.runtime.Immutable
+import androidx.core.content.edit
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -22,6 +23,41 @@ enum class ColorSource(val label: String) { Server("服务器主题色"), Wallpa
 enum class DecoderPreference(val label: String) { Auto("自动"), Hardware("仅硬件"), Software("软件 (FFmpeg)") }
 
 enum class SkipMode(val label: String) { Button("显示按钮"), Auto("自动跳过"), Off("关闭") }
+
+/** Whole-app size: scales density (layout and text together) like the system display size. */
+enum class UiScale(val label: String, val factor: Float) {
+    Small("小", 0.9f), Default("标准", 1f), Large("大", 1.1f), Larger("特大", 1.2f);
+
+    companion object {
+        private const val FILE = "etkn_display"
+        private const val KEY = "ui_scale"
+
+        /**
+         * Read synchronously in `attachBaseContext`, before any resource is touched, so it lives
+         * in plain SharedPreferences rather than DataStore.
+         */
+        fun read(context: Context): UiScale = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+            .getString(KEY, null)?.let { name -> entries.firstOrNull { it.name == name } } ?: Default
+
+        fun write(context: Context, scale: UiScale) {
+            context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit(commit = true) { putString(KEY, scale.name) }
+        }
+
+        /**
+         * Overrides only `densityDpi`: every window of the activity (dialogs, sheets, menus)
+         * then measures with the scaled density, exactly like the system display-size setting.
+         */
+        fun applyTo(activity: android.view.ContextThemeWrapper, base: Context) {
+            val factor = read(base).factor
+            if (factor == 1f) return
+            val dpi = base.resources.configuration.densityDpi
+            activity.applyOverrideConfiguration(android.content.res.Configuration().apply { densityDpi = (dpi * factor).toInt() })
+        }
+    }
+}
+
+/** Home recommendation banner. */
+enum class HeroMode(val label: String) { Auto("自动轮播"), Manual("手动切换"), Off("隐藏") }
 
 /** Local danmaku look, same ranges as ETKN TV (font size defaults smaller for phones). */
 @Immutable
@@ -57,6 +93,7 @@ data class Settings(
     val danmaku: DanmakuStyle = DanmakuStyle(),
     val autoUpdate: Boolean = true,
     val updateSource: UpdateSource = UpdateSource.Proxy,
+    val heroMode: HeroMode = HeroMode.Auto,
 )
 
 class AppSettings(private val context: Context) {
@@ -79,6 +116,7 @@ class AppSettings(private val context: Context) {
         val dmTheme = booleanPreferencesKey("danmaku_theme_color")
         val autoUpdate = booleanPreferencesKey("auto_update")
         val updateSource = stringPreferencesKey("update_source")
+        val heroMode = stringPreferencesKey("hero_mode")
     }
 
     val flow: Flow<Settings> = context.settingsDataStore.data.map { it.toSettings() }
@@ -106,6 +144,7 @@ class AppSettings(private val context: Context) {
         },
         autoUpdate = this[Keys.autoUpdate] ?: true,
         updateSource = enumOr(this[Keys.updateSource], UpdateSource.Proxy),
+        heroMode = enumOr(this[Keys.heroMode], HeroMode.Auto),
     )
 
     suspend fun setTheme(mode: ThemeMode) = context.settingsDataStore.edit { it[Keys.theme] = mode.name }
@@ -115,6 +154,8 @@ class AppSettings(private val context: Context) {
     suspend fun setSkipMode(value: SkipMode) = context.settingsDataStore.edit { it[Keys.skip] = value.name }
     suspend fun setAutoPlayNext(value: Boolean) = context.settingsDataStore.edit { it[Keys.autoNext] = value }
     suspend fun setDefaultSpeed(value: Float) = context.settingsDataStore.edit { it[Keys.speed] = value }
+
+    suspend fun setHeroMode(value: HeroMode) = context.settingsDataStore.edit { it[Keys.heroMode] = value.name }
 
     suspend fun setAutoUpdate(value: Boolean) = context.settingsDataStore.edit { it[Keys.autoUpdate] = value }
     suspend fun setUpdateSource(value: UpdateSource) = context.settingsDataStore.edit { it[Keys.updateSource] = value.name }

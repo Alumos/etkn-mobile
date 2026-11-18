@@ -14,4 +14,10 @@
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="28">shortEdges</item>
     </style>
+
+    <!-- Player side panel window: slides in from the right edge. -->
+    <style name="Animation.Etkn.SidePanel" parent="android:Animation">
+        <item name="android:windowEnterAnimation">@anim/panel_enter</item>
+        <item name="android:windowExitAnimation">@anim/panel_exit</item>
+    </style>
 </resources>

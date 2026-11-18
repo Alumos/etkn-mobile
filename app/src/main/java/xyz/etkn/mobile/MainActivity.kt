@@ -1,6 +1,8 @@
 package xyz.etkn.mobile
 
+import android.content.Context
 import android.os.Bundle
+import xyz.etkn.mobile.data.settings.UiScale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -30,6 +32,11 @@ import xyz.etkn.mobile.ui.screens.connect.ConnectScreen
 import xyz.etkn.mobile.ui.theme.EtknTheme
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase)
+        UiScale.applyTo(this, newBase)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -39,13 +46,15 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun EtknRoot(graph: AppGraph) {
-    val settings by graph.settings.flow.collectAsStateWithLifecycle(initialValue = Settings())
+    // Wait for the stored preferences (a few ms) so page size and theme never flash a default.
+    val stored: Settings? by graph.settings.flow.collectAsStateWithLifecycle(initialValue = null)
     val state by graph.sessions.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) {
-        val stored = graph.settings.flow.first()
-        graph.updates.setSource(stored.updateSource)
-        if (stored.autoUpdate) graph.updates.autoCheck()
+        val prefs = graph.settings.flow.first()
+        graph.updates.setSource(prefs.updateSource)
+        if (prefs.autoUpdate) graph.updates.autoCheck()
     }
+    val settings = stored ?: return
     EtknTheme(settings) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             AnimatedContent(

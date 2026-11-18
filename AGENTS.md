@@ -10,6 +10,7 @@
 - 性能：单一 OkHttp 连接池（HTTP/2）、Coil 按显示尺寸分桶请求图片、列表全部带稳定 key/contentType、播放器硬解优先 + NextLib FFmpeg 兜底，音乐曲目地址在加载线程按需解析。
 
 - 应用更新只读公开的 GitHub Release（API 或 `SHA256SUMS.txt`），下载默认经 `gh-proxy.com`、可换 GitHub 直连，必须校验 SHA-256；外部请求不得携带任何 ETKN 令牌或账号信息。
+- 全部服务端接口的说明见 `docs/api-reference.md`（供其他平台移植）；新增或改动接口时同步更新。
 - 影视探索仅在 `can_access_discovery` 为真时出现；订阅与云资源获取都必须先经用户确认，不得自动重试或预取获取接口。
 
 ## 构建与容器策略

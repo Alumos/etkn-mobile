@@ -44,7 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
+import xyz.etkn.mobile.ui.common.windowSizeDp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,6 +55,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.session.SessionState
 import xyz.etkn.mobile.graph
+import xyz.etkn.mobile.data.settings.HeroMode
+import xyz.etkn.mobile.ui.theme.LocalSettings
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.common.graphViewModel
@@ -95,12 +97,13 @@ fun HomeScreen() {
 private fun HomeContent(data: HomeData, vm: HomeViewModel) {
     val nav = LocalNav.current
     val list = rememberLazyListState()
-    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val screenHeight = windowSizeDp().height
     val wide = LocalWindowLayout.current.wide
     // Tablets: a cinematic band instead of a near-full-screen poster.
     val heroHeight = if (wide) (screenHeight * 0.58f).coerceIn(380.dp, 560.dp) else (screenHeight * 0.64f).coerceIn(420.dp, 620.dp)
     val revealPx = with(LocalDensity.current) { 96.dp.toPx() }
-    val hasHero = data.hero.isNotEmpty()
+    val heroMode = LocalSettings.current.heroMode
+    val hasHero = data.hero.isNotEmpty() && heroMode != HeroMode.Off
     // 0 over the untouched hero (bar invisible, poster unobstructed) → 1 after ~96 dp of scrolling.
     val reveal by remember(hasHero) {
         derivedStateOf {
@@ -112,11 +115,12 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().glassSource(haze)) {
-            if (data.hero.isNotEmpty()) {
+            if (hasHero) {
                 item(key = "hero", contentType = "hero") {
                     HeroCarousel(
                         items = data.hero,
                         height = heroHeight,
+                        autoAdvance = heroMode == HeroMode.Auto,
                         scrollOffsetPx = { if (list.firstVisibleItemIndex == 0) list.firstVisibleItemScrollOffset else 0 },
                         onPlay = { nav.play(it) },
                         onOpen = { nav.open(it) },

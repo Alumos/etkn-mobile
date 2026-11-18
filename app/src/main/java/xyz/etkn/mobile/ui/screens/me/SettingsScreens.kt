@@ -1,5 +1,6 @@
 package xyz.etkn.mobile.ui.screens.me
 
+import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -51,6 +52,8 @@ import xyz.etkn.mobile.data.settings.DanmakuStyle
 import xyz.etkn.mobile.data.settings.DecoderPreference
 import xyz.etkn.mobile.data.settings.Settings
 import xyz.etkn.mobile.data.settings.SkipMode
+import xyz.etkn.mobile.data.settings.UiScale
+import xyz.etkn.mobile.data.settings.HeroMode
 import xyz.etkn.mobile.data.settings.ThemeMode
 import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
@@ -83,6 +86,15 @@ fun SettingsScreen(page: SettingsPage) {
                             ChoiceRow("配色", sources, settings.colorSource, { it.label }) { scope.launch { graph.settings.setColorSource(it) } }
                         }
                         SwitchRow("纯黑深色", settings.amoled) { scope.launch { graph.settings.setAmoled(it) } }
+                        val context = LocalContext.current
+                        val scale = remember { UiScale.read(context) }
+                        ChoiceRow("页面大小", UiScale.entries, scale, { it.label }) {
+                            if (it != scale) {
+                                UiScale.write(context, it)
+                                (context as? Activity)?.recreate()
+                            }
+                        }
+                        ChoiceRow("首页推荐", HeroMode.entries, settings.heroMode, { it.label }) { scope.launch { graph.settings.setHeroMode(it) } }
                     }
                     SettingsPage.Playback -> {
                         ChoiceRow("解码", DecoderPreference.entries, settings.decoder, { it.label }) { scope.launch { graph.settings.setDecoder(it) } }

@@ -1,0 +1,345 @@
+# ETKN 客户端接口说明（移植参考）
+
+本文列出 ETKN Mobile 当前**实际调用**的全部服务端接口，供移植 Windows 等其他客户端时参考。
+
+- 来源是本仓库源码（2026-11-18，v0.3.0）。契约与 ETKN TV 客户端一致，TV 仓库 `docs/etkn-mobile-api.md` 是更早的观察记录。
+- 括号里的文件路径相对于 `app/src/main/java/xyz/etkn/mobile/`。
+
+## 1. 通用约定
+
+### 1.1 地址与路由
+- 业务接口一律使用 `/api/tv/...` 专用路由，**不要**回退到通用 Emby/Jellyfin 路由（如 `/Items`、`/Videos/{id}/stream`）。
+- 不要用 ID 拼接播放地址：视频、音乐、字幕地址都由服务端在 PlaybackInfo 里给出。
+- 例外只有三处：
+  - 连接识别用的 `/api/health`、`/api/system/tv-discovery`；
+  - 音乐封面代理 `/api/image_proxy`；
+  - 影视探索的 `/api/tv/discover/*`（仍在 `/api/tv` 下）。
+- 服务器地址规范化（`data/api/ServerProbe.kt`）：
+  - 没有 scheme 时补 `http://`；
+  - 拒绝带 userinfo、query、fragment 的地址；
+  - 去掉末尾的 `/`。
+
+### 1.2 请求头（`data/net/ApiClient.kt`）
+| 头 | 值 |
+|---|---|
+| `Accept` | `application/json` |
+| `User-Agent` | `{ClientName}/{Version} (Android)`，Windows 可改为 `(Windows)` |
+| `X-Emby-Authorization` | `MediaBrowser Client="ETKN Mobile", Device="<设备名>", DeviceId="<稳定设备 ID>", Version="<版本>"` |
+| `X-Emby-Token` | 登录令牌（未登录时不发） |
+| `Cookie` | `etkn_session=<令牌>`（与 TV 客户端一致，和上一行同时发送） |
+
+- 请求体都是 `application/json; charset=utf-8`。没有请求体的 POST/PUT 发 `{}`。
+- Windows 端应换成自己的客户端名（例如 `ETKN Windows`）。如果服务端按客户端名做限制，需要与服务端确认。
+
+### 1.3 响应处理
+- **不要跟随重定向**：3xx 视为“地址错误，请使用最终地址登录”。
+- 空响应体当作 `{}`；顶层是数组时包成 `{"Items": [...]}`。
+- 列表字段的兼容读取顺序：`Items` → `results` → `resources` → `items` → `data`。如果该键的值是对象，就在对象里继续按同样顺序找（`data/net/Json.kt` 的 `rows()`）。
+- 响应体大于 8 MB 视为异常。
+- 状态码处理：
+
+  | 状态 | 处理 |
+  |---|---|
+  | `401` | 令牌失效：清除该账号的会话，回到登录页 |
+  | `404`（路径以 `/api/tv/` 开头） | 服务端版本过旧，提示“请先更新 ETKN 服务端” |
+  | 其他 `≥400` | 读取 `detail` 字段作为错误文案 |
+
+- 字段读取要宽松：缺失、类型不符时一律回退到默认值，与 TV 的 `optString` 行为相同。
+- 时间单位是 **ticks**，1 ms = 10 000 ticks。
+
+### 1.4 URL 编码
+- 查询参数值使用表单式编码（Java `URLEncoder`，UTF-8，空格编码为 `+`）。
+- 值为 null 的参数直接省略。
+
+## 2. 连接与识别（不带令牌，`data/api/ServerProbe.kt`）
+
+按顺序执行：
+
+| # | 方法与路径 | 判定 |
+|---|---|---|
+| 1 | `GET {addr}/api/health` | `status == "ok"` |
+| 2 | `GET {addr}/api/tv/System/Info/Public` | `ProductName == "ETKN"` 且 `TvApiVersion == 1`；记下 `Id`（实例 ID）和 `ServerName` |
+| 3 | `GET {addr}/api/system/tv-discovery` | 可选。`ProductName` 必须是 `"ETKN"`。读取 `MediaServerAddress`、`ApiPort`（默认 5257）、`MediaServerPort` |
+
+第 3 步之后的候选媒体地址规则：
+
+- `MediaServerAddress` 与输入地址同主机：直接用它作为候选。
+- 否则：只有输入端口等于 `ApiPort` 时，才用 `MediaServerPort` 换掉端口，作为候选。
+- 有候选时，对候选重新执行第 1、2 步，并且它返回的 `Id` 必须与原地址的 `Id` 一致，否则拒绝。
+- 用户输入的就是媒体地址时，不需要切换。
+
+## 3. 账号（`data/api/EtknApi.kt` → Account；`data/session/SessionManager.kt`）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/tv/Users/AuthenticateByName` | 请求体 `{"Username","Pw"}`，不带令牌。返回 `AccessToken`、`User`（用户对象）、`PrivateAccount`（顶层布尔） |
+| GET | `/api/tv/Users/Me` | 校验令牌，返回用户对象 |
+| GET | `/api/tv/Users/Me/AccountPreferences` | 读取 `remember_admin_account` |
+| POST | `/api/tv/Sessions/Logout` | 退出（失败时忽略） |
+| GET | `/api/tv/Users/Me/ClientPreferences` | 服务端外观：`theme_color`（种子色）、`mode`（深/浅色） |
+| GET | `/api/tv/auth/check_status` | 读取 `user.can_access_discovery`，决定是否显示影视探索 |
+
+**用户对象字段：**
+- `Id`、`Name`
+- `Policy.IsAdministrator`
+- `PrivateAccount`
+- `TvPermissions.CanRefreshMetadata`、`TvPermissions.CanDeleteMedia`
+
+**令牌保存规则（必须遵守）：**
+- 私密账号：令牌只放内存。
+- 管理员：只有在 `remember_admin_account` 为真时才持久化。
+- 其他账号：加密后持久化。Android 用 Keystore AES-GCM，Windows 建议用 DPAPI 或 Credential Manager。
+- 不要把令牌、密码或带令牌的 URL 写进日志。
+
+## 4. 首页与媒体库
+
+下文 `U` = `/api/tv/Users/{userId}`。
+
+**列表字段常量 `LIST_FIELDS`**：
+`PrimaryImageAspectRatio,Overview,CommunityRating,TMDbRating,DoubanRating,IMDbRating,CriticRating,ProductionYear,RecursiveItemCount,UserData`
+
+| 方法 | 路径与参数 | 用途 |
+|---|---|---|
+| GET | `U/Views` | 媒体库列表（带 `CollectionType`） |
+| GET | `U/Items/Resume?Limit=24&Fields=Overview` | 继续观看 |
+| GET | `U/Items/Latest?ParentId=&IncludeItemTypes=&Limit=24` | 各库最新入库 |
+| GET | `U/Items/PersonalRecommendations?Stream=true&Limit=1&Fields=Overview&ShuffleSeed=&Cursor=` | 首页轮播推荐。逐条拉取，返回 `Items` 和 `NextCursor`（字符串，用于下一页） |
+| GET | `U/Items?Recursive=true&ParentId=&IncludeItemTypes=&Limit=&StartIndex=&SortBy=&SortOrder=&Fields=LIST_FIELDS[&Filters=IsFavorite][&Genres=]` | 库内海报墙，返回 `Items` 和 `TotalRecordCount` |
+| GET | `U/Items?ParentId=` | 文件夹子项 |
+| GET | `U/Browse?Limit=&StartIndex=&SortBy=DateCreated&SortOrder=Descending&Filters=IsFavorite` | 收藏 |
+| GET | `U/Items?Recursive=true&IncludeItemTypes=Movie,Series&SearchTerm=&SortBy=SortName&Limit=&StartIndex=&Fields=…` | 库内搜索 |
+| GET | `U/Libraries/{libraryId}/Collections?Limit=200` | 库内合集 |
+| GET | `U/Items/{id}/Collections?Limit=60` | 条目所属合集 |
+| POST | `U/Items/{id}/HideFromResume` | 从继续观看中移除 |
+
+**`SortBy` 可选值**：
+- `DateCreated`、`PremiereDate`、`SortName`、`ProductionYear`、`DatePlayed`、`Random`；
+- 评分类：`TMDbRating`、`DoubanRating`、`IMDbRating`、`CriticRating`。
+- `Random` 时固定发 `SortOrder=Ascending`。
+
+**`IncludeItemTypes` 按库类型映射**：
+
+| `CollectionType` | `IncludeItemTypes` |
+|---|---|
+| `movies` | `Movie` |
+| `tvshows` | `Series` |
+| `homevideos` | `Video` |
+| `boxsets` | `BoxSet` |
+| `musicvideos` | `MusicVideo` |
+| 其他 | `Movie,Series,Video` |
+
+## 5. 详情、剧集与用户数据
+
+| 方法 | 路径与参数 | 用途 |
+|---|---|---|
+| GET | `U/Items/{id}[?Fields=MediaSources,MediaStreams,Overview]` | 条目详情 |
+| GET | `/api/tv/Items/{id}/Similar?UserId=&Limit=20` | 相似推荐 |
+| GET | `/api/tv/Persons/{id}?UserId=` | 演职人员 |
+| GET | `/api/tv/Persons/{id}/Items?UserId=&IncludeItemTypes=Movie,Series&StartIndex=&Limit=40` | 人物作品 |
+| GET | `/api/tv/Shows/{seriesId}/Seasons?UserId=` | 季列表 |
+| GET | `/api/tv/Shows/{seriesId}/PlaybackTarget?UserId=&Fields=MediaSources,MediaStreams,Overview[&SeasonId=]` | 剧集“继续/开始播放”的目标集，取 `Items[0]` |
+| GET | `/api/tv/Shows/{seriesId}/EpisodePage?UserId=&Limit=&SeasonId=&AnchorId=&StartIndex=` | 分页剧集。返回 `Items`、`StartIndex`、`NextStartIndex`、`TotalRecordCount`；`AnchorId` 用于定位到某一集所在的页 |
+| GET | `/api/tv/Items/{id}/NextEpisode?UserId=` | 下一集，取 `Items[0]` |
+| POST / DELETE | `U/FavoriteItems/{id}` | 收藏 / 取消收藏 |
+| POST / DELETE | `U/PlayedItems/{id}` | 标记已看 / 未看 |
+
+**条目对象主要字段**（`data/model/Models.kt` → `Item.from`）：
+- 基本信息：`Id`、`Name`、`Type`、`CollectionType`、`Overview`、`Taglines`、`ProductionYear`、`PremiereDate`、`EndDate`、`OfficialRating`
+- 评分：`CommunityRating`、`CriticRating`、`TMDbRating`、`DoubanRating`、`IMDbRating`
+- 时长与分类：`RunTimeTicks`、`Genres`、`Studios[].Name`
+- 剧集层级：`SeriesId`、`SeriesName`、`SeasonId`、`SeasonName`、`ParentIndexNumber`、`IndexNumber`、`IndexNumberEnd`
+- 图片：`ImageTags{Primary,Thumb,Logo}`、`BackdropImageTags`、`ParentBackdropItemId` / `ParentBackdropImageTags`、`ParentLogoItemId` / `ParentLogoImageTag`、`ParentThumbItemId` / `ParentThumbImageTag`、`SeriesPrimaryImageTag`
+- 用户数据：`UserData{Played,IsFavorite,PlaybackPositionTicks,PlayCount}`
+- 关联：`People[]{Id,Name,Role,Type,PrimaryImageTag}`、`MediaSources[]`、`ProviderIds`
+- 状态：`ChildCount`、`RecursiveItemCount`、`IsFolder`、`LocationType`（`Virtual` 表示缺集）、`Status`
+
+## 6. 播放
+
+### 6.1 获取播放信息
+`POST /api/tv/Items/{id}/PlaybackInfo?UserId=`，请求体 `{}`。音乐请求不带 `UserId`。
+
+**返回：**
+- `PlaySessionId`
+- `MediaSources[]`
+- `Danmaku.Available`（可选，见第 7 节）
+
+**`MediaSources[]` 字段：**
+- 基本：`Id`、`Name`、`Path`、`Container`、`DirectStreamUrl`、`RunTimeTicks`、`Size`、`Bitrate`
+- 默认轨：`DefaultAudioStreamIndex`、`DefaultSubtitleStreamIndex`
+- `MediaStreams[]`：`Index`、`Type`、`Codec`、`Language`、`Title`、`DisplayTitle`、`IsDefault`、`IsExternal`、`DeliveryUrl`、`Width`、`Height`、`Channels`、`BitRate`、`VideoRange`、`VideoRangeType`、`ColorTransfer`、`Profile`
+- `Chapters[]`：`StartPositionTicks`、`Name`、`MarkerType`、`ChapterIndex`、`ImageTag`、`ImagePath`
+
+多版本：每个 `MediaSource` 是一个版本，客户端在其中切换（`Name` 为空时用分辨率和 HDR 生成标签）。
+
+片头片尾：章节的 `MarkerType` 标出片头 / 片尾区间，客户端据此显示“跳过”按钮或自动跳过（`player/VideoSession.kt` 的 `segmentAt`）。
+
+### 6.2 播放地址规则（`player/PlaybackAddress.kt`）
+
+**视频：**
+- 使用 `DirectStreamUrl`：相对路径拼到服务器地址上；绝对地址必须**同源**（scheme、host、port 都相同），否则拒绝。
+- ISO 例外：`Container == iso` 或 `Path` 含 `.iso` 时改用 `Path`。如果它与服务器同源，补上 `X-Emby-Token` 和 `UserId` 查询参数。
+
+**音乐：**
+- 以上述地址为基础，再设置查询参数 `X-Emby-Token`、`UserId`、`PlaySessionId`、`MediaSourceId`。
+- 播放到这首曲目时才请求 PlaybackInfo，不要整张专辑预先请求。
+
+**外挂字幕：**
+- 来源是 `IsExternal == true` 的流的 `DeliveryUrl`，必须同源。
+- 去掉 `UserId` 参数，设置 `X-Emby-Token` 查询参数。
+
+### 6.3 播放上报（视频与音乐共用）
+
+| 时机 | 请求 |
+|---|---|
+| 开始 | `POST /api/tv/Sessions/Playing` |
+| 播放中，每 10 秒 | `POST /api/tv/Sessions/Playing/Progress` |
+| 结束 | `POST /api/tv/Sessions/Playing/Stopped` |
+
+**视频请求体：**
+```json
+{
+  "ItemId": "", "UserId": "", "MediaSourceId": "", "PlaySessionId": "",
+  "PositionTicks": 0, "RunTimeTicks": 0, "IsPaused": false, "CanSeek": true,
+  "PlayMethod": "DirectStream", "Client": "ETKN Mobile", "TranscodeSessionId": "",
+  "PlayedToCompletion": true,
+  "DanmakuActive": true
+}
+```
+- `PlayedToCompletion` 只在 Stopped、并且播完或跳过片尾时发送。
+- `DanmakuActive` 只在非 Stopped、并且弹幕可用且已开启时发送。
+
+**音乐请求体：** `ItemId`、`UserId`、`MediaSourceId`、`PlaySessionId`、`PositionTicks`、`IsPaused`、`PlayedToCompletion`。
+
+**要点：**
+- Stopped 上报要在应用级任务里发出，不能因为关闭播放窗口而丢失。
+- 上报的回复里可能带 `Danmaku.Available`，用来实时更新弹幕是否可用。
+
+## 7. 弹幕
+
+| 方法 | 路径与参数 | 说明 |
+|---|---|---|
+| GET | `/api/tv/System/Danmaku` | 服务端弹幕总开关：`Available`（客户端只读） |
+| GET | `/api/tv/Items/{id}/Danmaku?local=true&session={PlaySessionId}&start={ms}` | 从 `start` 开始一个 120 秒窗口的弹幕。返回 `enabled`、`status`、`comments[]`（解析见 `player/danmaku/Danmaku.kt`） |
+
+拉取节奏：
+- 提前 40 秒预取下一个窗口。
+- 失败后按 15 秒、1 秒重试。
+- 跳转进度后重新从当前位置拉取。
+
+## 8. 音乐
+
+下文 `M` = `U/Music`。
+
+| 方法 | 路径与参数 | 说明 |
+|---|---|---|
+| GET | `M?ParentId=&Key=&Tab=recommended&SortBy=Name&SortOrder=Ascending&FrequentLimit=12` | 音乐首页，返回 `Latest`、`Recent`、`Frequent` |
+| GET | `M?ParentId=&Tab=&Key=&SortBy=&SortOrder=[&Tracks=1]&StartIndex=&Limit=60` | 分类列表。`Tab` 取 `albums`、`artists`、`songs`、`playlists` 等；`Key` 指定进入某个专辑、歌手或文件夹。返回 `Items`、`Folders`、`TotalRecordCount`、`Title`、`Artist.Overview` |
+| GET | `M?ParentId=&Tab=playlists&Key=&SortBy=Name&SortOrder=Ascending` | 歌单，返回 `Playlists[]{Key,Name,Count}` |
+| POST | `M/Playlists` | 新建歌单，请求体 `{"Name"}`（最多 80 字），返回 `Key` |
+| DELETE | `M/Playlists/{key}` | 删除歌单 |
+| POST / DELETE | `M/Playlists/{key}/Items/{itemId}` | 加入 / 移出歌单 |
+| GET，必要时 POST | `/api/tv/Music/{id}/Lyrics?MediaSourceId=` | 歌词，返回 `text`。GET 得到空文本时，才 POST 同一路径触发在线查找 |
+
+不带 `Key` 浏览 `albums`、`artists`、`songs` 时，用 `SortBy=DateCreated&SortOrder=Descending`；其余情况用 `Name` 升序。
+
+## 9. 影视探索（TMDb；需要 `can_access_discovery`）
+
+下文 `D` = `/api/tv/discover`。
+
+`kind` 的取值：
+
+| | 路径片段 | `media_type` |
+|---|---|---|
+| 电影 | `movie` | `movie` |
+| 剧集 | `series` | `tv` |
+
+| 方法 | 路径与参数 | 说明 |
+|---|---|---|
+| GET | `D/options?media_type={movie\|series}` | 筛选项，`genres[]` |
+| POST | `D/query/{movie\|series}` | 海报墙或片名搜索（请求体见下）。返回 `results[]`、`total_pages`（最多 500） |
+| GET | `D/series/{tmdbId}` | 剧集详情，含 `seasons[]{season_number,name,air_date,episode_count,poster_path,in_library,subscription_status}` |
+| GET | `D/media/{movie\|series}/{tmdbId}/credits` | 演职员，含 `cast[]{id,name,character,profile_path}` |
+| GET | `D/person/{personId}/credits` | 人物与作品：`person{name,biography,profile_path}`、`works[]` |
+| POST | `D/subscribe` | 订阅电影或单季（请求体见下）。返回 `demand_id` |
+| GET | `D/shared-resources?tmdb_id=&item_type={movie\|tv\|season}&q={片名}&limit=100` | 共享池资源。可能带 `versions[]`，客户端按版本分组 |
+| GET | `D/re0-resources?tmdb_id=&media_type=&require_complete=false[&season=]` | re0 资源 |
+| GET | `D/channel-resources?tmdb_id=&media_type=&q=&year=[&season_number=]` | 频道资源 |
+| POST | `D/shared-resources/acquire{W}` | 请求体 `{"source": <共享池行>}` |
+| POST | `D/channel-resources/acquire{W}` | 请求体 `{"resource": <频道行>}` |
+| POST | `D/re0-resources/acquire{W}` | 请求体 `{"slug","title","tmdb_id","media_type"[, "season_number"]}` |
+
+- `{W}` = `?TmdbId=&MediaType={movie|series}[&SeasonNumber=]`。
+- 三个 acquire 接口都返回 `workflow_run_id`。
+
+**`query` 请求体：**
+```json
+{
+  "page": 1, "query": "片名或空", "sort_by": "popularity.desc", "hide_in_library": false,
+  "with_genres": "16,35", "release_date_gte": "2020-01-01", "release_date_lte": "2029-12-31",
+  "vote_average_gte": 7.0, "keywords": [], "studios": []
+}
+```
+- `sort_by` 可选：`popularity.desc|asc`、`vote_average.desc`。
+- 按日期排序时，电影用 `primary_release_date.desc|asc`，剧集用 `first_air_date.desc|asc`。
+- 没有用到的筛选项不发。
+
+**`subscribe` 请求体：**
+```json
+{
+  "tmdb_id": "", "name": "片名[ 第 N 季]", "entity_type": "movie|season",
+  "poster_path": "", "release_date": "", "first_air_date": "", "priority": 50,
+  "season_number": 1
+}
+```
+- `season_number` 只在订阅单季时发送。
+- “订阅缺失季”是对每个可订阅的季逐一调用，遇到错误就停下，已成功的保留。
+
+**探索条目字段：**
+- `id`、`title` / `name`、`media_type`
+- `poster_path`、`backdrop_path`（拼成 `https://image.tmdb.org/t/p/{w342|w780|original}{path}`）
+- `overview`、`tagline`、`vote_average`、`release_date` / `first_air_date`
+- `in_library`、`media_item_id`（已入库时对应的媒体库 ID，可直接打开播放）、`subscription_status`
+
+**规则：**
+- 订阅和获取资源前都必须让用户确认，获取可能消耗服务端积分。
+- 不要自动重试，也不要预取 acquire 接口。
+- 三个资源来源要并发搜索，并分别显示各自的结果或失败原因。
+
+## 10. 图片（`data/api/ImageUrls.kt`）
+
+| 用途 | URL |
+|---|---|
+| 条目图片 | `{server}/api/tv/Items/{id}/Images/{Primary\|Thumb\|Backdrop\|Logo}?maxWidth={桶}&quality=90&tag={tag}` |
+| 用户头像 | `{server}/api/tv/Users/{userId}/Images/Primary?maxWidth=160&tag=` |
+| 章节缩略图 | `{server}/api/tv/Items/{id}/Images/Chapter/{index}?maxWidth=&quality=85&tag=`；如果 `ImagePath` 以 `/api/` 开头，就直接用它 |
+| 音乐封面 | 有 `ArtworkHash` 时：`{server}/api/image_proxy?cache={hash}&maxWidth=`（歌手再加 `&variantGroup=avatar`） |
+
+**宽度桶**：160、240、320、480、640、800、1080、1280、1600、1920，取第一个不小于实际像素宽度的值。这样不同页面能共用同一张缓存图。
+
+**回退顺序：**
+- 剧集单集：剧集主图 → 本身主图 → 季主图。
+- 横图：本身 Thumb → 单集主图 → 父级 Thumb → 背景图 → 主图。
+
+**图片鉴权：**
+- 只对与当前 ETKN 服务器同源的图片请求附加 `X-Emby-Token` 头。
+- 跳转到其他源时必须是 HTTPS。
+
+## 11. 应用更新（与 ETKN 服务端无关）
+
+- `GET https://api.github.com/repos/Alumos/etkn-mobile/releases/latest`：读取 `tag_name`、`body`、`assets[]{name,browser_download_url,size,digest}`，其中 `digest` 形如 `sha256:<hex>`。
+- 上面失败时，读取 `https://github.com/Alumos/etkn-mobile/releases/latest/download/SHA256SUMS.txt`。
+- 下载默认加前缀 `https://gh-proxy.com/`，失败时改用 GitHub 直连。下载后必须校验 SHA-256。
+- 这类外部请求**不得**携带 ETKN 令牌或账号信息。
+- Windows 端如果另开仓库，按同样的方式替换仓库名和资产命名规则（`Releases.kt`）。
+
+## 12. Windows 移植要点
+
+- 同一个 ETKN 实例只需要一个 HTTP/2 连接池，所有 `/api/tv` 请求共用。
+- 每个 API 调用都绑定发起时的会话。切换账号后，要丢弃旧会话的返回结果（`ActiveSession.generation`）。
+- 播放器需要支持：
+  - 直链播放；
+  - 外挂字幕（SRT、ASS/SSA、VTT 等）；
+  - 多音轨；
+  - 能读取章节 `MarkerType` 来跳过片头片尾；
+  - 弹幕叠加（可参考 `DanmakuLayout` 的轨道分配算法）。
+- 首页轮播是“流式”的：先显示第一条，后续条目边到边追加（`HomeViewModel.loadHero`）。

@@ -43,7 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -67,18 +67,19 @@ fun HeroCarousel(
     onPlay: (Item) -> Unit,
     onOpen: (Item) -> Unit,
     modifier: Modifier = Modifier,
+    autoAdvance: Boolean = true,
 ) {
     if (items.isEmpty()) return
     val pager = rememberPagerState { items.size }
     val dragged by pager.interactionSource.collectIsDraggedAsState()
-    LaunchedEffect(items.size, dragged) {
-        if (dragged || items.size < 2) return@LaunchedEffect
+    LaunchedEffect(items.size, dragged, autoAdvance) {
+        if (!autoAdvance || dragged || items.size < 2) return@LaunchedEffect
         while (true) {
             delay(7_000)
             pager.animateScrollToPage((pager.currentPage + 1) % items.size)
         }
     }
-    val widthPx = LocalConfiguration.current.screenWidthDp.dp.px()
+    val widthPx = LocalWindowInfo.current.containerSize.width
     Box(modifier.fillMaxWidth().height(height).clipToBounds()) {
         HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), key = { items[it].id }) { page ->
             HeroPage(items[page], widthPx, scrollOffsetPx, onPlay, onOpen)

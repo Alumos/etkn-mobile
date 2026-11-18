@@ -3,7 +3,9 @@ package xyz.etkn.mobile.player
 import android.app.PictureInPictureParams
 import android.content.res.Configuration
 import android.os.Build
+import android.content.Context
 import android.os.Bundle
+import xyz.etkn.mobile.data.settings.UiScale
 import android.util.Rational
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -25,6 +27,11 @@ import xyz.etkn.mobile.ui.theme.EtknTheme
 import androidx.compose.runtime.CompositionLocalProvider
 
 class PlayerActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase)
+        UiScale.applyTo(this, newBase)
+    }
+
     private var session: VideoSession? = null
     private var inPip by mutableStateOf(false)
     private var wasPlaying = false
