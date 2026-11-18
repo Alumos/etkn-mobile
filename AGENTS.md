@@ -22,5 +22,5 @@
 - 推送 `v*` 标签会把签名后的分 ABI APK（arm64-v8a / armeabi-v7a / x86_64 / universal）发布到 GitHub Release；versionCode = (1000 + run_number) × 10 + ABI 位。
 - 蓝光 ISO 原生库 `libetkn_bluray.so` 只由 CI 用 `scripts/build_bluray_native.py`（NDK r27c、上游源码 SHA-256 校验）构建到被忽略的 `app/src/main/jniLibs/`；JNI 名称与 `third_party/bluray/bluray_jni.cpp` 保持一致，并保留 `proguard-rules.pro` 中的 keep 规则。
 - 研究用的参考仓库（CineIsle、md3e-skill 等）只放在被 `.gitignore` 忽略的 `.ref/`，不参与构建。
-- 诊断日志（`data/diagnostics/Diagnostics.kt`）：仅本应用 UID 的 logcat 镜像到私有目录的轮转文件，只在用户点「我的 → 导出日志」时写出；导出前去掉 URL 查询串与令牌类键值。自己写的日志只记主机、状态码、格式与 PID，不记完整播放地址、令牌或账号信息。
+- 诊断日志（`data/diagnostics/Diagnostics.kt`）：只记录本应用 UID 的错误级日志（含崩溃堆栈）和 `ETKN*` 标签的关键行（来源、轨道、解码器、格式），带年份时间戳，256 KB × 8 轮转，启动时删除 7 天前的文件；「我的 → 导出日志」按日期与小时段导出，导出前去掉 URL 查询串与令牌类键值。自己写的日志只记主机、状态码、格式与 PID，不记完整播放地址、令牌或账号信息；不要再挂 Media3 `EventLogger` 这类逐事件日志。
 - 区分“源码完成 / CI 构建通过 / 真机验证”，未经真机验证的行为不得写成已验证。

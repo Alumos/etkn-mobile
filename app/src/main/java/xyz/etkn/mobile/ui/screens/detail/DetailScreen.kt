@@ -257,7 +257,7 @@ private fun ActionRow(data: DetailData, vm: DetailViewModel, nav: AppNav) {
             }
             if (resumable) {
                 FilledTonalIconButton(
-                    onClick = { target?.let { nav.play(it, resume = false, sourceId = if (target.id == item.id) source else null) } },
+                    onClick = { nav.play(target, resume = false, sourceId = if (target.id == item.id) source else null) },
                     modifier = Modifier.size(ButtonDefaults.MediumContainerHeight),
                 ) { Icon(Icons.Rounded.Replay, "从头播放") }
             }
@@ -281,7 +281,7 @@ private fun ActionRow(data: DetailData, vm: DetailViewModel, nav: AppNav) {
                 ) { Icon(Icons.Rounded.MoreVert, "更多") }
             }
         }
-        if (resumable && target != null && target.progress > 0f) {
+        if (resumable && target.progress > 0f) {
             LinearProgressIndicator(
                 progress = { target.progress },
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp).height(4.dp),
