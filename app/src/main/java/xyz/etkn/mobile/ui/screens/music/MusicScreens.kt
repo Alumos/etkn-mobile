@@ -38,7 +38,7 @@ import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -208,7 +208,7 @@ private fun Playlists(parentId: String) {
                 ListItem(
                     headlineContent = { Text(list.name) },
                     supportingContent = { Text("${list.count} 首") },
-                    leadingContent = { Icon(Icons.Rounded.QueueMusic, null) },
+                    leadingContent = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null) },
                     trailingContent = { IconButton(onClick = { deleting = list }) { Icon(Icons.Rounded.Delete, "删除歌单") } },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier.clickable { nav.to(MusicListRoute(parentId, "playlists", list.key, list.name)) },
@@ -371,7 +371,7 @@ fun TrackRow(track: Item, onClick: () -> Unit, horizontalPadding: androidx.compo
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, shape = RoundedCornerShape(16.dp)) {
                 DropdownMenuItem(
                     text = { Text("加入播放队列") },
-                    leadingIcon = { Icon(Icons.Rounded.QueueMusic, null) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null) },
                     onClick = { menu = false; graph.music.append(listOf(track)) },
                 )
                 DropdownMenuItem(

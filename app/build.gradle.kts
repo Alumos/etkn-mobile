@@ -22,6 +22,8 @@ val hasSigning = listOf(signingStore, signingStorePassword, signingAlias, signin
 android {
     namespace = "xyz.etkn.mobile"
     compileSdk = 36
+    // AGP 9 creates unit-test tasks only for testBuildType; test the variant that ships.
+    testBuildType = "release"
 
     defaultConfig {
         applicationId = "xyz.etkn.mobile"

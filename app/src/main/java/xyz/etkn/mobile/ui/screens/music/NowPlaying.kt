@@ -34,7 +34,7 @@ import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
@@ -196,7 +196,7 @@ private fun PlayerColumn(
             IconButton(onClick = onClose) { Icon(Icons.Rounded.KeyboardArrowDown, "收起") }
             Spacer(Modifier.weight(1f))
             IconToggleButton(checked = pane == Pane.Lyrics, onCheckedChange = { onPane(if (it) Pane.Lyrics else null) }) { Icon(Icons.Rounded.Lyrics, "歌词") }
-            IconToggleButton(checked = pane == Pane.Queue, onCheckedChange = { onPane(if (it) Pane.Queue else null) }) { Icon(Icons.Rounded.QueueMusic, "播放队列") }
+            IconToggleButton(checked = pane == Pane.Queue, onCheckedChange = { onPane(if (it) Pane.Queue else null) }) { Icon(Icons.AutoMirrored.Rounded.QueueMusic, "播放队列") }
         }
         Spacer(Modifier.weight(if (compact) 0.3f else 1f))
         val coverScale by animateDpAsState(if (playing) 0.dp else 18.dp, label = "cover")

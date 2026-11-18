@@ -47,12 +47,12 @@ import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.PlaylistPlay
+import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.VideoSettings
-import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -356,7 +356,7 @@ private fun GestureLayer(
                                 level = (level - drag.y / (size.height * 0.8f)).coerceIn(0f, 1f)
                                 val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
                                 audio.setStreamVolume(AudioManager.STREAM_MUSIC, (level * max).toInt(), 0)
-                                onFeedback(GestureFeedback.Level(Icons.Rounded.VolumeUp, level))
+                                onFeedback(GestureFeedback.Level(Icons.AutoMirrored.Rounded.VolumeUp, level))
                             }
                         }
                     },
@@ -474,7 +474,7 @@ private fun Controls(
                 PlayerTextAction(Icons.Rounded.ClosedCaption, "字幕") { onSheet(Sheet.Subtitle) }
                 PlayerTextAction(Icons.Rounded.Speed, if (ui.speed == 1f) "倍速" else "${ui.speed}×") { onSheet(Sheet.Speed) }
                 PlayerTextAction(Icons.Rounded.AspectRatio, resizeLabel, onResize)
-                if (ui.item?.isEpisode == true) PlayerTextAction(Icons.Rounded.PlaylistPlay, "选集") { onSheet(Sheet.Episodes) }
+                if (ui.item?.isEpisode == true) PlayerTextAction(Icons.AutoMirrored.Rounded.PlaylistPlay, "选集") { onSheet(Sheet.Episodes) }
                 if (ui.next != null) PlayerTextAction(Icons.Rounded.SkipNext, "下一集", onNext)
             }
         }
