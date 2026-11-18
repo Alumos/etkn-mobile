@@ -61,11 +61,6 @@ class HttpClients(currentServer: () -> String?, currentToken: () -> String?, use
         .readTimeout(30, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
-        .addInterceptor { chain ->
-            val request = chain.request()
-            val timeout = if (request.url.encodedPath.contains("/api/tv/Transcodes/")) 65 else 30
-            chain.withReadTimeout(timeout, TimeUnit.SECONDS).proceed(request)
-        }
         .build()
 
     /**

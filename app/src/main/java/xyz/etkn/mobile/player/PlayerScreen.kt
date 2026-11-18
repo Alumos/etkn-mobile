@@ -32,12 +32,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -53,6 +51,8 @@ import androidx.media3.ui.SubtitleView
 import kotlinx.coroutines.delay
 import xyz.etkn.mobile.data.settings.SkipMode
 import xyz.etkn.mobile.player.danmaku.DanmakuView
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 internal val Speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 3f)
 private val ResizeModes = listOf(

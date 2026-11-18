@@ -4,7 +4,6 @@ import xyz.etkn.mobile.ui.actions.rememberItemPress
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -338,18 +337,8 @@ fun formatClock(ms: Long): String {
 }
 
 @Composable
-fun Dot() {
-    Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 6.dp))
-}
-
-@Composable
 fun Pill(text: String, modifier: Modifier = Modifier, container: Color = MaterialTheme.colorScheme.secondaryContainer, content: Color = MaterialTheme.colorScheme.onSecondaryContainer) {
     Surface(modifier, shape = RoundedCornerShape(50), color = container, contentColor = content) {
         Text(text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
     }
 }
-
-@Composable
-fun HorizontalSpacer(width: Dp) = Spacer(Modifier.width(width))
-
-internal val ArrangementItem = Arrangement.spacedBy(12.dp)

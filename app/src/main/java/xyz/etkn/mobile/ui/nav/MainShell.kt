@@ -23,7 +23,6 @@ import androidx.compose.material3.rememberWideNavigationRailState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -53,6 +52,7 @@ import xyz.etkn.mobile.ui.actions.ItemMenuHost
 import xyz.etkn.mobile.ui.actions.LocalItemMenu
 import xyz.etkn.mobile.ui.theme.Etkn
 import xyz.etkn.mobile.ui.theme.LocalSettings
+import androidx.compose.runtime.getValue
 
 /** Space screens must leave at the bottom for the floating dock / mini player. */
 val LocalBottomInset = staticCompositionLocalOf { 0.dp }

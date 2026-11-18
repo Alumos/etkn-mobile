@@ -412,7 +412,5 @@ data class Playlist(val key: String, val name: String, val count: Int)
 
 fun JsonObject.items(): List<Item> = rows().map(Item::from)
 
-fun List<JsonObject>.toItems(): List<Item> = map(Item::from)
-
 /** Helper for arrays that are not under one of the standard list keys. */
 fun JsonObject.itemList(key: String): List<Item> = (arr(key) ?: return emptyList()).mapNotNull { it as? JsonObject }.map(Item::from)

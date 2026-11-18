@@ -52,12 +52,10 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -80,6 +78,8 @@ import xyz.etkn.mobile.ui.components.glass
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.components.px
 import xyz.etkn.mobile.ui.nav.LocalNav
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /** Polls the shared player position at [intervalMs] while composed. */
 @Composable

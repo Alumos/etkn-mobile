@@ -11,7 +11,6 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import androidx.media3.exoplayer.util.EventLogger
 import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import okhttp3.OkHttpClient
 import xyz.etkn.mobile.data.settings.DecoderPreference
@@ -64,8 +63,8 @@ object PlayerFactory {
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
-            // Formats, decoders, track selection and errors land in the exportable log.
-            .apply { addAnalyticsListener(EventLogger("ETKN-Player")) }
+            // Decoders, formats and failures land in the exportable log.
+            .apply { addAnalyticsListener(PlaybackLog()) }
     }
 
     fun music(context: Context, dataSource: DataSource.Factory): ExoPlayer {

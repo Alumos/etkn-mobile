@@ -39,10 +39,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,6 +69,8 @@ import xyz.etkn.mobile.data.net.long
 import xyz.etkn.mobile.data.net.str
 import xyz.etkn.mobile.ui.common.userMessage
 import xyz.etkn.mobile.ui.components.glass
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /** Long-press / overflow menu of the current shell; null outside it (previews, player). */
 val LocalItemMenu = staticCompositionLocalOf<ItemMenu?> { null }

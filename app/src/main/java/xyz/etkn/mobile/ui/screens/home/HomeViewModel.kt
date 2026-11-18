@@ -136,7 +136,7 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
             if (collected.isEmpty()) {
                 val fallback = data.latest.flatMap { it.items }.filter(::hasBackdrop).distinctBy { it.id }.take(HERO_SIZE)
                 if (fallback.isNotEmpty()) {
-                    val detailed = runCatching { fallback.map { api.item(it.id, "Overview") } }.getOrDefault(fallback)
+                    val detailed = runCatching { coroutineScope { fallback.map { async { api.item(it.id, "Overview") } }.awaitAll() } }.getOrDefault(fallback)
                     publishHero(detailed)
                 }
             }

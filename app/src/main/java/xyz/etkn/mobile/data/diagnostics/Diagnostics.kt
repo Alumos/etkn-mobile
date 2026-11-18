@@ -7,124 +7,138 @@ import android.hardware.display.DisplayManager
 import android.media.MediaCodecList
 import android.net.Uri
 import android.os.Build
+import android.os.Process
 import android.util.Log
 import android.view.Display
 import xyz.etkn.mobile.BuildConfig
 import java.io.File
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
- * Local diagnostic log the user can export from 我的 → 导出日志.
+ * Error-focused local log, exported by day and time range from 我的 → 导出日志.
  *
- * The app's own logcat (this UID only; Media3 EventLogger, player and disc-reader lines, crashes)
- * is mirrored by a `logcat -f` child into a small rotating file in private storage, so the lines
- * leading up to a crash survive the restart. Java crashes are also written synchronously.
- * Nothing leaves the device unless the user exports it, and the export strips tokens and URL
- * query strings (signed links, `X-Emby-Token`, `UserId` …).
+ * A `logcat -f` child keeps only this UID's errors (`*:E`, which includes crash backtraces) plus
+ * the app's own `ETKN*` lines, stamped with the year so a day can be cut out. Files rotate at
+ * 256 KB × 8 and anything older than [KEEP_DAYS] is deleted at start-up. Java crashes are also
+ * appended synchronously in the same line format. Nothing leaves the device unless exported,
+ * and the export strips tokens and URL query strings.
  */
 object Diagnostics {
     private const val TAG = "ETKN"
     private const val LOG = "app.log"
-    private const val CRASH = "crash.txt"
-    private const val ROTATE_KB = "1024"
-    private const val FILES = 3
+    private const val CRASH = "crash.log"
+    private const val FILES = 8
+    private const val KEEP_DAYS = 7L
+
+    /** Tags written at info level; everything else only at error level. */
+    private val TAGS = listOf("ETKN", "ETKN-Play", "ETKN-Disc", "ETKN-Player")
 
     fun start(context: Context) {
         val dir = directory(context)
+        File(context.filesDir, "diagnostics").deleteRecursively() // 0.5.3's unfiltered mirror
+        cleanup(dir)
         runCatching {
             val since = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US).format(Date())
-            ProcessBuilder("logcat", "-v", "threadtime", "-T", since, "-f", File(dir, LOG).path, "-r", ROTATE_KB, "-n", FILES.toString())
-                .redirectErrorStream(true)
-                .start()
+            ProcessBuilder(
+                listOf("logcat", "-v", "threadtime,year", "-T", since, "-f", File(dir, LOG).path, "-r", "256", "-n", FILES.toString()) +
+                    TAGS.map { "$it:I" } + "*:E",
+            ).redirectErrorStream(true).start()
         }.onFailure { Log.w(TAG, "log recorder unavailable", it) }
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
-            runCatching { File(dir, CRASH).writeText("${stamp()} ${thread.name}\n${Log.getStackTraceString(error)}") }
+            runCatching {
+                val head = "${SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())} ${Process.myPid()} ${Process.myTid()} F JavaCrash: "
+                File(dir, CRASH).appendText(Log.getStackTraceString(error).lineSequence().filter { it.isNotBlank() }
+                    .joinToString("\n", postfix = "\n") { head + "[${thread.name}] " + it })
+            }
             previous?.uncaughtException(thread, error)
         }
         Log.i(TAG, "start ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) ${Build.MANUFACTURER} ${Build.MODEL} API ${Build.VERSION.SDK_INT}")
     }
 
-    fun fileName(): String = "etkn-mobile-log-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".txt"
-
-    /** Writes the redacted report to [target]; call off the main thread. */
-    fun export(context: Context, target: Uri) {
-        val report = redact(report(context))
-        val output = context.contentResolver.openOutputStream(target, "wt") ?: error("无法写入所选位置")
-        output.use { it.write(report.toByteArray()) }
+    /** Days that have log lines, newest first. */
+    fun days(context: Context): List<LocalDate> {
+        val seen = sortedSetOf<String>()
+        for (file in files(directory(context))) file.forEachLine { line -> DAY.find(line.take(10))?.let { seen += it.value } }
+        return seen.reversed().mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
     }
 
-    private fun report(context: Context): String = buildString {
-        appendLine("ETKN Mobile ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · exported ${stamp()}")
-        appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE}) · Android ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}")
-        if (Build.VERSION.SDK_INT >= 31) appendLine("SoC: ${Build.SOC_MANUFACTURER} ${Build.SOC_MODEL}")
-        appendLine("ABIs: ${Build.SUPPORTED_ABIS.joinToString()}")
-        appendLine("Display HDR: ${hdr(context)}")
-        appendLine()
-        appendLine("== Decoders ==")
-        decoders(this)
-        appendLine()
-        appendLine("== Recent exits ==")
-        exits(context, this)
-        val dir = directory(context)
-        File(dir, CRASH).takeIf { it.isFile }?.let {
+    fun fileName(day: LocalDate): String = "etkn-mobile-log-$day.txt"
+
+    /** Writes [day] between [fromHour] (inclusive) and [toHour] (exclusive), redacted; call off the main thread. */
+    fun export(context: Context, target: Uri, day: LocalDate, fromHour: Int, toHour: Int) {
+        val prefix = day.toString()
+        val text = buildString {
+            header(context, this)
             appendLine()
-            appendLine("== Last Java crash ==")
-            appendLine(it.readText())
+            appendLine("== $prefix ${"%02d:00".format(fromHour)}–${"%02d:00".format(toHour)} ==")
+            val lines = files(directory(context)).flatMap { file -> file.readLines().filter { it.startsWith(prefix) } }
+            lines.filter { (it.substring(11, minOf(13, it.length)).toIntOrNull() ?: -1) in fromHour until toHour }
+                .sortedBy { it.take(23) }
+                .forEach(::appendLine)
         }
-        appendLine()
-        appendLine("== Log ==")
-        // logcat rotation: app.log.N is the oldest, app.log the newest.
-        for (index in FILES downTo 0) {
-            val file = File(dir, if (index == 0) LOG else "$LOG.$index")
-            if (file.isFile) append(file.readText())
-        }
+        val output = context.contentResolver.openOutputStream(target, "wt") ?: error("无法写入所选位置")
+        output.use { it.write(redact(text).toByteArray()) }
+    }
+
+    /** Deletes everything; the live file is truncated in place because the recorder keeps it open. */
+    fun clear(context: Context) {
+        val dir = directory(context)
+        dir.listFiles()?.filter { it.name != LOG }?.forEach { it.delete() }
+        runCatching { File(dir, LOG).writeText("") }
+    }
+
+    /** Device facts that explain playback failures: decoders, HDR, recent abnormal exits. */
+    private fun header(context: Context, out: StringBuilder) = with(out) {
+        appendLine("ETKN Mobile ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+        append("${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}")
+        if (Build.VERSION.SDK_INT >= 31) append(" · ${Build.SOC_MODEL}")
+        appendLine(" · HDR ${hdr(context)}")
+        decoders(this)
+        exits(context, this)
     }
 
     private fun hdr(context: Context): String = runCatching {
         val display = context.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
         @Suppress("DEPRECATION")
         val types = display.hdrCapabilities?.supportedHdrTypes ?: intArrayOf()
-        types.joinToString { type ->
+        types.joinToString("/") { type ->
             when (type) {
-                Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION -> "Dolby Vision"
+                Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION -> "DV"
                 Display.HdrCapabilities.HDR_TYPE_HDR10 -> "HDR10"
                 Display.HdrCapabilities.HDR_TYPE_HLG -> "HLG"
                 Display.HdrCapabilities.HDR_TYPE_HDR10_PLUS -> "HDR10+"
                 else -> type.toString()
             }
         }.ifEmpty { "none" }
-    }.getOrDefault("unknown")
+    }.getOrDefault("?")
 
-    /** Decoders for the formats discs and remuxes use, with profiles and size limits. */
+    /** Hardware decoders for disc/remux formats, one line per media type. */
     private fun decoders(out: StringBuilder) = runCatching {
-        for (info in MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos) {
-            if (info.isEncoder) continue
+        val byType = sortedMapOf<String, MutableList<String>>()
+        for (info in MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos) {
+            if (info.isEncoder || (Build.VERSION.SDK_INT >= 29 && !info.isHardwareAccelerated && !info.isVendor)) continue
             for (type in info.supportedTypes) {
                 if (type.lowercase(Locale.ROOT) !in WATCHED) continue
-                val caps = runCatching { info.getCapabilitiesForType(type) }.getOrNull()
-                val kind = if (Build.VERSION.SDK_INT >= 29) (if (info.isHardwareAccelerated) "hw" else "sw") else "?"
-                val size = caps?.videoCapabilities?.let { " max ${it.supportedWidths.upper}x${it.supportedHeights.upper}" }.orEmpty()
-                val audio = caps?.audioCapabilities?.let { " ch ${it.maxInputChannelCount}" }.orEmpty()
-                val profiles = caps?.profileLevels?.map { it.profile }?.distinct()?.joinToString(",").orEmpty()
-                out.appendLine("${info.name} [$kind] $type$size$audio profiles=$profiles")
+                val profiles = runCatching { info.getCapabilitiesForType(type).profileLevels.map { it.profile }.distinct().joinToString(",") }.getOrDefault("")
+                byType.getOrPut(type) { mutableListOf() } += if (profiles.isEmpty()) info.name else "${info.name}[$profiles]"
             }
         }
-    }.onFailure { out.appendLine("unavailable: $it") }
+        byType.forEach { (type, names) -> out.appendLine("$type: ${names.joinToString(" ")}") }
+    }
 
     private fun exits(context: Context, out: StringBuilder) {
-        if (Build.VERSION.SDK_INT < 30) {
-            out.appendLine("unavailable before Android 11")
-            return
-        }
+        if (Build.VERSION.SDK_INT < 30) return
         runCatching {
-            val manager = context.getSystemService(ActivityManager::class.java)
-            for (exit in manager.getHistoricalProcessExitReasons(context.packageName, 0, 5)) {
-                out.appendLine("${stamp(exit.timestamp)} ${reason(exit.reason)} status=${exit.status} ${exit.description.orEmpty()}")
-            }
-        }.onFailure { out.appendLine("unavailable: $it") }
+            val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+            context.getSystemService(ActivityManager::class.java).getHistoricalProcessExitReasons(context.packageName, 0, 5)
+                .filter { it.reason in ABNORMAL }
+                .forEach { out.appendLine("exit ${stamp.format(Date(it.timestamp))} ${reason(it.reason)} ${it.description.orEmpty()}") }
+        }
     }
 
     private fun reason(code: Int): String = when (code) {
@@ -132,10 +146,6 @@ object Diagnostics {
         ApplicationExitInfo.REASON_CRASH_NATIVE -> "native-crash"
         ApplicationExitInfo.REASON_ANR -> "anr"
         ApplicationExitInfo.REASON_LOW_MEMORY -> "low-memory"
-        ApplicationExitInfo.REASON_SIGNALED -> "signaled"
-        ApplicationExitInfo.REASON_EXIT_SELF -> "exit-self"
-        ApplicationExitInfo.REASON_USER_REQUESTED -> "user-requested"
-        ApplicationExitInfo.REASON_OTHER -> "other"
         else -> "reason-$code"
     }
 
@@ -144,13 +154,22 @@ object Diagnostics {
         .replace(URL_QUERY, "$1?…")
         .replace(SECRET, "$1=…")
 
-    private fun directory(context: Context) = File(context.filesDir, "diagnostics").apply { mkdirs() }
+    private fun cleanup(dir: File) {
+        val cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(KEEP_DAYS)
+        dir.listFiles()?.filter { it.lastModified() < cutoff }?.forEach { it.delete() }
+    }
 
-    private fun stamp(time: Long = System.currentTimeMillis()) = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(time))
+    /** Oldest first: logcat rotation names app.log.N (oldest) … app.log (newest); then crash lines. */
+    private fun files(dir: File): List<File> =
+        ((FILES downTo 1).map { File(dir, "$LOG.$it") } + File(dir, LOG) + File(dir, CRASH)).filter { it.isFile }
 
+    private fun directory(context: Context) = File(context.filesDir, "logs").apply { mkdirs() }
+
+    private val DAY = Regex("^\\d{4}-\\d{2}-\\d{2}$")
+    private val ABNORMAL = setOf(ApplicationExitInfo.REASON_CRASH, ApplicationExitInfo.REASON_CRASH_NATIVE, ApplicationExitInfo.REASON_ANR, ApplicationExitInfo.REASON_LOW_MEMORY)
     private val WATCHED = setOf(
-        "video/hevc", "video/dolby-vision", "video/avc", "video/av01", "video/x-vnd.on2.vp9", "video/mpeg2",
-        "audio/vnd.dts", "audio/vnd.dts.hd", "audio/true-hd", "audio/ac3", "audio/eac3", "audio/eac3-joc", "audio/ac4",
+        "video/hevc", "video/dolby-vision", "video/avc", "video/av01", "video/x-vnd.on2.vp9",
+        "audio/vnd.dts", "audio/vnd.dts.hd", "audio/true-hd", "audio/eac3", "audio/eac3-joc", "audio/ac4",
     )
     private val URL_QUERY = Regex("""((?:https?://|/)[^\s"'<>?]+)\?[^\s"'<>]+""")
     private val SECRET = Regex("""(?i)\b(x-emby-token|x-mediabrowser-token|api_key|access_?token|token|password|pwd|authorization|cookie)\s*[=:]\s*"?[^\s",&;]+"?""")

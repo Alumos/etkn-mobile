@@ -96,13 +96,11 @@ object Etkn {
 object Spacing {
     val screen: Dp = 20.dp
     val section: Dp = 28.dp
-    val sectionHead: Dp = 12.dp
     val item: Dp = 12.dp
     val posterWidth: Dp = 118.dp
     val posterWidthWide: Dp = 150.dp
     val wideCardWide: Dp = 300.dp
     val wideCard: Dp = 236.dp
-    val dockHeight: Dp = 72.dp
     val dockBottomInset: Dp = 104.dp
     val miniPlayer: Dp = 64.dp
 }

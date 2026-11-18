@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import xyz.etkn.mobile.AppGraph
@@ -211,8 +213,12 @@ class VideoSession(
     private suspend fun load(itemId: String, startMs: Long, sourceId: String?) {
         stopReporting()
         _ui.update { it.copy(loading = true, error = null, next = null, segments = emptyList()) }
-        val detail = runCatching { api.item(itemId, EtknApi.DETAIL_FIELDS) }.getOrNull() ?: api.item(itemId)
-        val info = api.playbackInfo(itemId)
+        // Independent requests: details and PlaybackInfo travel together.
+        val (detail, info) = coroutineScope {
+            val detail = async { runCatching { api.item(itemId, EtknApi.DETAIL_FIELDS) }.getOrNull() ?: api.item(itemId) }
+            val info = async { api.playbackInfo(itemId) }
+            detail.await() to info.await()
+        }
         if (info.sources.isEmpty()) throw IllegalStateException("暂无可播放版本")
         val index = sourceId?.let { id -> info.sources.indexOfFirst { it.id == id }.takeIf { it >= 0 } } ?: 0
         item = detail

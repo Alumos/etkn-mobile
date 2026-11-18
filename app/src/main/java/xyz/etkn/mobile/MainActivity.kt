@@ -18,7 +18,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.flow.first
 import xyz.etkn.mobile.ui.screens.me.UpdatePrompt
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -30,6 +29,7 @@ import xyz.etkn.mobile.ui.components.LocalImages
 import xyz.etkn.mobile.ui.nav.MainShell
 import xyz.etkn.mobile.ui.screens.connect.ConnectScreen
 import xyz.etkn.mobile.ui.theme.EtknTheme
+import androidx.compose.runtime.getValue
 
 class MainActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: Context) {

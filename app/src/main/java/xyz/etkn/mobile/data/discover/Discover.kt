@@ -2,7 +2,6 @@ package xyz.etkn.mobile.data.discover
 
 import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -41,7 +40,6 @@ class DiscoverItem(val raw: JsonObject, fallbackKind: DiscoverKind = DiscoverKin
     val backdropPath: String = raw.str("backdrop_path")
     val vote: Double = raw.double("vote_average") ?: 0.0
     val year: String = yearOf(raw)
-    val genreIds: List<String> = (raw["genre_ids"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content } ?: emptyList()
     val inLibrary: Boolean = raw.bool("in_library")
     val subscription: String = raw.str("subscription_status", "NONE").ifEmpty { "NONE" }
     val mediaItemId: String = raw.str("media_item_id")

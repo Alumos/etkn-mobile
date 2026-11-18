@@ -8,12 +8,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import xyz.etkn.mobile.ui.components.GlassDialog
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import android.widget.Toast
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import xyz.etkn.mobile.data.diagnostics.Diagnostics
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
@@ -30,7 +24,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.ChatBubble
@@ -44,21 +37,16 @@ import xyz.etkn.mobile.ui.nav.SettingsRoute
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.SwitchAccount
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -82,6 +70,8 @@ import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.screens.connect.ConnectScreen
 import xyz.etkn.mobile.ui.screens.library.LargeTitle
 import xyz.etkn.mobile.ui.theme.Etkn
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 @Composable
 fun MeScreen() {
@@ -91,13 +81,7 @@ fun MeScreen() {
     val settings by graph.settings.flow.collectAsStateWithLifecycle(initialValue = Settings())
     val session = (graph.sessions.state.collectAsStateWithLifecycle().value as? SessionState.SignedIn)?.session ?: return
     var confirmLogout by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val exportLog = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { target ->
-        if (target != null) scope.launch {
-            val result = withContext(Dispatchers.IO) { runCatching { Diagnostics.export(context, target) } }
-            Toast.makeText(context, if (result.isSuccess) "日志已导出" else "导出失败", Toast.LENGTH_SHORT).show()
-        }
-    }
+    var exportingLog by remember { mutableStateOf(false) }
 
     // Tablets: a readable centred column instead of edge-to-edge rows.
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -136,7 +120,7 @@ fun MeScreen() {
                 Entry(Icons.Rounded.SystemUpdate, "检查更新", "v${BuildConfig.VERSION_NAME} · ${if (settings.autoUpdate) "自动" else "手动"}") {
                     nav.to(SettingsRoute(SettingsPage.Update.name))
                 }
-                Entry(Icons.Rounded.BugReport, "导出日志") { exportLog.launch(Diagnostics.fileName()) }
+                Entry(Icons.Rounded.BugReport, "导出日志") { exportingLog = true }
             }
         }
         item {
@@ -154,6 +138,8 @@ fun MeScreen() {
         }
     }
     }
+
+    if (exportingLog) LogExportSheet(onDismiss = { exportingLog = false })
 
     if (confirmLogout) {
         GlassDialog(

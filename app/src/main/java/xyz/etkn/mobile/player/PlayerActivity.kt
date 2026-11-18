@@ -11,9 +11,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -25,6 +23,8 @@ import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.ui.components.LocalImages
 import xyz.etkn.mobile.ui.theme.EtknTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 class PlayerActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: Context) {

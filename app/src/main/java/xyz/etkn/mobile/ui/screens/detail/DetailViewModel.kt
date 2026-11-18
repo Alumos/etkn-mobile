@@ -69,24 +69,25 @@ class DetailViewModel(graph: AppGraph, private val id: String) : ViewModel() {
         viewModelScope.launch {
             try {
                 val data = coroutineScope {
-                    val plain = async { api.item(id) }
-                    val base = plain.await()
+                    val base = api.item(id)
+                    // Everything below depends only on the base item, so it all runs at once.
                     val detailed = if (base.isPlayable && base.mediaSources.isEmpty()) {
-                        runCatching { api.item(id, EtknApi.DETAIL_FIELDS) }.getOrNull()
+                        async { runCatching { api.item(id, EtknApi.DETAIL_FIELDS) }.getOrNull() }
                     } else null
-                    val item = if (detailed != null) base.copy(mediaSources = detailed.mediaSources, chapters = detailed.chapters.ifEmpty { base.chapters }) else base
                     val seriesId = when {
-                        item.isSeries -> item.id
-                        item.isSeason -> item.seriesId
+                        base.isSeries -> base.id
+                        base.isSeason -> base.seriesId
                         else -> null
                     }
+                    val item = base
                     val seasons = seriesId?.let { sid -> async { runCatching { api.seasons(sid) }.getOrDefault(emptyList()) } }
                     val target = seriesId?.let { sid ->
                         async { runCatching { api.playbackTarget(sid, if (item.isSeason) item.id else null) }.getOrNull() }
                     }
                     val similar = if (item.isMovie || item.isSeries) async { runCatching { api.similar(item.id) }.getOrDefault(emptyList()) } else null
+                    val full = detailed?.await()
                     DetailData(
-                        item = item,
+                        item = if (full != null) base.copy(mediaSources = full.mediaSources, chapters = full.chapters.ifEmpty { base.chapters }) else base,
                         seasons = seasons?.await().orEmpty(),
                         target = target?.await(),
                         similar = similar?.await().orEmpty(),

@@ -32,7 +32,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -60,6 +59,7 @@ import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.screens.discover.DiscoverCard
 import xyz.etkn.mobile.ui.screens.library.PosterGrid
 import xyz.etkn.mobile.ui.theme.Etkn
+import androidx.compose.runtime.getValue
 
 @Composable
 fun SearchScreen() {

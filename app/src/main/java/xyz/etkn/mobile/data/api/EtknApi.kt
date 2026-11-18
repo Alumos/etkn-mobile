@@ -186,12 +186,6 @@ class EtknApi(
         return ItemsPage(items, result.int("TotalRecordCount", start + items.size))
     }
 
-    suspend fun collections(libraryId: String): List<Item> =
-        get(query("${u()}/Libraries/${enc(libraryId)}/Collections", "Limit" to 200)).items()
-
-    suspend fun itemCollections(itemId: String): List<Item> =
-        get(query("${u()}/Items/${enc(itemId)}/Collections", "Limit" to 60)).items()
-
     // ---------- Detail ----------
 
     suspend fun item(id: String, fields: String? = null): Item =
@@ -501,10 +495,6 @@ class EtknApi(
 
     suspend fun addToPlaylist(key: String, itemId: String) {
         post("${u()}/Music/Playlists/${enc(key)}/Items/${enc(itemId)}")
-    }
-
-    suspend fun removeFromPlaylist(key: String, itemId: String) {
-        delete("${u()}/Music/Playlists/${enc(key)}/Items/${enc(itemId)}")
     }
 
     /** GET first; only an empty (successful) text triggers the online lookup POST. */

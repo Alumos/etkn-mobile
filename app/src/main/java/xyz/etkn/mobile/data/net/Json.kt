@@ -85,5 +85,3 @@ fun JsonElement.rows(): List<JsonObject> {
 }
 
 private val ROW_KEYS = arrayOf("Items", "results", "resources", "items", "data")
-
-fun JsonElement.asObject(): JsonObject = this as? JsonObject ?: JsonObject(emptyMap())

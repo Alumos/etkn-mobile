@@ -83,9 +83,18 @@ android {
         disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion", "MissingTranslation", "UnsafeOptInUsageError")
     }
 
+    // Library strings in other languages are never shown.
+    androidResources {
+        localeFilters += listOf("zh", "en")
+    }
+
     packaging {
         resources {
-            excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "META-INF/DEPENDENCIES", "META-INF/*.kotlin_module")
+            // Build metadata only; third-party notices for shipped native code stay in assets/.
+            excludes += setOf(
+                "/META-INF/{AL2.0,LGPL2.1}", "META-INF/DEPENDENCIES", "META-INF/*.kotlin_module", "META-INF/*.version",
+                "META-INF/androidx/**", "**/*.kotlin_builtins", "DebugProbesKt.bin",
+            )
         }
         jniLibs { useLegacyPackaging = false }
     }
@@ -129,7 +138,6 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
 
@@ -140,8 +148,6 @@ dependencies {
     implementation(libs.compose.animation)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.extended)
-    implementation(libs.compose.ui.tooling.preview)
-    debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
@@ -153,7 +159,6 @@ dependencies {
     implementation(libs.material.color.utilities)
 
     implementation(libs.media3.exoplayer)
-    implementation(libs.media3.exoplayer.hls)
     implementation(libs.media3.datasource.okhttp)
     implementation(libs.media3.ui)
     implementation(libs.media3.session)

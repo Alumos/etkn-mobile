@@ -30,6 +30,8 @@ internal class BlurayInput(private val http: OkHttpClient, private val uri: Uri,
     private var resolved: HttpUrl? = null
     private var position = -1L
     private var size = -1L
+    private var lastChunk = -1L
+    private var bounded = false
 
     /** Called from native code on the loader thread only (signature `(JI)[B`). */
     @Keep
@@ -52,22 +54,32 @@ internal class BlurayInput(private val http: OkHttpClient, private val uri: Uri,
         return result
     }
 
+    /**
+     * Scattered reads (UDF / playlist / clip info while the disc opens, seeks) use bounded ranges
+     * that are read to the end, so the connection returns to the pool instead of being torn down;
+     * once reads run sequentially a single open-ended stream carries the title.
+     */
     private fun load(at: Long): ByteArray {
+        val sequential = lastChunk >= 0 && at == lastChunk + CHUNK
+        lastChunk = at
         if (stream == null || position != at) {
             closeStream()
+            val end = if (sequential) null else at + CHUNK - 1
+            bounded = end != null
             try {
-                open(at, resolved ?: uri.toString().toHttpUrl())
+                open(at, end, resolved ?: uri.toString().toHttpUrl())
                 // An expired signed redirect: start again from the original address.
                 if (response!!.code in setOf(401, 403) && resolved != null) {
                     closeStream()
                     resolved = null
-                    open(at, uri.toString().toHttpUrl())
+                    open(at, end, uri.toString().toHttpUrl())
                 }
                 val current = response!!
                 // Host and status only: the address itself may carry signed credentials.
-                Log.i("ETKN-Disc", "range $at -> HTTP ${current.code} ${current.request.url.host} ${current.header("Content-Range").orEmpty()}")
+                Log.d("ETKN-Disc", "range $at -> HTTP ${current.code} ${current.request.url.host} ${current.header("Content-Range").orEmpty()}")
                 val match = CONTENT_RANGE.matchEntire(current.header("Content-Range").orEmpty())
                 if (current.code != 206 || match == null || match.groupValues[1].toLong() != at) {
+                    Log.e("ETKN-Disc", "range $at -> HTTP ${current.code} ${current.request.url.host} ${current.header("Content-Range").orEmpty()}")
                     throw IOException("原盘服务器不支持 Range 随机读取（HTTP ${current.code}）")
                 }
                 size = match.groupValues[3].toLong()
@@ -90,12 +102,14 @@ internal class BlurayInput(private val http: OkHttpClient, private val uri: Uri,
             got += count
             position += count
         }
+        // A bounded response is now fully read: closing it keeps the connection for reuse.
+        if (bounded) closeStream()
         return bytes
     }
 
-    private fun open(at: Long, address: HttpUrl) {
+    private fun open(at: Long, end: Long?, address: HttpUrl) {
         response = http.newCall(
-            Request.Builder().url(address).header("User-Agent", userAgent).header("Range", "bytes=$at-").build(),
+            Request.Builder().url(address).header("User-Agent", userAgent).header("Range", "bytes=$at-${end ?: ""}").build(),
         ).execute()
     }
 
