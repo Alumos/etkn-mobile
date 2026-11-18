@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.horizontalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -113,17 +113,21 @@ fun MeScreen() {
         }
         item { Caption("外观") }
         item {
-            ChoiceRow("主题", ThemeMode.entries, settings.themeMode, { it.label }) { scope.launch { graph.settings.setTheme(it) } }
-            val sources = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) ColorSource.entries else listOf(ColorSource.Server)
-            if (sources.size > 1) ChoiceRow("配色", sources, settings.colorSource, { it.label }) { scope.launch { graph.settings.setColorSource(it) } }
-            SwitchRow("纯黑深色", settings.amoled) { scope.launch { graph.settings.setAmoled(it) } }
+            Column {
+                ChoiceRow("主题", ThemeMode.entries, settings.themeMode, { it.label }) { scope.launch { graph.settings.setTheme(it) } }
+                val sources = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) ColorSource.entries else listOf(ColorSource.Server)
+                if (sources.size > 1) ChoiceRow("配色", sources, settings.colorSource, { it.label }) { scope.launch { graph.settings.setColorSource(it) } }
+                SwitchRow("纯黑深色", settings.amoled) { scope.launch { graph.settings.setAmoled(it) } }
+            }
         }
         item { Caption("播放") }
         item {
-            ChoiceRow("解码", DecoderPreference.entries, settings.decoder, { it.label }) { scope.launch { graph.settings.setDecoder(it) } }
-            ChoiceRow("片头片尾", SkipMode.entries, settings.skipMode, { it.label }) { scope.launch { graph.settings.setSkipMode(it) } }
-            ChoiceRow("默认倍速", listOf(1f, 1.25f, 1.5f, 2f), settings.defaultSpeed, { "${it}×" }) { scope.launch { graph.settings.setDefaultSpeed(it) } }
-            SwitchRow("自动播放下一集", settings.autoPlayNext) { scope.launch { graph.settings.setAutoPlayNext(it) } }
+            Column {
+                ChoiceRow("解码", DecoderPreference.entries, settings.decoder, { it.label }) { scope.launch { graph.settings.setDecoder(it) } }
+                ChoiceRow("片头片尾", SkipMode.entries, settings.skipMode, { it.label }) { scope.launch { graph.settings.setSkipMode(it) } }
+                ChoiceRow("默认倍速", listOf(1f, 1.25f, 1.5f, 2f), settings.defaultSpeed, { "${it}×" }) { scope.launch { graph.settings.setDefaultSpeed(it) } }
+                SwitchRow("自动播放下一集", settings.autoPlayNext) { scope.launch { graph.settings.setAutoPlayNext(it) } }
+            }
         }
         item {
             Text(

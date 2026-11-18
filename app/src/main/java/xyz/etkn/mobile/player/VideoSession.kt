@@ -264,17 +264,19 @@ class VideoSession(
         return out
     }
 
-    /** Segment active at [positionMs], applying auto-skip for intros when enabled. */
-    fun activeSegment(positionMs: Long): SkipSegment? {
+    /** Segment active at [positionMs] (pure; safe to call during composition). */
+    fun segmentAt(positionMs: Long): SkipSegment? {
         val ui = _ui.value
         if (ui.skipMode == SkipMode.Off) return null
-        val segment = ui.segments.firstOrNull { positionMs >= it.startMs && positionMs < it.endMs - 1_000 } ?: return null
-        if (ui.skipMode == SkipMode.Auto && segment.kind == SkipSegment.Kind.Intro && !autoSkippedIntro) {
-            autoSkippedIntro = true
-            player.seekTo(segment.endMs)
-            return null
-        }
-        return segment
+        return ui.segments.firstOrNull { positionMs >= it.startMs && positionMs < it.endMs - 1_000 }
+    }
+
+    /** Auto mode skips the intro once per item (not when resuming past its start). */
+    fun autoSkip(segment: SkipSegment): Boolean {
+        if (_ui.value.skipMode != SkipMode.Auto || segment.kind != SkipSegment.Kind.Intro || autoSkippedIntro) return false
+        autoSkippedIntro = true
+        player.seekTo(segment.endMs)
+        return true
     }
 
     fun skip(segment: SkipSegment) {

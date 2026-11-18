@@ -168,9 +168,11 @@ private fun Recommended(parentId: String) {
         is Load.Ready -> LazyColumn(contentPadding = PaddingValues(bottom = LocalBottomInset.current)) {
             if (s.value.latest.isNotEmpty()) {
                 item(key = "latest") {
-                    SectionHeader("最新专辑")
-                    LazyRow(contentPadding = PaddingValues(horizontal = Etkn.space.screen), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(s.value.latest, key = { it.key ?: it.id }) { album -> SquareCard(album, onClick = { nav.open(album) }) }
+                    Column {
+                        SectionHeader("最新专辑")
+                        LazyRow(contentPadding = PaddingValues(horizontal = Etkn.space.screen), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(s.value.latest, key = { it.key ?: it.id }) { album -> SquareCard(album, onClick = { nav.open(album) }) }
+                        }
                     }
                 }
             }

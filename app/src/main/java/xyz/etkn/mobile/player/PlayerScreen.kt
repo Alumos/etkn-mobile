@@ -97,6 +97,7 @@ import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.data.model.Item
+import xyz.etkn.mobile.data.settings.SkipMode
 import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.ui.components.Artwork
 import xyz.etkn.mobile.ui.components.CardShape
@@ -153,7 +154,8 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
             controls = false
         }
     }
-    val segment = remember(position, ui.segments) { session.activeSegment(position) }
+    val segment = remember(position, ui.segments, ui.skipMode) { session.segmentAt(position) }
+    LaunchedEffect(segment) { segment?.let(session::autoSkip) }
     // Double-tap seek feedback clears itself; drag feedback is cleared on release.
     LaunchedEffect(gesture) {
         val shown = gesture
@@ -222,7 +224,7 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.Black.copy(alpha = 0.45f), contentColor = Color.White),
                 ) { Icon(Icons.Rounded.Lock, "解锁") }
             }
-            segment?.let { s ->
+            segment?.takeUnless { ui.skipMode == SkipMode.Auto && it.kind == SkipSegment.Kind.Intro }?.let { s ->
                 FilledTonalButton(
                     onClick = { session.skip(s) },
                     modifier = Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.safeDrawing)
