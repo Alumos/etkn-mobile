@@ -113,7 +113,8 @@ jobs:
           trap 'rm -f -- "$keydir/release.p12"; rmdir -- "$keydir"' EXIT
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keydir/release.p12"
           unset KEYSTORE_BASE64
-          expected=${SIGNER_SHA256//:/}; expected=${expected,,}
+          expected=$(printf '%s' "$SIGNER_SHA256" | tr -d ' :\r\n' | tr 'A-F' 'a-f')
+          [[ "$expected" =~ ^[a-f0-9]{64}$ ]] || { echo "ETKN_SIGNER_SHA256 must be a 64-hex certificate digest" >&2; exit 1; }
           mkdir -p "$RUNNER_TEMP/signed"
           for apk in "$RUNNER_TEMP"/unsigned/*-release-unsigned.apk; do
             abi=$(basename "$apk" | sed -E 's/^app-(.*)-release-unsigned\.apk$/\1/')
@@ -123,7 +124,7 @@ jobs:
               --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEY_PASSWORD --v4-signing-enabled false --out "$out" "$apk"
             result=$("$tools/apksigner" verify --print-certs "$out")
             cert=$(printf '%s\n' "$result" | awk '/^Signer #1 certificate SHA-256 digest: / {print tolower($NF)}')
-            if [[ -n "$expected" && "$cert" != "$expected" ]]; then echo "Signer mismatch for $out" >&2; exit 1; fi
+            [[ "$cert" == "$expected" ]] || { echo "Signer mismatch for $(basename "$out")" >&2; exit 1; }
           done
           (cd "$RUNNER_TEMP/signed" && sha256sum *.apk | tee SHA256SUMS.txt)
       - name: Signed APKs
