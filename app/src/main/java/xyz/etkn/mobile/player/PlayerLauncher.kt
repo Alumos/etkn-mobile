@@ -3,6 +3,7 @@ package xyz.etkn.mobile.player
 import android.content.Context
 import android.content.Intent
 import xyz.etkn.mobile.data.model.Item
+import xyz.etkn.mobile.graph
 
 object PlayerLauncher {
     const val EXTRA_ITEM = "item_id"
@@ -14,6 +15,7 @@ object PlayerLauncher {
     const val EXTRA_SOURCE = "source_id"
 
     fun play(context: Context, item: Item, resume: Boolean = true, sourceId: String? = null) {
+        PlaybackPrefetch.start(context.graph, item)
         val intent = Intent(context, PlayerActivity::class.java)
             .putExtra(EXTRA_ITEM, item.id)
             .putExtra(EXTRA_TYPE, item.type)

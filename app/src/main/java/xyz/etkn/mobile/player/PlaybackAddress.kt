@@ -50,6 +50,18 @@ object PlaybackAddress {
             source.raw.has("BlurayPlaylist") ||
             source.raw.objects("MediaStreams").any { it.has("TransportStreamId") }
 
+    /**
+     * HDR10 / HDR10+ / HLG / Dolby Vision video per the server's probe (any of its range,
+     * transfer or extended-type labels). Such sources stay on ExoPlayer, which passes HDR on.
+     */
+    fun isHdr(source: MediaSource): Boolean = source.streams.any { stream ->
+        stream.type.equals("Video", true) && listOf(
+            stream.videoRange, stream.videoRangeType, stream.colorTransfer, stream.extendedVideoType, stream.extendedVideoSubType,
+        ).any { label -> HDR_LABEL.containsMatchIn(label) }
+    }
+
+    private val HDR_LABEL = Regex("(?i)hdr|hlg|dovi|dolby|smpte2084|arib-std-b67|\\bpq\\b")
+
     /** Music streams additionally carry token / user / session as query parameters. */
     fun music(source: MediaSource, server: String, token: String, userId: String, playSession: String): String {
         val base: HttpUrl = resolve(source, server, token, userId).toHttpUrlOrNull()!!

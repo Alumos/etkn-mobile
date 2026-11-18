@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import kotlinx.coroutines.delay
+import androidx.media3.common.Player
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.ui.components.formatClock
 
@@ -50,17 +51,17 @@ internal sealed interface GestureFeedback {
 internal fun GestureLayer(
     enabled: Boolean,
     session: VideoSession,
+    player: Player,
     onToggle: () -> Unit,
     onFeedback: (GestureFeedback?) -> Unit,
 ) {
     val context = LocalContext.current
-    val player = session.player
     val audio = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val activity = context as? Activity
     val scope = rememberCoroutineScope()
     Box(
         Modifier.fillMaxSize()
-            .pointerInput(enabled) {
+            .pointerInput(enabled, player) {
                 detectTapGestures(
                     onTap = { onToggle() },
                     onDoubleTap = { offset ->
@@ -101,7 +102,7 @@ internal fun GestureLayer(
                     },
                 )
             }
-            .pointerInput(enabled) {
+            .pointerInput(enabled, player) {
                 if (!enabled) return@pointerInput
                 var mode = 0 // 1 seek, 2 brightness, 3 volume
                 var startPosition = 0L

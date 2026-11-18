@@ -36,6 +36,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -51,6 +52,7 @@ import androidx.media3.ui.SubtitleView
 import kotlinx.coroutines.delay
 import xyz.etkn.mobile.data.settings.SkipMode
 import xyz.etkn.mobile.player.danmaku.DanmakuView
+import xyz.etkn.mobile.player.mpv.MpvPlayer
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 
@@ -69,7 +71,7 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
     val danmakuStyle by session.danmakuStyle.collectAsStateWithLifecycle()
     val danmakuCues by session.danmakuCues.collectAsStateWithLifecycle()
     val themeArgb = MaterialTheme.colorScheme.primary.toArgb()
-    val player = session.player
+    val player by session.players.collectAsStateWithLifecycle()
     var controls by remember { mutableStateOf(true) }
     var locked by remember { mutableStateOf(false) }
     var resize by remember { mutableIntStateOf(0) }
@@ -77,24 +79,27 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     var buffered by remember { mutableLongStateOf(0L) }
-    var playing by remember { mutableStateOf(player.isPlaying) }
+    var playing by remember { mutableStateOf(false) }
     var gesture by remember { mutableStateOf<GestureFeedback?>(null) }
     var lastInteraction by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     DisposableEffect(player) {
+        val current = player
+        playing = current?.isPlaying == true
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
         }
-        player.addListener(listener)
-        onDispose { player.removeListener(listener) }
+        current?.addListener(listener)
+        onDispose { current?.removeListener(listener) }
     }
     LaunchedEffect(ui.finished) { if (ui.finished) onBack() }
     // Poll the clock only as fast as the UI needs it (4 Hz).
     LaunchedEffect(player) {
+        val current = player ?: return@LaunchedEffect
         while (true) {
-            position = player.currentPosition.coerceAtLeast(0)
-            duration = player.duration.takeIf { it > 0 } ?: 0
-            buffered = player.bufferedPosition
+            position = current.currentPosition.coerceAtLeast(0)
+            duration = current.duration.takeIf { it > 0 } ?: 0
+            buffered = current.bufferedPosition
             delay(250)
         }
     }
@@ -118,51 +123,69 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
     val touch = { lastInteraction = System.currentTimeMillis() }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    useController = false
-                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                    setShutterBackgroundColor(android.graphics.Color.BLACK)
-                    setKeepContentOnPlayerReset(true)
-                    // Plain white text with a dark outline instead of the system caption box
-                    // (black background); ASS/SSA keep their own embedded styling.
-                    subtitleView?.apply {
-                        setStyle(
-                            CaptionStyleCompat(
-                                android.graphics.Color.WHITE,
-                                android.graphics.Color.TRANSPARENT,
-                                android.graphics.Color.TRANSPARENT,
-                                CaptionStyleCompat.EDGE_TYPE_OUTLINE,
-                                android.graphics.Color.BLACK,
-                                null,
-                            ),
-                        )
-                        setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 1.08f)
-                        setBottomPaddingFraction(0.06f)
-                    }
-                    this.player = player
-                }
-            },
-            update = { view -> view.resizeMode = ResizeModes[resize].first },
-            modifier = Modifier.fillMaxSize(),
-        )
-        if (ui.danmakuOn && !inPip) {
-            AndroidView(
-                factory = { ctx -> DanmakuView(ctx, player) },
-                update = { view ->
-                    view.apply(danmakuStyle, themeArgb)
-                    view.setCues(danmakuCues)
-                },
-                onRelease = { it.close() },
-                modifier = Modifier.fillMaxSize(),
-            )
+        when (val core = player) {
+            null -> Unit
+            // mpv draws video and subtitles into its own SurfaceView.
+            is MpvPlayer -> key(core) {
+                AndroidView(
+                    factory = { (core.view.parent as? ViewGroup)?.removeView(core.view); core.view },
+                    update = { core.setResize(resize) },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            else -> key(core) {
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            useController = false
+                            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                            setShutterBackgroundColor(android.graphics.Color.BLACK)
+                            setKeepContentOnPlayerReset(true)
+                            // Plain white text with a dark outline instead of the system caption box
+                            // (black background); ASS/SSA keep their own embedded styling.
+                            subtitleView?.apply {
+                                setStyle(
+                                    CaptionStyleCompat(
+                                        android.graphics.Color.WHITE,
+                                        android.graphics.Color.TRANSPARENT,
+                                        android.graphics.Color.TRANSPARENT,
+                                        CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                                        android.graphics.Color.BLACK,
+                                        null,
+                                    ),
+                                )
+                                setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 1.08f)
+                                setBottomPaddingFraction(0.06f)
+                            }
+                            this.player = core
+                        }
+                    },
+                    update = { view -> view.resizeMode = ResizeModes[resize].first },
+                    onRelease = { it.player = null },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        val core = player
+        if (ui.danmakuOn && !inPip && core != null) {
+            key(core) {
+                AndroidView(
+                    factory = { ctx -> DanmakuView(ctx, core) },
+                    update = { view ->
+                        view.apply(danmakuStyle, themeArgb)
+                        view.setCues(danmakuCues)
+                    },
+                    onRelease = { it.close() },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
 
-        if (!inPip) {
+        if (!inPip && core != null) {
             GestureLayer(
                 enabled = !locked,
                 session = session,
+                player = core,
                 onToggle = { controls = !controls; touch() },
                 onFeedback = { gesture = it },
             )
@@ -199,9 +222,9 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
                 Controls(
                     ui = ui, playing = playing, position = position, duration = duration, buffered = buffered,
                     onBack = onBack, onPip = onPip,
-                    onPlayPause = { if (player.isPlaying) player.pause() else player.play(); touch() },
-                    onSeek = { player.seekTo(it); touch() },
-                    onSeekBy = { player.seekTo((player.currentPosition + it).coerceAtLeast(0)); touch() },
+                    onPlayPause = { core?.let { if (it.isPlaying) it.pause() else it.play() }; touch() },
+                    onSeek = { core?.seekTo(it); touch() },
+                    onSeekBy = { delta -> core?.let { p -> p.seekTo((p.currentPosition + delta).coerceAtLeast(0)) }; touch() },
                     onSheet = { sheet = it; touch() },
                     onResize = { resize = (resize + 1) % ResizeModes.size; touch() },
                     resizeLabel = ResizeModes[resize].second,

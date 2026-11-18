@@ -13,7 +13,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
-import androidx.media3.exoplayer.ExoPlayer
+import android.os.SystemClock
 import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.mediacodec.MediaCodecRenderer
 import kotlinx.coroutines.CoroutineScope
@@ -50,6 +50,8 @@ import xyz.etkn.mobile.data.settings.Settings
 import xyz.etkn.mobile.player.danmaku.DanmakuCue
 import xyz.etkn.mobile.player.danmaku.DanmakuFeed
 import xyz.etkn.mobile.data.settings.SkipMode
+import xyz.etkn.mobile.data.settings.PlayerEngine
+import xyz.etkn.mobile.player.mpv.MpvPlayer
 import java.util.Locale
 
 @Immutable
@@ -86,10 +88,17 @@ data class VideoUi(
 
 private const val TAG = "ETKN-Play"
 
+/** The two video cores. */
+enum class Engine(val label: String) { Exo("ExoPlayer"), Mpv("mpv") }
+
 /**
- * Owns one ExoPlayer for the lifetime of the player screen and talks to ETKN:
+ * Owns the video core for the player screen and talks to ETKN:
  * PlaybackInfo → direct stream → Playing / Progress (every 10 s and on state changes) / Stopped.
  * Reports run on the application scope so the final Stopped survives the activity.
+ *
+ * The core is chosen per source ([engineFor]): discs and HDR / Dolby Vision play on ExoPlayer,
+ * which hands HDR straight to the display; everything else on mpv. A core that fails switches
+ * to the other once, at the same position. Both are Media3 [Player]s, so the rest is shared.
  */
 class VideoSession(
     private val context: Context,
@@ -97,7 +106,11 @@ class VideoSession(
     private val scope: CoroutineScope,
 ) {
     private val api = graph.api
-    val player: ExoPlayer
+    private val _player = MutableStateFlow<Player?>(null)
+    /** Current core; null until the first source is known. */
+    val players: StateFlow<Player?> = _player.asStateFlow()
+    val player: Player? get() = _player.value
+    private var engine: Engine? = null
     private val settings: Settings
     private val session: ActiveSession = graph.sessions.require()
 
@@ -107,6 +120,10 @@ class VideoSession(
     private var item: Item? = null
     private var source: MediaSource? = null
     private var discTried = false
+    /** Set after a core failed on the current source; the other core plays it. */
+    private var forcedEngine: Engine? = null
+    private var loadStartedAt = 0L
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
     /** Tracks of the current source as last reported (the player clears them on an error). */
     private var lastTracks: Tracks = Tracks.EMPTY
     /** Formats whose decoder failed on this source; never offered again. */
@@ -132,51 +149,99 @@ class VideoSession(
     init {
         settings = kotlinx.coroutines.runBlocking { graph.settings.flow.first() }
         _danmakuStyle.value = settings.danmaku
-        player = PlayerFactory.video(context, graph.http.media, graph.identity.userAgent, settings.decoder)
-        player.setPlaybackSpeed(settings.defaultSpeed)
         _ui.update { it.copy(speed = settings.defaultSpeed, skipMode = settings.skipMode) }
-        player.addListener(object : Player.Listener {
-            override fun onPlaybackStateChanged(state: Int) {
-                when (state) {
-                    Player.STATE_READY -> {
-                        _ui.update { it.copy(loading = false, error = null) }
-                        if (!started) {
-                            started = true
-                            report("")
-                        }
+    }
+
+    private val listener = object : Player.Listener {
+        override fun onPlaybackStateChanged(state: Int) {
+            when (state) {
+                Player.STATE_READY -> {
+                    _ui.update { it.copy(loading = false, error = null) }
+                    if (!started) {
+                        started = true
+                        Log.i(TAG, "ready on ${engine?.label} after ${SystemClock.elapsedRealtime() - loadStartedAt} ms")
+                        report("")
                     }
-                    Player.STATE_BUFFERING -> _ui.update { it.copy(loading = true) }
-                    Player.STATE_ENDED -> onEnded()
-                    else -> Unit
                 }
+                Player.STATE_BUFFERING -> _ui.update { it.copy(loading = true) }
+                Player.STATE_ENDED -> onEnded()
+                else -> Unit
             }
+        }
 
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (started) report("Progress")
-            }
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (started) report("Progress")
+        }
 
-            override fun onTracksChanged(tracks: Tracks) {
-                if (!tracks.isEmpty) lastTracks = tracks
-                applyDiscAudio(tracks)
-                publishTracks(tracks)
-            }
+        override fun onTracksChanged(tracks: Tracks) {
+            if (!tracks.isEmpty) lastTracks = tracks
+            applyDiscAudio(tracks)
+            publishTracks(tracks)
+        }
 
-            override fun onEvents(player: Player, events: Player.Events) {
-                danmakuFeed?.tick()
-            }
+        override fun onEvents(player: Player, events: Player.Events) {
+            danmakuFeed?.tick()
+        }
 
-            override fun onPlayerError(error: PlaybackException) {
-                // An ISO the server did not mark as one: give the disc reader one try.
-                val current = source
-                if (error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED && !discTried && current != null) {
-                    playSource(current, player.currentPosition, disc = true)
-                    return
-                }
-                Log.e(TAG, "playback error ${error.errorCodeName}", error)
-                if (recoverAudio(error)) return
-                _ui.update { it.copy(loading = false, error = describe(error)) }
+        override fun onPlayerError(error: PlaybackException) {
+            val current = source
+            val position = player?.currentPosition ?: 0L
+            // An ISO the server did not mark as one: give the disc reader one try.
+            if (error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED && !discTried && current != null) {
+                playSource(current, position, disc = true)
+                return
             }
-        })
+            Log.e(TAG, "playback error on ${engine?.label} ${error.errorCodeName}", error)
+            if (engine == Engine.Exo && recoverAudio(error)) return
+            // One core gave up: the other plays the same source from the same place.
+            val failed = engine
+            if (current != null && forcedEngine == null && failed != null && !discTried) {
+                val other = if (failed == Engine.Exo) Engine.Mpv else Engine.Exo
+                forcedEngine = other
+                showNotice("已切换到 ${other.label} 内核")
+                // After this callback returns: the failing core is released by the switch.
+                main.post { if (!released && source === current) playSource(current, position) }
+                return
+            }
+            _ui.update { it.copy(loading = false, error = describe(error)) }
+        }
+    }
+
+    /** Discs and HDR / Dolby Vision stay on ExoPlayer: it outputs HDR, mpv's GL path tone-maps. */
+    private fun engineFor(chosen: MediaSource, disc: Boolean): Engine {
+        forcedEngine?.let { return it }
+        if (disc) return Engine.Exo
+        return when (settings.engine) {
+            PlayerEngine.Exo -> Engine.Exo
+            PlayerEngine.Mpv -> Engine.Mpv
+            PlayerEngine.Auto -> if (PlaybackAddress.isHdr(chosen)) Engine.Exo else Engine.Mpv
+        }
+    }
+
+    /** Swaps cores only when the wanted one differs; an mpv that cannot start falls back to ExoPlayer. */
+    private fun ensurePlayer(wanted: Engine): Player {
+        val existing = _player.value
+        if (existing != null && engine == wanted) return existing
+        val speed = existing?.playbackParameters?.speed ?: settings.defaultSpeed
+        if (existing != null) {
+            closeDanmaku()
+            existing.removeListener(listener)
+            existing.release()
+        }
+        val created: Pair<Engine, Player> = if (wanted == Engine.Mpv) {
+            runCatching { Engine.Mpv to MpvPlayer(context, graph.identity.userAgent, settings.decoder, PlayerFactory.preferredLanguages().toList()) }
+                .onFailure { Log.e(TAG, "mpv unavailable", it) }
+                .getOrNull()
+                ?: (Engine.Exo to PlayerFactory.video(context, graph.http.media, graph.identity.userAgent, settings.decoder))
+        } else {
+            Engine.Exo to PlayerFactory.video(context, graph.http.media, graph.identity.userAgent, settings.decoder)
+        }
+        engine = created.first
+        val next = created.second
+        next.setPlaybackSpeed(speed)
+        next.addListener(listener)
+        _player.value = next
+        return next
     }
 
     init {
@@ -196,59 +261,76 @@ class VideoSession(
             try {
                 var targetId = itemId
                 var position = startMs
+                var known: Item? = null
                 if ((type == "Series" || type == "Season") && seriesId != null) {
                     val target = api.playbackTarget(seriesId, if (type == "Season") seasonId ?: itemId else null)
                         ?: api.episodePage(seriesId, if (type == "Season") seasonId ?: itemId else null, start = 0, limit = 1).items.firstOrNull()
                         ?: throw IllegalStateException("没有可播放的剧集")
                     targetId = target.id
                     position = if (resume && !target.userData.played) target.positionMs else 0
+                    known = target
                 }
-                load(targetId, position, sourceId)
+                load(targetId, position, sourceId, known)
             } catch (error: Exception) {
                 _ui.update { it.copy(loading = false, error = error.message ?: "无法开始播放") }
             }
         }
     }
 
-    private suspend fun load(itemId: String, startMs: Long, sourceId: String?) {
+    /**
+     * Playback starts as soon as PlaybackInfo is in (usually already requested when Play was
+     * tapped); the full item only refines the title and chapters, so it never holds the stream.
+     */
+    private suspend fun load(itemId: String, startMs: Long, sourceId: String?, known: Item? = null) = coroutineScope {
         stopReporting()
+        loadStartedAt = SystemClock.elapsedRealtime()
         _ui.update { it.copy(loading = true, error = null, next = null, segments = emptyList()) }
-        // Independent requests: details and PlaybackInfo travel together.
-        val (detail, info) = coroutineScope {
-            val detail = async { runCatching { api.item(itemId, EtknApi.DETAIL_FIELDS) }.getOrNull() ?: api.item(itemId) }
-            val info = async { api.playbackInfo(itemId) }
-            detail.await() to info.await()
-        }
+        val handoff = PlaybackPrefetch.take(itemId)
+        // Never fails the load: a missing detail only leaves the tapped item's fields on screen.
+        val detail = async { runCatching { api.item(itemId, EtknApi.DETAIL_FIELDS) }.getOrNull() ?: runCatching { api.item(itemId) }.getOrNull() }
+        val info = handoff?.info?.let { runCatching { it.await() }.getOrNull() } ?: api.playbackInfo(itemId)
         if (info.sources.isEmpty()) throw IllegalStateException("暂无可播放版本")
         val index = sourceId?.let { id -> info.sources.indexOfFirst { it.id == id }.takeIf { it >= 0 } } ?: 0
-        item = detail
+        val base = (handoff?.item ?: known)?.takeIf { it.id == itemId } ?: detail.await() ?: throw IllegalStateException("无法读取条目")
+        Log.i(TAG, "playback info after ${SystemClock.elapsedRealtime() - loadStartedAt} ms (prefetched=${handoff != null})")
         playSession = info.playSessionId
         closeDanmaku()
         danmakuAvailable = info.danmakuAvailable
-        _ui.update {
-            it.copy(
-                item = detail,
-                title = if (detail.isEpisode) detail.seriesName ?: detail.name else detail.name,
-                subtitle = if (detail.isEpisode) listOfNotNull(detail.episodeCode, detail.name).joinToString("  ") else detail.productionYear?.toString().orEmpty(),
-                sources = info.sources,
-                sourceIndex = index,
-            )
-        }
+        showItem(base)
+        _ui.update { it.copy(sources = info.sources, sourceIndex = index) }
         playSource(info.sources[index], startMs)
         applyDanmaku()
-        if (detail.isEpisode) loadNext(detail.id)
+        if (base.isEpisode) loadNext(base.id)
+        val full = detail.await()
+        if (full != null && item?.id == full.id && full !== base) {
+            showItem(full)
+            source?.let { src -> _ui.update { it.copy(segments = segments(src.chapters.ifEmpty { full.chapters }, src.runTimeTicks / TICKS_PER_MS)) } }
+        }
+    }
+
+    private fun showItem(value: Item) {
+        item = value
+        _ui.update {
+            it.copy(
+                item = value,
+                title = if (value.isEpisode) value.seriesName ?: value.name else value.name,
+                subtitle = if (value.isEpisode) listOfNotNull(value.episodeCode, value.name).joinToString("  ") else value.productionYear?.toString().orEmpty(),
+            )
+        }
     }
 
     private fun playSource(chosen: MediaSource, startMs: Long, disc: Boolean = PlaybackAddress.isDisc(chosen)) {
         val current = item ?: return
         if (source !== chosen) {
             discTried = false
+            forcedEngine = null
             failedFormats.clear()
             discAudioApplied = false
             lastTracks = Tracks.EMPTY
         }
         source = chosen
         discTried = discTried || disc
+        val player = ensurePlayer(engineFor(chosen, disc))
         started = false
         stopped = false
         completedBySkip = false
@@ -273,7 +355,7 @@ class VideoSession(
             // Full-disc ISO: libbluray opens the server's probed main playlist when it sent one.
             .setTag(BlurayTag(disc, chosen.raw.int("BlurayPlaylist", -1), discHints(chosen)))
             .build()
-        Log.i(TAG, "play ${chosen.id} container=${chosen.container} disc=$disc playlist=${chosen.raw.int("BlurayPlaylist", -1)} " +
+        Log.i(TAG, "play ${chosen.id} on ${engine?.label} container=${chosen.container} disc=$disc playlist=${chosen.raw.int("BlurayPlaylist", -1)} " +
             "host=${Uri.parse(url).host} streams=" + chosen.streams.filterNot { it.isExternal }.joinToString(" ") {
                 "${it.type}:${it.codec}${if (it.transportStreamId > 0) "@" + it.transportStreamId else ""}:${it.language}"
             })
@@ -287,7 +369,7 @@ class VideoSession(
     fun selectSource(index: Int) {
         val sources = _ui.value.sources
         val chosen = sources.getOrNull(index) ?: return
-        val position = player.currentPosition
+        val position = player?.currentPosition ?: 0L
         stopReporting()
         _ui.update { it.copy(sourceIndex = index, loading = true) }
         playSource(chosen, position)
@@ -307,7 +389,7 @@ class VideoSession(
         loadJob?.cancel()
         loadJob = scope.launch {
             try {
-                load(next.id, if (next.userData.played) 0 else next.positionMs, null)
+                load(next.id, if (next.userData.played) 0 else next.positionMs, null, next)
             } catch (error: Exception) {
                 _ui.update { it.copy(loading = false, error = error.message ?: "无法播放下一集") }
             }
@@ -320,7 +402,7 @@ class VideoSession(
         loadJob?.cancel()
         loadJob = scope.launch {
             try {
-                load(episode.id, if (episode.userData.played) 0 else episode.positionMs, null)
+                load(episode.id, if (episode.userData.played) 0 else episode.positionMs, null, episode)
             } catch (error: Exception) {
                 _ui.update { it.copy(loading = false, error = error.message ?: "无法播放") }
             }
@@ -359,11 +441,12 @@ class VideoSession(
     fun autoSkip(segment: SkipSegment): Boolean {
         if (_ui.value.skipMode != SkipMode.Auto || segment.kind != SkipSegment.Kind.Intro || autoSkippedIntro) return false
         autoSkippedIntro = true
-        player.seekTo(segment.endMs)
+        player?.seekTo(segment.endMs)
         return true
     }
 
     fun skip(segment: SkipSegment) {
+        val player = player ?: return
         when (segment.kind) {
             SkipSegment.Kind.Intro -> player.seekTo(segment.endMs)
             SkipSegment.Kind.Credits -> if (_ui.value.next != null) playNext(completed = true) else player.seekTo(player.duration.coerceAtLeast(0))
@@ -398,7 +481,7 @@ class VideoSession(
                 }
             }
         }
-        val textDisabled = player.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
+        val textDisabled = player?.trackSelectionParameters?.disabledTrackTypes?.contains(C.TRACK_TYPE_TEXT) == true
         _ui.update { it.copy(audio = audio, text = text, textEnabled = !textDisabled && text.any { o -> o.selected }) }
     }
 
@@ -430,6 +513,7 @@ class VideoSession(
     private fun applyDiscAudio(tracks: Tracks) {
         if (discAudioApplied || tracks.isEmpty) return
         val src = source ?: return
+        val player = player ?: return
         val wanted = src.audio.firstOrNull { it.index == src.defaultAudioIndex }?.takeIf { it.transportStreamId > 0 } ?: return
         discAudioApplied = true
         for (group in tracks.groups) {
@@ -462,6 +546,7 @@ class VideoSession(
         }
         val (group, index) = candidates.firstOrNull { (g, t) -> g.getTrackFormat(t).language == format.language }
             ?: candidates.firstOrNull() ?: return false
+        val player = player ?: return false
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, index))
             .build()
@@ -471,6 +556,7 @@ class VideoSession(
     }
 
     fun selectTrack(option: TrackOption) {
+        val player = player ?: return
         val group = player.currentTracks.groups.getOrNull(option.groupIndex) ?: return
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, option.trackIndex))
@@ -479,13 +565,14 @@ class VideoSession(
     }
 
     fun disableSubtitles() {
+        val player = player ?: return
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             .build()
     }
 
     fun setSpeed(speed: Float) {
-        player.setPlaybackSpeed(speed)
+        player?.setPlaybackSpeed(speed)
         _ui.update { it.copy(speed = speed) }
     }
 
@@ -496,7 +583,8 @@ class VideoSession(
         val available = danmakuAvailable
         val wanted = available == true && _danmakuStyle.value.enabled && playSession.isNotEmpty() && item != null
         if (!wanted) closeDanmaku()
-        if (wanted && danmakuFeed == null) {
+        val player = player
+        if (wanted && danmakuFeed == null && player != null) {
             val current = item!!
             danmakuFeed = DanmakuFeed(
                 api = api, scope = scope, player = player, itemId = current.id, playSession = playSession,
@@ -544,7 +632,7 @@ class VideoSession(
         progressJob = scope.launch {
             while (isActive) {
                 delay(10_000)
-                if (started && player.isPlaying) report("Progress")
+                if (started && player?.isPlaying == true) report("Progress")
             }
         }
     }
@@ -558,6 +646,7 @@ class VideoSession(
     private fun report(event: String) {
         val current = item ?: return
         val src = source ?: return
+        val player = player ?: return
         val positionMs = player.currentPosition.coerceAtLeast(0)
         val durationMs = player.duration.takeIf { it > 0 && it != C.TIME_UNSET }
         val payload = buildJsonObject {
@@ -592,7 +681,9 @@ class VideoSession(
         closeDanmaku()
         released = true
         stopReporting()
-        player.release()
+        player?.removeListener(listener)
+        player?.release()
+        _player.value = null
     }
 
     /**

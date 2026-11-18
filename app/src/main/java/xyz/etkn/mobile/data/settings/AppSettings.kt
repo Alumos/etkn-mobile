@@ -23,6 +23,9 @@ enum class ColorSource(val label: String) { Server("服务器主题色"), Wallpa
 
 enum class DecoderPreference(val label: String) { Auto("自动"), Hardware("仅硬件"), Software("软件 (FFmpeg)") }
 
+/** Video core. Auto: discs and HDR / Dolby Vision on ExoPlayer (true HDR output), the rest on mpv. */
+enum class PlayerEngine(val label: String) { Auto("自动"), Exo("ExoPlayer"), Mpv("mpv") }
+
 enum class SkipMode(val label: String) { Button("显示按钮"), Auto("自动跳过"), Off("关闭") }
 
 /** Whole-app size: scales density (layout and text together) like the system display size. */
@@ -89,6 +92,7 @@ data class Settings(
     val colorSource: ColorSource = ColorSource.Server,
     val amoled: Boolean = false,
     val decoder: DecoderPreference = DecoderPreference.Auto,
+    val engine: PlayerEngine = PlayerEngine.Auto,
     val skipMode: SkipMode = SkipMode.Button,
     val autoPlayNext: Boolean = true,
     val defaultSpeed: Float = 1f,
@@ -109,6 +113,7 @@ class AppSettings(private val context: Context) {
         val color = stringPreferencesKey("color_source")
         val amoled = booleanPreferencesKey("amoled")
         val decoder = stringPreferencesKey("decoder")
+        val engine = stringPreferencesKey("engine")
         val skip = stringPreferencesKey("skip_mode")
         val autoNext = booleanPreferencesKey("auto_next")
         val speed = floatPreferencesKey("default_speed")
@@ -135,6 +140,7 @@ class AppSettings(private val context: Context) {
         colorSource = enumOr(this[Keys.color], ColorSource.Server),
         amoled = this[Keys.amoled] ?: false,
         decoder = enumOr(this[Keys.decoder], DecoderPreference.Auto),
+        engine = enumOr(this[Keys.engine], PlayerEngine.Auto),
         skipMode = enumOr(this[Keys.skip], SkipMode.Button),
         autoPlayNext = this[Keys.autoNext] ?: true,
         defaultSpeed = this[Keys.speed] ?: 1f,
@@ -162,6 +168,7 @@ class AppSettings(private val context: Context) {
     suspend fun setColorSource(source: ColorSource) = context.settingsDataStore.edit { it[Keys.color] = source.name }
     suspend fun setAmoled(value: Boolean) = context.settingsDataStore.edit { it[Keys.amoled] = value }
     suspend fun setDecoder(value: DecoderPreference) = context.settingsDataStore.edit { it[Keys.decoder] = value.name }
+    suspend fun setEngine(value: PlayerEngine) = context.settingsDataStore.edit { it[Keys.engine] = value.name }
     suspend fun setSkipMode(value: SkipMode) = context.settingsDataStore.edit { it[Keys.skip] = value.name }
     suspend fun setAutoPlayNext(value: Boolean) = context.settingsDataStore.edit { it[Keys.autoNext] = value }
     suspend fun setDefaultSpeed(value: Float) = context.settingsDataStore.edit { it[Keys.speed] = value }

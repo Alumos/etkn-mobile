@@ -16,6 +16,8 @@ haze = "1.7.3"
 materialKolor = "5.0.1"
 media3 = "1.11.1"
 nextlib = "1.11.1-0.18.0"
+# libmpv + FFmpeg 9 (same major as NextLib 0.18: the two share one set of FFmpeg libraries)
+mpv-android = "1.0.0"
 junit = "4.13.2"
 
 [libraries]
@@ -48,6 +50,7 @@ media3-datasource-okhttp = { module = "androidx.media3:media3-datasource-okhttp"
 media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 nextlib-media3ext = { module = "io.github.anilbeesetti:nextlib-media3ext", version.ref = "nextlib" }
+mpv-android = { module = "io.github.marlboro-advance:mpv-android", version.ref = "mpv-android" }
 
 junit = { module = "junit:junit", version.ref = "junit" }
 

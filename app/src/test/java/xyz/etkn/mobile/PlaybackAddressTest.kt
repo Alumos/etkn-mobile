@@ -48,6 +48,16 @@ class PlaybackAddressTest {
     }
 
     @Test
+    fun hdrAndDolbyVisionAreRecognisedFromTheProbeLabels() {
+        fun video(fields: String) = source("""{"Id":"v","MediaStreams":[{"Index":0,"Type":"Video",$fields}]}""")
+        assertTrue(PlaybackAddress.isHdr(video(""""VideoRange":"HDR","ColorTransfer":"smpte2084"""")))
+        assertTrue(PlaybackAddress.isHdr(video(""""VideoRange":"SDR","ExtendedVideoType":"DolbyVision","ExtendedVideoSubType":"DoviProfile81"""")))
+        assertTrue(PlaybackAddress.isHdr(video(""""ColorTransfer":"arib-std-b67"""")))
+        assertFalse(PlaybackAddress.isHdr(video(""""VideoRange":"SDR","ExtendedVideoType":"SDR","ColorTransfer":"bt709"""")))
+        assertFalse(PlaybackAddress.isHdr(source("""{"Id":"a","MediaStreams":[{"Index":1,"Type":"Audio","Title":"HDR remaster commentary"}]}""")))
+    }
+
+    @Test
     fun discTrackPidSurvivesSourcePrefixes() {
         assertEquals(4113, BlurayMediaSourceFactory.discPid("etkn-ts-4113-video/hevc"))
         assertEquals(4352, BlurayMediaSourceFactory.discPid("0:etkn-ts-4352-audio/true-hd"))

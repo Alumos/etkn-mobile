@@ -8,7 +8,7 @@ plugins {
 
 // CI overrides: -PetknVersionCode=<monotonic> -PetknVersionName=<x.y.z>
 val baseVersionCode = 1
-val baseVersionName = "0.6.0"
+val baseVersionName = "0.7.0"
 val versionCodeOverride = providers.gradleProperty("etknVersionCode").orNull?.toIntOrNull()
 val versionNameOverride = providers.gradleProperty("etknVersionName").orNull
 
@@ -96,7 +96,16 @@ android {
                 "META-INF/androidx/**", "**/*.kotlin_builtins", "DebugProbesKt.bin",
             )
         }
-        jniLibs { useLegacyPackaging = false }
+        jniLibs {
+            useLegacyPackaging = false
+            // mpv-android and NextLib both ship FFmpeg 9 (symbol version LIBAVCODEC_63), libass and libc++.
+            // mpv's copies are full builds and win; NextLib's bridge links against the same
+            // sonames. CI checks the packaged libavcodec is mpv's.
+            pickFirsts += setOf(
+                "**/libavcodec.so", "**/libavutil.so", "**/libswresample.so", "**/libswscale.so",
+                "**/libass.so", "**/libc++_shared.so",
+            )
+        }
     }
 }
 
@@ -158,6 +167,8 @@ dependencies {
     implementation(libs.haze)
     implementation(libs.material.color.utilities)
 
+    // Declared before Media3 / NextLib so its native libraries come first when merged.
+    implementation(libs.mpv.android)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.datasource.okhttp)
     implementation(libs.media3.ui)

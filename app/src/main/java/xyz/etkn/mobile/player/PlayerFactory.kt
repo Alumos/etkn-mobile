@@ -48,7 +48,7 @@ object PlayerFactory {
             )
         }
         val load = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(20_000, 90_000, 1_200, 2_500)
+            .setBufferDurationsMs(20_000, 90_000, 800, 2_500)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
         return ExoPlayer.Builder(context, renderers)
@@ -89,11 +89,11 @@ object PlayerFactory {
      */
     private fun videoSources(client: OkHttpClient, userAgent: String): BlurayMediaSourceFactory {
         val data = dataSource(client, userAgent)
-        val ordinary = DefaultMediaSourceFactory(data, BlurayMediaSourceFactory.baseLayerExtractors())
+        val ordinary = DefaultMediaSourceFactory(ResolvedRedirects(data), BlurayMediaSourceFactory.baseLayerExtractors())
         return BlurayMediaSourceFactory(ordinary, client, userAgent, data)
     }
 
-    private fun preferredLanguages(): Array<String> {
+    fun preferredLanguages(): Array<String> {
         val device = Locale.getDefault().language
         return linkedSetOf("zh", "chi", "zho", device).toTypedArray()
     }

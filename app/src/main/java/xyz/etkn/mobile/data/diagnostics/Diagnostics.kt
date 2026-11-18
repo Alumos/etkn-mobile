@@ -35,7 +35,7 @@ object Diagnostics {
     private const val KEEP_DAYS = 7L
 
     /** Tags written at info level; everything else only at error level. */
-    private val TAGS = listOf("ETKN", "ETKN-Play", "ETKN-Disc", "ETKN-Player")
+    private val TAGS = listOf("ETKN", "ETKN-Play", "ETKN-Disc", "ETKN-Player", "ETKN-Mpv")
 
     fun start(context: Context) {
         val dir = directory(context)

@@ -4,6 +4,7 @@
 | --- | --- |
 | AndroidX / Jetpack Compose / Material 3 / Media3 | Apache-2.0 |
 | NextLib media3ext (FFmpeg decoders, `io.github.anilbeesetti:nextlib-media3ext`) | GPL-3.0 (bundles FFmpeg, LGPL/GPL) |
+| mpv-android (libmpv, FFmpeg, libass, libplacebo; `io.github.marlboro-advance:mpv-android`) | LGPL-2.1-or-later (bundled FFmpeg LGPL/GPL) |
 | OkHttp / Okio | Apache-2.0 |
 | Coil 3 | Apache-2.0 |
 | Haze | Apache-2.0 |

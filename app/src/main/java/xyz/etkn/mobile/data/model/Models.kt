@@ -87,6 +87,9 @@ data class MediaStream(
     val videoRangeType: String,
     val colorTransfer: String,
     val profile: String,
+    /** Emby-style HDR / Dolby Vision labels (`HDR10`, `DolbyVision` / `DoviProfile81` …). */
+    val extendedVideoType: String = "",
+    val extendedVideoSubType: String = "",
     /** Blu-ray image tracks only: the MPEG-TS PID from the server's disc probe, else -1. */
     val transportStreamId: Int = -1,
 ) {
@@ -112,6 +115,8 @@ data class MediaStream(
             videoRangeType = o.str("VideoRangeType"),
             colorTransfer = o.str("ColorTransfer"),
             profile = o.str("Profile"),
+            extendedVideoType = o.str("ExtendedVideoType"),
+            extendedVideoSubType = o.str("ExtendedVideoSubType"),
             transportStreamId = o.int("TransportStreamId", -1),
         )
     }

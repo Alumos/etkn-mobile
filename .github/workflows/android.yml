@@ -68,8 +68,18 @@ jobs:
             :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
           mkdir -p "$RUNNER_TEMP/unsigned"
           find app/build/outputs/apk/release -name '*-release-unsigned.apk' -exec install -m 0644 {} "$RUNNER_TEMP/unsigned/" \;
+          mpv_aar=$(find "$HOME/.gradle/caches" -name 'mpv-android-*.aar' -print -quit)
+          test -n "$mpv_aar" || { echo "mpv-android AAR not found in the Gradle cache" >&2; exit 1; }
           for apk in "$RUNNER_TEMP"/unsigned/*.apk; do
             unzip -l "$apk" | grep -q 'libetkn_bluray.so' || { echo "libetkn_bluray.so missing in $apk" >&2; exit 1; }
+            # FFmpeg is shared by libmpv and NextLib: the packaged copy must be mpv's full build.
+            for abi in $(unzip -Z1 "$apk" 'lib/*/libmpv.so' | cut -d/ -f2); do
+              packaged=$(unzip -p "$apk" "lib/$abi/libavcodec.so" | sha256sum | cut -d' ' -f1)
+              expected=$(unzip -p "$mpv_aar" "jni/$abi/libavcodec.so" | sha256sum | cut -d' ' -f1)
+              test "$packaged" = "$expected" || { echo "$apk $abi: libavcodec.so is not mpv's copy" >&2; exit 1; }
+              echo "$(basename "$apk") $abi: libmpv + mpv FFmpeg"
+            done
+            unzip -Z1 "$apk" 'lib/*/libmpv.so' > /dev/null || { echo "libmpv.so missing in $apk" >&2; exit 1; }
           done
           ls -la "$RUNNER_TEMP/unsigned"
       - name: Lint report

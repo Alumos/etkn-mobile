@@ -55,6 +55,7 @@ import kotlinx.coroutines.launch
 import xyz.etkn.mobile.data.settings.ColorSource
 import xyz.etkn.mobile.data.settings.DanmakuStyle
 import xyz.etkn.mobile.data.settings.DecoderPreference
+import xyz.etkn.mobile.data.settings.PlayerEngine
 import xyz.etkn.mobile.data.settings.Settings
 import xyz.etkn.mobile.data.settings.SkipMode
 import xyz.etkn.mobile.data.settings.UiScale
@@ -106,6 +107,7 @@ fun SettingsScreen(page: SettingsPage) {
                         TabPicker(settings, side = wide && settings.navPosition == NavPosition.Side) { scope.launch { graph.settings.setTabs(it) } }
                     }
                     SettingsPage.Playback -> {
+                        ChoiceRow("播放内核", PlayerEngine.entries, settings.engine, { it.label }) { scope.launch { graph.settings.setEngine(it) } }
                         ChoiceRow("解码", DecoderPreference.entries, settings.decoder, { it.label }) { scope.launch { graph.settings.setDecoder(it) } }
                         ChoiceRow("片头片尾", SkipMode.entries, settings.skipMode, { it.label }) { scope.launch { graph.settings.setSkipMode(it) } }
                         ChoiceRow("默认倍速", listOf(1f, 1.25f, 1.5f, 2f), settings.defaultSpeed, { "${it}×" }) { scope.launch { graph.settings.setDefaultSpeed(it) } }
