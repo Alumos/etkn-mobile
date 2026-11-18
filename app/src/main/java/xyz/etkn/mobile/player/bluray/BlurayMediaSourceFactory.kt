@@ -33,8 +33,12 @@ import java.io.EOFException
 import java.io.IOException
 import java.util.Locale
 
-/** MediaItem tag for an ISO source: the server's probed main playlist, or -1 for libbluray's pick. */
-data class BlurayTag(val playlist: Int)
+/**
+ * MediaItem tag from the server's media source: [disc] when it is a Blu-ray image (`Container`
+ * iso or an `.iso` path — the stream URL itself may lack the suffix, e.g. a cloud STRM target),
+ * and the probed main [playlist] or -1 for libbluray's own pick.
+ */
+data class BlurayTag(val disc: Boolean, val playlist: Int)
 
 /**
  * Full-disc ISO playback, ported from ETKN TV. A `.iso` URI goes through libbluray: the ISO is
@@ -52,8 +56,9 @@ class BlurayMediaSourceFactory(
     override fun createMediaSource(mediaItem: MediaItem): MediaSource {
         val config = requireNotNull(mediaItem.localConfiguration)
         val uri = config.uri
-        if (!isIso(uri)) return ordinary.createMediaSource(mediaItem)
-        val playlist = (config.tag as? BlurayTag)?.playlist ?: -1
+        val tag = config.tag as? BlurayTag
+        if (tag?.disc != true && !isIso(uri)) return ordinary.createMediaSource(mediaItem)
+        val playlist = tag?.playlist ?: -1
         val session = Session(BlurayInput(http, uri, userAgent), playlist)
         val data = DataSource.Factory { DiscDataSource(session, uri, upstream.createDataSource()) }
         val fallback = baseLayerExtractors()

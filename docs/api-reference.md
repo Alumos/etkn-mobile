@@ -217,7 +217,7 @@
 - 播放到这首曲目时才请求 PlaybackInfo，不要整张专辑预先请求。
 
 **蓝光原盘 ISO：**
-- 地址取 `Path`（`.iso` 结尾），见上一条的 ISO 规则。
+- 判定为原盘的条件：`Container == iso`，或 `Path` 含 `.iso`。不要只看最终 URL 的后缀：云端 STRM 原盘的 `Path` 是 STRM 指向的链接，可能没有 `.iso` 后缀。地址取 `Path`，见上一条的 ISO 规则。
 - 客户端用 HTTP `Range` 随机读取原文件，存储端必须返回 `206` 和 `Content-Range`。
 - `MediaSources[].BlurayPlaylist`：服务端探测到的正片播放列表编号，可选；没有时由 libbluray 自己选正片。
 - 本仓库的做法：libbluray 加 libudfread 读取原盘，只做解封装的 FFmpeg 拆出流，交给 Media3 硬件解码；见 `third_party/bluray`。

@@ -14,7 +14,7 @@ object PlaybackAddress {
 
     fun resolve(source: MediaSource, server: String, token: String, userId: String): String {
         val direct = source.directStreamUrl ?: throw IllegalStateException("服务器未提供播放地址")
-        val iso = source.container.equals("iso", true) || source.path.lowercase().contains(".iso")
+        val iso = isDisc(source)
         var address = if (iso && source.path.isNotBlank()) source.path.trim() else direct
         address = when {
             address.startsWith("/") -> server + address
@@ -33,6 +33,10 @@ object PlaybackAddress {
         }
         return resolved.toString()
     }
+
+    /** Blu-ray image per the server's media source (the stream URL may not carry the suffix). */
+    fun isDisc(source: MediaSource): Boolean =
+        source.container.equals("iso", true) || source.path.lowercase().contains(".iso")
 
     /** Music streams additionally carry token / user / session as query parameters. */
     fun music(source: MediaSource, server: String, token: String, userId: String, playSession: String): String {

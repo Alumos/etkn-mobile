@@ -147,7 +147,7 @@ class VideoSession(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                _ui.update { it.copy(loading = false, error = "播放失败（${error.errorCodeName}）") }
+                _ui.update { it.copy(loading = false, error = describe(error)) }
             }
         })
     }
@@ -233,7 +233,7 @@ class VideoSession(
             .setSubtitleConfigurations(subtitles)
             .setMediaMetadata(MediaMetadata.Builder().setTitle(_ui.value.title).setSubtitle(_ui.value.subtitle).build())
             // Full-disc ISO: libbluray opens the server's probed main playlist when it sent one.
-            .setTag(BlurayTag(chosen.raw.int("BlurayPlaylist", -1)))
+            .setTag(BlurayTag(PlaybackAddress.isDisc(chosen), chosen.raw.int("BlurayPlaylist", -1)))
             .build()
         player.setMediaItem(media, startMs.coerceAtLeast(0))
         player.prepare()
@@ -479,6 +479,20 @@ class VideoSession(
         released = true
         stopReporting()
         player.release()
+    }
+
+    /**
+     * Media3's code alone hides the reason; the disc reader and transports throw IOExceptions
+     * with a user-facing message (Range unsupported, encrypted disc, no main title …).
+     */
+    private fun describe(error: PlaybackException): String {
+        var cause: Throwable? = error.cause
+        var detail: String? = null
+        while (cause != null && detail == null) {
+            detail = cause.message?.takeIf { message -> message.any { it.code > 0x2E7F } }
+            cause = cause.cause
+        }
+        return if (detail != null) "播放失败：$detail" else "播放失败（${error.errorCodeName}）"
     }
 
     // ---------- Labels ----------
