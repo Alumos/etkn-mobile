@@ -13,6 +13,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.ExoPlaybackException
+import androidx.media3.exoplayer.mediacodec.MediaCodecRenderer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -30,6 +32,7 @@ import kotlinx.serialization.json.put
 import xyz.etkn.mobile.AppGraph
 import xyz.etkn.mobile.data.api.EtknApi
 import xyz.etkn.mobile.data.model.Item
+import xyz.etkn.mobile.player.bluray.BlurayMediaSourceFactory
 import xyz.etkn.mobile.player.bluray.BlurayTag
 import xyz.etkn.mobile.data.net.int
 import xyz.etkn.mobile.data.model.MediaSource
@@ -98,6 +101,11 @@ class VideoSession(
     private var item: Item? = null
     private var source: MediaSource? = null
     private var discTried = false
+    /** Tracks of the current source as last reported (the player clears them on an error). */
+    private var lastTracks: Tracks = Tracks.EMPTY
+    /** Formats whose decoder failed on this source; never offered again. */
+    private val failedFormats = HashSet<String>()
+    private var discAudioApplied = false
     private var playSession = ""
     private var started = false
     private var stopped = true
@@ -141,7 +149,11 @@ class VideoSession(
                 if (started) report("Progress")
             }
 
-            override fun onTracksChanged(tracks: Tracks) = publishTracks(tracks)
+            override fun onTracksChanged(tracks: Tracks) {
+                if (!tracks.isEmpty) lastTracks = tracks
+                applyDiscAudio(tracks)
+                publishTracks(tracks)
+            }
 
             override fun onEvents(player: Player, events: Player.Events) {
                 danmakuFeed?.tick()
@@ -154,6 +166,7 @@ class VideoSession(
                     playSource(current, player.currentPosition, disc = true)
                     return
                 }
+                if (recoverAudio(error)) return
                 _ui.update { it.copy(loading = false, error = describe(error)) }
             }
         })
@@ -217,7 +230,12 @@ class VideoSession(
 
     private fun playSource(chosen: MediaSource, startMs: Long, disc: Boolean = PlaybackAddress.isDisc(chosen)) {
         val current = item ?: return
-        if (source !== chosen) discTried = false
+        if (source !== chosen) {
+            discTried = false
+            failedFormats.clear()
+            discAudioApplied = false
+            lastTracks = Tracks.EMPTY
+        }
         source = chosen
         discTried = discTried || disc
         started = false
@@ -352,10 +370,14 @@ class VideoSession(
                 if (!group.isTrackSupported(t, true)) continue
                 val format = group.getTrackFormat(t)
                 when (group.type) {
-                    C.TRACK_TYPE_AUDIO -> audio += TrackOption(g, t, audioLabel(format, audioStreams.getOrNull(audioOrdinal++)), group.isTrackSelected(t))
+                    C.TRACK_TYPE_AUDIO -> {
+                        if (format.id in failedFormats) continue
+                        val stream = discStream(format, audioStreams) ?: audioStreams.getOrNull(audioOrdinal++)
+                        audio += TrackOption(g, t, audioLabel(format, stream), group.isTrackSelected(t))
+                    }
                     C.TRACK_TYPE_TEXT -> {
                         val external = format.id?.contains("ext-") == true
-                        val stream = if (external) null else textStreams.getOrNull(textOrdinal++)
+                        val stream = if (external) null else discStream(format, textStreams) ?: textStreams.getOrNull(textOrdinal++)
                         text += TrackOption(g, t, textLabel(format, stream), group.isTrackSelected(t))
                     }
                 }
@@ -363,6 +385,69 @@ class VideoSession(
         }
         val textDisabled = player.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
         _ui.update { it.copy(audio = audio, text = text, textEnabled = !textDisabled && text.any { o -> o.selected }) }
+    }
+
+    /**
+     * Disc tracks carry their PID (`etkn-ts-<pid>-<mime>`); the server's disc probe reports the same
+     * PID as `TransportStreamId`, so labels never depend on track order. TrueHD and its AC3 core
+     * share a PID, so the codec family must agree too.
+     */
+    private fun discStream(format: Format, streams: List<MediaStream>): MediaStream? {
+        val pid = BlurayMediaSourceFactory.discPid(format.id).takeIf { it > 0 } ?: return null
+        val matches = streams.filter { it.transportStreamId == pid }
+        if (matches.size <= 1) return matches.firstOrNull()
+        return matches.firstOrNull { sameCodec(it.codec, format.sampleMimeType) }
+    }
+
+    private fun sameCodec(codec: String, mime: String?): Boolean = when (codec.lowercase(Locale.ROOT)) {
+        "truehd", "mlp" -> mime == MimeTypes.AUDIO_TRUEHD
+        "ac3" -> mime == MimeTypes.AUDIO_AC3
+        "eac3" -> mime == MimeTypes.AUDIO_E_AC3
+        else -> codec.lowercase(Locale.ROOT).startsWith("dts") && mime == MimeTypes.AUDIO_DTS_HD
+    }
+
+    /** Disc: start on the server's default audio (its user preferences), matched by PID. */
+    private fun applyDiscAudio(tracks: Tracks) {
+        if (discAudioApplied || tracks.isEmpty) return
+        val src = source ?: return
+        val wanted = src.audio.firstOrNull { it.index == src.defaultAudioIndex }?.takeIf { it.transportStreamId > 0 } ?: return
+        discAudioApplied = true
+        for (group in tracks.groups) {
+            if (group.type != C.TRACK_TYPE_AUDIO) continue
+            for (t in 0 until group.length) {
+                val format = group.getTrackFormat(t)
+                if (!group.isTrackSupported(t) || discStream(format, listOf(wanted)) == null) continue
+                if (!group.isTrackSelected(t)) {
+                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                        .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, t))
+                        .build()
+                }
+                return
+            }
+        }
+    }
+
+    /**
+     * An audio decoder that cannot start (or decode) should not cost the whole film: move to the
+     * next playable audio track — same language first — and resume where playback stopped.
+     */
+    private fun recoverAudio(error: PlaybackException): Boolean {
+        val failure = error as? ExoPlaybackException ?: return false
+        if (failure.type != ExoPlaybackException.TYPE_RENDERER) return false
+        val format = failure.rendererFormat ?: return false
+        if (MimeTypes.getTrackType(format.sampleMimeType) != C.TRACK_TYPE_AUDIO) return false
+        failedFormats += format.id ?: return false
+        val candidates = lastTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.flatMap { group ->
+            (0 until group.length).filter { group.isTrackSupported(it) && group.getTrackFormat(it).id !in failedFormats }.map { group to it }
+        }
+        val (group, index) = candidates.firstOrNull { (g, t) -> g.getTrackFormat(t).language == format.language }
+            ?: candidates.firstOrNull() ?: return false
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, index))
+            .build()
+        player.prepare()
+        showNotice("${codecName(format.sampleMimeType) ?: "该"}音轨无法解码，已切换音轨")
+        return true
     }
 
     fun selectTrack(option: TrackOption) {
@@ -501,7 +586,23 @@ class VideoSession(
             detail = cause.message?.takeIf { message -> message.any { it.code > 0x2E7F } }
             cause = cause.cause
         }
-        return if (detail != null) "播放失败：$detail" else "播放失败（${error.errorCodeName}）"
+        if (detail != null) return "播放失败：$detail"
+        // Renderer failures name the stream and the decoder, so a report says what the device lacks.
+        val renderer = error as? ExoPlaybackException
+        val format = renderer?.rendererFormat
+        if (renderer?.type == ExoPlaybackException.TYPE_RENDERER && format != null) {
+            val decoder = generateSequence(error.cause) { it.cause }
+                .filterIsInstance<MediaCodecRenderer.DecoderInitializationException>().firstOrNull()?.codecInfo?.name
+                ?: renderer.rendererName
+            val stream = listOfNotNull(
+                format.sampleMimeType,
+                format.codecs,
+                "${format.width}×${format.height}".takeIf { format.width > 0 },
+                "${format.channelCount}ch".takeIf { format.channelCount > 0 },
+            ).joinToString(" ")
+            return "播放失败：$stream 无法解码（${listOfNotNull(decoder, error.errorCodeName).joinToString(" · ")}）"
+        }
+        return "播放失败（${error.errorCodeName}）"
     }
 
     // ---------- Labels ----------

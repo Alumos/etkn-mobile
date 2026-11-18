@@ -121,19 +121,39 @@ class BlurayMediaSourceFactory(
         }
 
         private val DV_PROFILE_7 = Regex("dv(?:he|h1)\\.0?7(?:\\..*)?")
+
+        /** Blu-ray primary video PID; a disc track's format id is `etkn-ts-<pid>-<mime>`. */
+        const val PRIMARY_VIDEO_PID = 0x1011
+        private val DISC_TRACK = Regex("etkn-ts-(\\d+)-")
+
+        /** PID of a disc track from its (possibly source-prefixed) format id, else -1. */
+        fun discPid(formatId: String?): Int = formatId?.let { DISC_TRACK.find(it) }?.groupValues?.get(1)?.toIntOrNull() ?: -1
     }
 
+    /**
+     * One opened title. Reads happen on the loading thread, but the seek map is queried from the
+     * playback thread, which may outlive the handle: those calls go through [seekPoint] / [durationUs]
+     * and never touch a closed native handle.
+     */
     private class Session(val input: BlurayInput, val playlist: Int) {
         @Volatile var handle = 0L
+        @Volatile var durationUs = C.TIME_UNSET
 
         @Synchronized
         fun open(): Long {
             if (handle == 0L) {
                 if (!BlurayNative.loaded) throw IOException("原盘组件未能加载")
                 handle = BlurayNative.open(input, playlist)
+                durationUs = BlurayNative.duration(handle)
             }
             return handle
         }
+
+        /** Loading-thread handle; a closed session surfaces as an I/O error, not a native crash. */
+        fun current(): Long = handle.takeIf { it != 0L } ?: throw IOException("原盘已关闭")
+
+        @Synchronized
+        fun seekPoint(timeUs: Long): Long = if (handle == 0L) 0 else BlurayNative.seekPoint(handle, timeUs)
 
         @Synchronized
         fun close() {
@@ -175,7 +195,7 @@ class BlurayMediaSourceFactory(
             if (!disc) return fallback.read(buffer, offset, length)
             if (length == 0) return 0
             if (remaining == 0L) return C.RESULT_END_OF_INPUT
-            val count = BlurayNative.read(session.handle, buffer, offset, minOf(remaining, length.toLong()).toInt())
+            val count = BlurayNative.read(session.current(), buffer, offset, minOf(remaining, length.toLong()).toInt())
             if (count <= 0) throw EOFException("原盘正片数据不完整")
             remaining -= count
             bytesTransferred(count)
@@ -218,7 +238,13 @@ class BlurayMediaSourceFactory(
                 val first = known.isEmpty()
                 tracks.clear()
                 pgs.clear()
+                // One picture: the primary video (PID 0x1011). A Dolby Vision profile 7 disc also
+                // carries its enhancement layer (0x1015), and secondary video may exist; neither
+                // plays on its own, and exposing them lets the selector pick a wrong stream.
+                val videos = descriptions.filter { it.type == C.TRACK_TYPE_VIDEO }
+                val picture = videos.firstOrNull { it.pid == PRIMARY_VIDEO_PID } ?: videos.firstOrNull()
                 for (track in descriptions) {
+                    if (track.type == C.TRACK_TYPE_VIDEO && track !== picture) continue
                     val identity = "etkn-ts-${track.pid}-${track.mime}"
                     var target = known[identity]
                     if (first) {
@@ -243,13 +269,13 @@ class BlurayMediaSourceFactory(
                     output.endTracks()
                     output.seekMap(object : SeekMap {
                         override fun isSeekable() = true
-                        override fun getDurationUs() = BlurayNative.duration(session.handle)
-                        override fun getSeekPoints(timeUs: Long) = SeekMap.SeekPoints(SeekPoint(timeUs, BlurayNative.seekPoint(session.handle, timeUs)))
+                        override fun getDurationUs() = session.durationUs
+                        override fun getSeekPoints(timeUs: Long) = SeekMap.SeekPoints(SeekPoint(timeUs, session.seekPoint(timeUs)))
                     })
                 }
                 initialized = true
             }
-            val count = BlurayNative.packet(session.handle, input, buffer, metadata)
+            val count = BlurayNative.packet(session.current(), input, buffer, metadata)
             if (count < -1) {
                 if (-count > 16 * 1024 * 1024) throw IOException("原盘视频帧过大")
                 buffer = ByteArray(-count)
@@ -273,7 +299,7 @@ class BlurayMediaSourceFactory(
         override fun seek(position: Long, timeUs: Long) {
             pgs.values.forEach(PgsAssembler::reset)
             if (initialized) {
-                BlurayNative.reset(session.handle)
+                if (session.handle != 0L) BlurayNative.reset(session.handle)
                 initialized = false
             }
         }

@@ -87,6 +87,8 @@ data class MediaStream(
     val videoRangeType: String,
     val colorTransfer: String,
     val profile: String,
+    /** Blu-ray image tracks only: the MPEG-TS PID from the server's disc probe, else -1. */
+    val transportStreamId: Int = -1,
 ) {
     val label: String get() = displayTitle.ifEmpty { title.ifEmpty { language.ifEmpty { codec.uppercase() } } }
     val previewLabel: String get() = title.ifEmpty { displayTitle.ifEmpty { language.ifEmpty { codec.uppercase() } } }
@@ -110,6 +112,7 @@ data class MediaStream(
             videoRangeType = o.str("VideoRangeType"),
             colorTransfer = o.str("ColorTransfer"),
             profile = o.str("Profile"),
+            transportStreamId = o.int("TransportStreamId", -1),
         )
     }
 }

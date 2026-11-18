@@ -222,6 +222,8 @@
 - 本客户端的兜底：普通解析报 `ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED` 时，对同一地址再按原盘打开一次。
 - 客户端用 HTTP `Range` 随机读取原文件，存储端必须返回 `206` 和 `Content-Range`。
 - `MediaSources[].BlurayPlaylist`：服务端探测到的正片播放列表编号，可选；没有时由 libbluray 自己选正片。
+- `MediaStreams[].TransportStreamId`：该音轨/字幕/视频在原盘 MPEG-TS 里的 PID（服务端从 CLPI 或 M2TS 采样得到）。客户端按 PID 把服务端的轨道名称、默认音轨（`DefaultAudioStreamIndex`）对应到实际解出的轨道，不要按顺序对应；TrueHD 与其 AC3 内核共用一个 PID，需再按编码区分。
+- 杜比视界 profile 7 原盘同时含基础层（主视频 PID `0x1011`）和增强层（`0x1015`），服务端探测结果里两者都是 `hevc` 视频流；只播放主视频，不要把增强层当作可选视频轨。
 - 本仓库的做法：libbluray 加 libudfread 读取原盘，只做解封装的 FFmpeg 拆出流，交给 Media3 硬件解码；见 `third_party/bluray`。
 - 加密原盘和 BD-J 菜单不支持。
 - 杜比视界 profile 7（双层）只解码 HDR10 基础层。
