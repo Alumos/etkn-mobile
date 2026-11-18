@@ -67,6 +67,7 @@ import xyz.etkn.mobile.ui.theme.Etkn
 import kotlin.math.roundToInt
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.compose.material3.SliderState
 
 enum class SettingsPage(val title: String) { Appearance("外观"), Playback("播放"), Danmaku("弹幕"), Update("检查更新") }
 
@@ -234,12 +235,12 @@ private fun SliderRow(
             Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
             Text(format(local), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         }
+        val state = remember(steps, range) { SliderState(local, steps, range) }
+        state.value = local
         Slider(
-            value = local,
+            state = state,
             onValueChange = { local = it },
             onValueChangeFinished = { onCommit(local) },
-            valueRange = range,
-            steps = steps,
         )
     }
 }

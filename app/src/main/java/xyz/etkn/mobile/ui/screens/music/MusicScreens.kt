@@ -47,8 +47,6 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -99,6 +97,8 @@ import xyz.etkn.mobile.ui.screens.library.LargeTitle
 import xyz.etkn.mobile.ui.theme.Etkn
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import xyz.etkn.mobile.ui.actions.rememberPopupAnchor
+import xyz.etkn.mobile.ui.actions.PopupChoice
 
 @Composable
 fun MusicHomeScreen() {
@@ -210,13 +210,12 @@ private fun Playlists(parentId: String) {
             }
             items(s.value, key = { it.key }) { list ->
                 ListItem(
-                    headlineContent = { Text(list.name) },
+                    onClick = { nav.to(MusicListRoute(parentId, "playlists", list.key, list.name)) },
                     supportingContent = { Text("${list.count} 首") },
                     leadingContent = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null) },
                     trailingContent = { IconButton(onClick = { deleting = list }) { Icon(Icons.Rounded.Delete, "删除歌单") } },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    modifier = Modifier.clickable { nav.to(MusicListRoute(parentId, "playlists", list.key, list.name)) },
-                )
+                ) { Text(list.name) }
             }
         }
     }
@@ -344,11 +343,17 @@ fun TrackRow(track: Item, onClick: () -> Unit, horizontalPadding: androidx.compo
     val graph = LocalContext.current.graph
     val music by graph.music.state.collectAsStateWithLifecycle()
     val playing = music.current?.id == track.id
-    var menu by remember { mutableStateOf(false) }
     var picker by remember { mutableStateOf(false) }
+    val more = rememberPopupAnchor()
+    val choices = {
+        listOf(
+            PopupChoice("加入播放队列", Icons.AutoMirrored.Rounded.QueueMusic) { graph.music.append(listOf(track)) },
+            PopupChoice("添加到歌单", Icons.AutoMirrored.Rounded.PlaylistAdd) { picker = true },
+        )
+    }
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .combinedClickable(onClick = onClick, onLongClick = { menu = true })
+            .combinedClickable(onClick = onClick, onLongClick = { more.open(choices()) })
             .background(if (playing) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f) else Color.Transparent)
             .padding(horizontal = horizontalPadding.coerceAtLeast(8.dp), vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -367,21 +372,7 @@ fun TrackRow(track: Item, onClick: () -> Unit, horizontalPadding: androidx.compo
         }
         if (playing && music.isPlaying) Icon(Icons.Rounded.Equalizer, "正在播放", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
         else if (track.runtimeMs > 0) Text(formatClock(track.runtimeMs), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Box {
-            IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "更多") }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, shape = RoundedCornerShape(16.dp)) {
-                DropdownMenuItem(
-                    text = { Text("加入播放队列") },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null) },
-                    onClick = { menu = false; graph.music.append(listOf(track)) },
-                )
-                DropdownMenuItem(
-                    text = { Text("添加到歌单") },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
-                    onClick = { menu = false; picker = true },
-                )
-            }
-        }
+        IconButton(onClick = { more.open(choices()) }, modifier = more.modifier) { Icon(Icons.Rounded.MoreVert, "更多") }
     }
     if (picker) PlaylistPicker(track, onDismiss = { picker = false })
 }

@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -79,6 +81,18 @@ enum class ItemAction { Favorite, Played, Refresh, Metadata, Images, Previews, D
 
 internal data class Entry(val action: ItemAction, val label: String, val icon: ImageVector, val danger: Boolean = false)
 
+/** One row of a [GlassPopup]: overflow actions and pickers (sort keys, account shortcuts …). */
+data class PopupChoice(
+    val label: String,
+    val icon: ImageVector? = null,
+    val selected: Boolean = false,
+    val trailing: ImageVector? = null,
+    val onClick: () -> Unit,
+)
+
+/** A small glass menu dropped from [anchor]; drawn by [ItemMenuHost] so it blurs the page like the item menu. */
+internal class GlassPopup(val anchor: Rect, val choices: List<PopupChoice>)
+
 data class MenuTarget(val item: Item, val anchor: Rect, val resume: Boolean)
 
 /** The editors / confirmations the menu opens after it closes. */
@@ -102,6 +116,8 @@ class ItemMenu(private val graph: AppGraph, private val scope: CoroutineScope) {
     var target by mutableStateOf<MenuTarget?>(null)
         private set
     var dialog by mutableStateOf<ItemDialog?>(null)
+    internal var popup by mutableStateOf<GlassPopup?>(null)
+        private set
     var notice by mutableStateOf<String?>(null)
     private var admin by mutableStateOf(false)
     private var canRefresh by mutableStateOf(false)
@@ -130,6 +146,11 @@ class ItemMenu(private val graph: AppGraph, private val scope: CoroutineScope) {
 
     fun dismiss() {
         target = null
+        popup = null
+    }
+
+    fun show(anchor: Rect, choices: List<PopupChoice>) {
+        if (choices.isNotEmpty()) popup = GlassPopup(anchor, choices)
     }
 
     internal fun entriesFor(t: MenuTarget): List<Entry> {
@@ -257,6 +278,25 @@ class ItemPress internal constructor() {
     }
 }
 
+/** Anchor for a glass popup: put [modifier] on the button, call [open] from its click. */
+@Stable
+class PopupAnchor internal constructor() {
+    internal var menu: ItemMenu? = null
+    private var bounds = Rect.Zero
+    val modifier: Modifier = Modifier.onGloballyPositioned { bounds = it.boundsInRoot() }
+
+    fun open(choices: List<PopupChoice>) {
+        menu?.show(bounds, choices)
+    }
+}
+
+@Composable
+fun rememberPopupAnchor(): PopupAnchor {
+    val anchor = remember { PopupAnchor() }
+    anchor.menu = LocalItemMenu.current
+    return anchor
+}
+
 @Composable
 fun rememberItemPress(item: Item, resume: Boolean = false): ItemPress {
     val press = remember { ItemPress() }
@@ -278,10 +318,15 @@ fun ItemMenuHost(menu: ItemMenu, haze: HazeState?) {
     if (target != null) last[0] = target
     val current = target ?: last[0]
 
-    BackHandler(enabled = target != null) { menu.dismiss() }
+    val popup = menu.popup
+    val lastPopup = remember { arrayOfNulls<GlassPopup>(1) }
+    if (popup != null) lastPopup[0] = popup
+    val shownPopup = popup ?: lastPopup[0]
+
+    BackHandler(enabled = target != null || popup != null) { menu.dismiss() }
 
     Box(Modifier.fillMaxSize()) {
-        AnimatedVisibility(target != null, enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(target != null || popup != null, enter = fadeIn(), exit = fadeOut()) {
             Box(
                 Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.18f))
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { menu.dismiss() },
@@ -296,6 +341,18 @@ fun ItemMenuHost(menu: ItemMenu, haze: HazeState?) {
                     exit = fadeOut() + scaleOut(targetScale = 0.9f, transformOrigin = origin),
                 ) {
                     MenuCard(current, menu, haze)
+                }
+            }
+        }
+        if (shownPopup != null) {
+            MenuPlacement(shownPopup.anchor, below = true) {
+                val origin = TransformOrigin(1f, 0f)
+                AnimatedVisibility(
+                    popup != null,
+                    enter = fadeIn() + scaleIn(initialScale = 0.85f, transformOrigin = origin),
+                    exit = fadeOut() + scaleOut(targetScale = 0.9f, transformOrigin = origin),
+                ) {
+                    PopupCard(shownPopup, menu, haze)
                 }
             }
         }
@@ -323,9 +380,13 @@ fun ItemMenuHost(menu: ItemMenu, haze: HazeState?) {
     }
 }
 
-/** Centres the menu on the card, a third of the way down it, kept inside the safe area. */
+/**
+ * Item menus centre on the card a third of the way down it; popups ([below]) drop from the
+ * anchor's bottom edge, end-aligned, or rise above it when there is no room. Always inside the
+ * safe area.
+ */
 @Composable
-private fun MenuPlacement(anchor: Rect, content: @Composable () -> Unit) {
+private fun MenuPlacement(anchor: Rect, below: Boolean = false, content: @Composable () -> Unit) {
     val safe = WindowInsets.safeDrawing
     Layout(content, Modifier.fillMaxSize()) { measurables, constraints ->
         val margin = 12.dp.roundToPx()
@@ -336,8 +397,15 @@ private fun MenuPlacement(anchor: Rect, content: @Composable () -> Unit) {
         val placeable = measurables.firstOrNull()?.measure(Constraints(maxWidth = (right - left).coerceAtLeast(0), maxHeight = (bottom - top).coerceAtLeast(0)))
         layout(constraints.maxWidth, constraints.maxHeight) {
             if (placeable == null) return@layout
-            val x = (anchor.center.x - placeable.width / 2f).toInt().coerceIn(left, (right - placeable.width).coerceAtLeast(left))
-            val y = (anchor.top + anchor.height / 3f).toInt().coerceIn(top, (bottom - placeable.height).coerceAtLeast(top))
+            val gap = 4.dp.roundToPx()
+            val wantedX = if (below) anchor.right - placeable.width else anchor.center.x - placeable.width / 2f
+            val wantedY = when {
+                !below -> anchor.top + anchor.height / 3f
+                anchor.bottom + gap + placeable.height <= bottom -> anchor.bottom + gap
+                else -> anchor.top - gap - placeable.height
+            }
+            val x = wantedX.toInt().coerceIn(left, (right - placeable.width).coerceAtLeast(left))
+            val y = wantedY.toInt().coerceIn(top, (bottom - placeable.height).coerceAtLeast(top))
             placeable.place(IntOffset(x, y))
         }
     }
@@ -366,6 +434,32 @@ private fun MenuCard(target: MenuTarget, menu: ItemMenu, haze: HazeState?) {
                 Icon(entry.icon, null, tint = tint, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(14.dp))
                 Text(entry.label, style = MaterialTheme.typography.bodyLarge, color = tint)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PopupCard(popup: GlassPopup, menu: ItemMenu, haze: HazeState?) {
+    val rowShape = RoundedCornerShape(16.dp)
+    Column(Modifier.widthIn(min = 176.dp, max = 280.dp).width(IntrinsicSize.Max).glass(RoundedCornerShape(24.dp), elevation = 16.dp, state = haze).padding(vertical = 8.dp)) {
+        popup.choices.forEach { choice ->
+            val tint = if (choice.selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 6.dp).clip(rowShape)
+                    .clickable { menu.dismiss(); choice.onClick() }
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                choice.icon?.let {
+                    Icon(it, null, tint = tint, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(14.dp))
+                }
+                Text(choice.label, style = MaterialTheme.typography.bodyLarge, color = tint, modifier = Modifier.weight(1f))
+                choice.trailing?.let {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(it, null, tint = tint, modifier = Modifier.size(18.dp))
+                }
             }
         }
     }

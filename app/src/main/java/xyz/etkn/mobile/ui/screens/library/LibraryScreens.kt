@@ -32,18 +32,14 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,7 +50,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -76,6 +71,9 @@ import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.theme.Etkn
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import xyz.etkn.mobile.ui.actions.rememberPopupAnchor
+import xyz.etkn.mobile.ui.actions.PopupChoice
+import xyz.etkn.mobile.ui.components.ArtworkBackButton
 
 @Composable
 fun LibrariesScreen() {
@@ -152,25 +150,30 @@ fun LibraryScreen(route: LibraryRoute) {
 
 @Composable
 private fun SortMenu(sort: SortKey, descending: Boolean, onSelect: (SortKey) -> Unit) {
-    var open by remember { mutableStateOf(false) }
+    val anchor = rememberPopupAnchor()
+    val order = if (descending) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward
     Box {
-        FilledTonalButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = 14.dp), modifier = Modifier.height(32.dp)) {
+        FilledTonalButton(
+            onClick = {
+                anchor.open(
+                    SortKey.entries.map { key ->
+                        PopupChoice(
+                            key.label,
+                            selected = key == sort,
+                            trailing = order.takeIf { key == sort && key != SortKey.Random },
+                            onClick = { onSelect(key) },
+                        )
+                    },
+                )
+            },
+            contentPadding = PaddingValues(horizontal = 14.dp),
+            modifier = anchor.modifier.height(32.dp),
+        ) {
             Icon(Icons.AutoMirrored.Rounded.Sort, null, Modifier.size(18.dp))
             Spacer(Modifier.size(6.dp))
             Text(sort.label, style = MaterialTheme.typography.labelLarge)
             if (sort != SortKey.Random) {
                 Icon(if (descending) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward, null, Modifier.padding(start = 4.dp).size(16.dp))
-            }
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = RoundedCornerShape(16.dp)) {
-            SortKey.entries.forEach { key ->
-                DropdownMenuItem(
-                    text = { Text(key.label, color = if (key == sort) MaterialTheme.colorScheme.primary else Color.Unspecified) },
-                    trailingIcon = if (key == sort && key != SortKey.Random) {
-                        { Icon(if (descending) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward, null) }
-                    } else null,
-                    onClick = { open = false; onSelect(key) },
-                )
             }
         }
     }
@@ -218,14 +221,12 @@ fun PosterGridScaffold(
                 .onSizeChanged { barHeight = with(density) { it.height.toDp() } },
         ) {
             Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (onBack != null) {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") }
-                } else {
-                    Spacer(Modifier.width(16.dp))
-                }
+                // Same geometry as GlassBackBar so every secondary page's bar lines up.
+                if (onBack != null) ArtworkBackButton(onBack, Modifier.padding(start = 2.dp), onGlass = true)
+                else Spacer(Modifier.width(8.dp))
                 Text(
                     title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).padding(end = 16.dp),
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 )
             }
             if (header != null) Box(Modifier.padding(bottom = 10.dp)) { header() }
@@ -260,10 +261,13 @@ fun PosterGrid(
         modifier = Modifier.fillMaxSize(),
     ) {
         items(paged.items, key = { it.id }, contentType = { "poster" }) { item ->
-            if (item.type == "CollectionFolder" || item.collectionType != null && item.type != "BoxSet") {
-                LibraryTile(item, onClick = { onOpen(item) })
-            } else {
-                PosterCard(item, onClick = { onOpen(item) }, width = null)
+            // Removals and in-place updates (favourite, delete) slide neighbours into place.
+            Box(Modifier.animateItem()) {
+                if (item.type == "CollectionFolder" || item.collectionType != null && item.type != "BoxSet") {
+                    LibraryTile(item, onClick = { onOpen(item) })
+                } else {
+                    PosterCard(item, onClick = { onOpen(item) }, width = null)
+                }
             }
         }
         if (paged.loading) item(span = { GridItemSpan(maxLineSpan) }) { InlineLoading() }

@@ -3,7 +3,6 @@ package xyz.etkn.mobile.ui.nav
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.animateDp
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -15,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +48,12 @@ import xyz.etkn.mobile.ui.screens.search.SearchScreen
 /** Every destination inside the shell. */
 @Composable
 internal fun AppNavHost(controller: NavHostController, modifier: Modifier = Modifier) {
+    // Theme motion (Material 3 Expressive springs) instead of fixed tweens: interrupted or
+    // scrubbed transitions keep their velocity and settle naturally.
+    val motion = MaterialTheme.motionScheme
+    val move = motion.defaultSpatialSpec<IntOffset>()
+    val zoom = motion.defaultSpatialSpec<Float>()
+    val fade = motion.defaultEffectsSpec<Float>()
     NavHost(
         navController = controller,
         startDestination = HomeRoute,
@@ -55,10 +61,10 @@ internal fun AppNavHost(controller: NavHostController, modifier: Modifier = Modi
         // Pop transitions are what the predictive back gesture scrubs: the page being
         // left shrinks into a rounded card and drifts with the finger while the page
         // underneath (already laid out, opaque) settles back from a slight zoom.
-        enterTransition = { fadeIn(tween(220, delayMillis = 60)) + slideInHorizontally(tween(260)) { it / 12 } },
-        exitTransition = { fadeOut(tween(160)) + scaleOut(tween(260), targetScale = 0.96f) },
-        popEnterTransition = { fadeIn(tween(160)) + scaleIn(tween(260), initialScale = 0.96f) },
-        popExitTransition = { scaleOut(tween(260), targetScale = 0.88f) + slideOutHorizontally(tween(260)) { it / 8 } },
+        enterTransition = { fadeIn(fade) + slideInHorizontally(move) { it / 12 } },
+        exitTransition = { fadeOut(fade) + scaleOut(zoom, targetScale = 0.96f) },
+        popEnterTransition = { fadeIn(fade) + scaleIn(zoom, initialScale = 0.96f) },
+        popExitTransition = { scaleOut(zoom, targetScale = 0.88f) + slideOutHorizontally(move) { it / 8 } },
     ) {
         page<HomeRoute> { HomeScreen() }
         page<LibrariesRoute> { LibrariesScreen() }

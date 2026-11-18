@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import xyz.etkn.mobile.ui.components.formatClock
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.compose.material3.SliderState
 
 @Composable
 internal fun Controls(
@@ -128,8 +129,10 @@ internal fun Controls(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(formatClock(if (scrubbing) (scrub * duration).toLong() else position), color = Color.White, style = MaterialTheme.typography.labelMedium)
+                val seek = remember { SliderState() }
+                seek.value = if (scrubbing) scrub else if (duration > 0) position.toFloat() / duration else 0f
                 Slider(
-                    value = if (scrubbing) scrub else if (duration > 0) position.toFloat() / duration else 0f,
+                    state = seek,
                     onValueChange = { scrubbing = true; scrub = it },
                     onValueChangeFinished = { onSeek((scrub * duration).toLong()); scrubbing = false },
                     colors = SliderDefaults.colors(inactiveTrackColor = Color.White.copy(alpha = 0.25f)),

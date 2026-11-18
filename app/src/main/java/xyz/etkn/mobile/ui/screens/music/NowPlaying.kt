@@ -80,6 +80,7 @@ import xyz.etkn.mobile.ui.components.px
 import xyz.etkn.mobile.ui.nav.LocalNav
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.compose.material3.SliderState
 
 /** Polls the shared player position at [intervalMs] while composed. */
 @Composable
@@ -218,8 +219,10 @@ private fun PlayerColumn(
             )
         }
         Spacer(Modifier.height(16.dp))
+        val seek = remember { SliderState() }
+        seek.value = if (scrubbing) scrub else if (duration > 0) position.toFloat() / duration else 0f
         Slider(
-            value = if (scrubbing) scrub else if (duration > 0) position.toFloat() / duration else 0f,
+            state = seek,
             onValueChange = { scrubbing = true; scrub = it },
             onValueChangeFinished = { music.seekTo((scrub * duration).toLong()); scrubbing = false },
             modifier = Modifier.fillMaxWidth(),

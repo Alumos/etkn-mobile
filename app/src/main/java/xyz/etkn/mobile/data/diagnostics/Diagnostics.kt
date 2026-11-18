@@ -62,9 +62,9 @@ object Diagnostics {
 
     /** Days that have log lines, newest first. */
     fun days(context: Context): List<LocalDate> {
-        val seen = sortedSetOf<String>()
+        val seen = HashSet<String>()
         for (file in files(directory(context))) file.forEachLine { line -> DAY.find(line.take(10))?.let { seen += it.value } }
-        return seen.reversed().mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
+        return seen.sortedDescending().mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
     }
 
     fun fileName(day: LocalDate): String = "etkn-mobile-log-$day.txt"

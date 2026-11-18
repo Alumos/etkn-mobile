@@ -24,8 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +31,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,6 +69,10 @@ import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.nav.TopLevel
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Favorite
+import xyz.etkn.mobile.ui.actions.rememberPopupAnchor
+import xyz.etkn.mobile.ui.actions.PopupChoice
 
 @Composable
 fun HomeScreen() {
@@ -156,7 +157,6 @@ private fun HomeTopBar(reveal: () -> Float, haze: HazeState, onSearch: () -> Uni
     val graph = LocalContext.current.graph
     val session = (graph.sessions.state.collectAsStateWithLifecycle().value as? SessionState.SignedIn)?.session ?: return
     val urls = images()
-    var menu by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(26.dp)
     val fraction = reveal()
     val content = lerp(Color.White, MaterialTheme.colorScheme.onSurface, fraction)
@@ -180,19 +180,24 @@ private fun HomeTopBar(reveal: () -> Float, haze: HazeState, onSearch: () -> Uni
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "搜索", tint = content) }
-            Box {
-                IconButton(onClick = { menu = true }) {
-                    Artwork(
-                        urls.user(tag = session.imageTag),
-                        Modifier.size(32.dp).clip(CircleShape),
-                        session.userName,
-                        placeholder = Icons.Rounded.Person,
+            val account = rememberPopupAnchor()
+            IconButton(
+                onClick = {
+                    account.open(
+                        listOf(
+                            PopupChoice("我的收藏", Icons.Rounded.Favorite, onClick = onFavorites),
+                            PopupChoice("账号与设置", Icons.Rounded.Settings, onClick = onMe),
+                        ),
                     )
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, shape = RoundedCornerShape(16.dp)) {
-                    DropdownMenuItem(text = { Text("我的收藏") }, onClick = { menu = false; onFavorites() })
-                    DropdownMenuItem(text = { Text("账号与设置") }, onClick = { menu = false; onMe() })
-                }
+                },
+                modifier = account.modifier,
+            ) {
+                Artwork(
+                    urls.user(tag = session.imageTag),
+                    Modifier.size(32.dp).clip(CircleShape),
+                    session.userName,
+                    placeholder = Icons.Rounded.Person,
+                )
             }
         }
     }

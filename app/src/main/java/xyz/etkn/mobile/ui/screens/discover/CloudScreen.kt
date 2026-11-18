@@ -15,16 +15,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,7 +51,6 @@ import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.graphViewModel
 import xyz.etkn.mobile.ui.common.userMessage
 import xyz.etkn.mobile.ui.components.CardShape
-import xyz.etkn.mobile.ui.components.glass
 import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.nav.CloudRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
@@ -63,6 +58,7 @@ import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.theme.Etkn
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import xyz.etkn.mobile.ui.components.GlassBackBar
 
 @Composable
 fun CloudScreen(route: CloudRoute) {
@@ -156,14 +152,7 @@ fun CloudScreen(route: CloudRoute) {
                 }
             }
         }
-        Row(
-            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp, vertical = 6.dp)
-                .glass(RoundedCornerShape(26.dp), elevation = 8.dp, state = haze).height(52.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") }
-            Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 16.dp))
-        }
+        GlassBackBar(title, collapsed = true, haze = haze, onBack = nav::back)
     }
 
     confirm?.let { row ->

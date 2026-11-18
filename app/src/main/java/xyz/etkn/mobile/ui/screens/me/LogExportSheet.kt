@@ -35,6 +35,7 @@ import xyz.etkn.mobile.ui.components.GlassSheet
 import xyz.etkn.mobile.ui.theme.Etkn
 import java.time.LocalDate
 import kotlin.math.roundToInt
+import androidx.compose.material3.RangeSliderState
 
 /** Pick one day and an hour range of the local error log, then save it as a text file. */
 @Composable
@@ -78,7 +79,10 @@ fun LogExportSheet(onDismiss: () -> Unit) {
                     }
                     Column {
                         Text("%02d:00 – %02d:00".format(from, to), style = MaterialTheme.typography.titleMedium)
-                        RangeSlider(value = hours, onValueChange = { hours = it }, valueRange = 0f..24f, steps = 23)
+                        val range = remember { RangeSliderState(0f, 24f, steps = 23, trackRange = 0f..24f) }
+                        range.startValue = hours.start
+                        range.endValue = hours.endInclusive
+                        RangeSlider(state = range, onValueChange = { hours = it })
                     }
                 }
             }

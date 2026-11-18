@@ -8,7 +8,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import xyz.etkn.mobile.ui.components.GlassDialog
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -162,15 +161,14 @@ private fun Entry(
     onClick: () -> Unit,
 ) {
     ListItem(
-        headlineContent = { Text(label, color = tint) },
+        onClick = onClick,
         supportingContent = summary?.let { { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
         leadingContent = { Icon(icon, null, tint = tint) },
         trailingContent = if (chevron) {
             { Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
         } else null,
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.clickable(onClick = onClick),
-    )
+    ) { Text(label, color = tint) }
 }
 
 @Composable
@@ -194,25 +192,23 @@ fun AccountsScreen() {
             stored.accounts.forEach { account ->
                 val active = account.key == current?.key
                 ListItem(
-                    headlineContent = { Text(account.userName) },
-                    supportingContent = { Text(account.serverName + if (account.sealedToken == null && !active) " · 需要密码" else "") },
-                    leadingContent = { Icon(Icons.Rounded.Person, null) },
-                    trailingContent = { if (active) Text("当前", color = MaterialTheme.colorScheme.primary) },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    modifier = Modifier.clickable(enabled = !active) {
-                        scope.launch {
+                    onClick = {
+                        if (!active) scope.launch {
                             val ok = runCatching { graph.sessions.switchTo(account) }.getOrDefault(false)
                             if (!ok) { message = "该账号需要重新输入密码"; adding = true }
                         }
                     },
-                )
+                    supportingContent = { Text(account.serverName + if (account.sealedToken == null && !active) " · 需要密码" else "") },
+                    leadingContent = { Icon(Icons.Rounded.Person, null) },
+                    trailingContent = { if (active) Text("当前", color = MaterialTheme.colorScheme.primary) },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                ) { Text(account.userName) }
             }
             ListItem(
-                headlineContent = { Text("添加账号或服务器") },
+                onClick = { adding = true },
                 leadingContent = { Icon(Icons.Rounded.SwitchAccount, null) },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                modifier = Modifier.clickable { adding = true },
-            )
+            ) { Text("添加账号或服务器") }
         }
         message?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(Etkn.space.screen)) }
         Spacer(Modifier.height(LocalBottomInset.current))
