@@ -1,6 +1,7 @@
 package xyz.etkn.mobile.player.bluray
 
 import android.net.Uri
+import android.util.Log
 import androidx.annotation.Keep
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -63,6 +64,8 @@ internal class BlurayInput(private val http: OkHttpClient, private val uri: Uri,
                     open(at, uri.toString().toHttpUrl())
                 }
                 val current = response!!
+                // Host and status only: the address itself may carry signed credentials.
+                Log.i("ETKN-Disc", "range $at -> HTTP ${current.code} ${current.request.url.host} ${current.header("Content-Range").orEmpty()}")
                 val match = CONTENT_RANGE.matchEntire(current.header("Content-Range").orEmpty())
                 if (current.code != 206 || match == null || match.groupValues[1].toLong() != at) {
                     throw IOException("原盘服务器不支持 Range 随机读取（HTTP ${current.code}）")

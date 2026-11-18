@@ -11,6 +11,7 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.allowHardware
 import coil3.request.crossfade
 import okio.Path.Companion.toOkioPath
+import xyz.etkn.mobile.data.diagnostics.Diagnostics
 
 class EtknApp : Application(), SingletonImageLoader.Factory {
     lateinit var graph: AppGraph
@@ -18,6 +19,7 @@ class EtknApp : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        Diagnostics.start(this)
         graph = AppGraph(this)
         graph.sessions.restore()
     }

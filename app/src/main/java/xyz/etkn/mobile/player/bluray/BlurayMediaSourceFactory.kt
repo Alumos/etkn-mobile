@@ -1,6 +1,7 @@
 package xyz.etkn.mobile.player.bluray
 
 import android.net.Uri
+import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
@@ -121,6 +122,8 @@ class BlurayMediaSourceFactory(
         }
 
         private val DV_PROFILE_7 = Regex("dv(?:he|h1)\\.0?7(?:\\..*)?")
+
+        private const val LOG_TAG = "ETKN-Disc"
 
         /** Blu-ray primary video PID; a disc track's format id is `etkn-ts-<pid>-<mime>`. */
         const val PRIMARY_VIDEO_PID = 0x1011
@@ -243,6 +246,13 @@ class BlurayMediaSourceFactory(
                 // plays on its own, and exposing them lets the selector pick a wrong stream.
                 val videos = descriptions.filter { it.type == C.TRACK_TYPE_VIDEO }
                 val picture = videos.firstOrNull { it.pid == PRIMARY_VIDEO_PID } ?: videos.firstOrNull()
+                if (first) {
+                    Log.i(LOG_TAG, "disc title ${session.durationUs / 1_000_000}s playlist=${session.playlist} tracks: " + descriptions.joinToString(" | ") {
+                        "${it.pid}:${it.mime}" + (if (it.width > 0) " ${it.width}x${it.height}" else "") +
+                            (if (it.channels > 0) " ${it.channels}ch ${it.sampleRate}Hz" else "") +
+                            " init=${it.initialization.size}" + (if (it.type == C.TRACK_TYPE_VIDEO && it !== picture) " skipped" else "")
+                    })
+                }
                 for (track in descriptions) {
                     if (track.type == C.TRACK_TYPE_VIDEO && track !== picture) continue
                     val identity = "etkn-ts-${track.pid}-${track.mime}"

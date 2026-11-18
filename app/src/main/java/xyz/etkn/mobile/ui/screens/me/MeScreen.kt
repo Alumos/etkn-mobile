@@ -8,6 +8,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import xyz.etkn.mobile.ui.components.GlassDialog
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import xyz.etkn.mobile.data.diagnostics.Diagnostics
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
@@ -26,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Favorite
@@ -84,6 +91,13 @@ fun MeScreen() {
     val settings by graph.settings.flow.collectAsStateWithLifecycle(initialValue = Settings())
     val session = (graph.sessions.state.collectAsStateWithLifecycle().value as? SessionState.SignedIn)?.session ?: return
     var confirmLogout by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val exportLog = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { target ->
+        if (target != null) scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { Diagnostics.export(context, target) } }
+            Toast.makeText(context, if (result.isSuccess) "日志已导出" else "导出失败", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // Tablets: a readable centred column instead of edge-to-edge rows.
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -122,6 +136,7 @@ fun MeScreen() {
                 Entry(Icons.Rounded.SystemUpdate, "检查更新", "v${BuildConfig.VERSION_NAME} · ${if (settings.autoUpdate) "自动" else "手动"}") {
                     nav.to(SettingsRoute(SettingsPage.Update.name))
                 }
+                Entry(Icons.Rounded.BugReport, "导出日志") { exportLog.launch(Diagnostics.fileName()) }
             }
         }
         item {

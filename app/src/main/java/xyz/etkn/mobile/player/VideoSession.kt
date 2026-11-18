@@ -2,6 +2,7 @@ package xyz.etkn.mobile.player
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.compose.runtime.Immutable
 import androidx.media3.common.C
 import androidx.media3.common.Format
@@ -79,6 +80,8 @@ data class VideoUi(
     val danmakuOn: Boolean = false,
     val notice: String? = null,
 )
+
+private const val TAG = "ETKN-Play"
 
 /**
  * Owns one ExoPlayer for the lifetime of the player screen and talks to ETKN:
@@ -166,6 +169,7 @@ class VideoSession(
                     playSource(current, player.currentPosition, disc = true)
                     return
                 }
+                Log.e(TAG, "playback error ${error.errorCodeName}", error)
                 if (recoverAudio(error)) return
                 _ui.update { it.copy(loading = false, error = describe(error)) }
             }
@@ -262,6 +266,10 @@ class VideoSession(
             // Full-disc ISO: libbluray opens the server's probed main playlist when it sent one.
             .setTag(BlurayTag(disc, chosen.raw.int("BlurayPlaylist", -1)))
             .build()
+        Log.i(TAG, "play ${chosen.id} container=${chosen.container} disc=$disc playlist=${chosen.raw.int("BlurayPlaylist", -1)} " +
+            "host=${Uri.parse(url).host} streams=" + chosen.streams.filterNot { it.isExternal }.joinToString(" ") {
+                "${it.type}:${it.codec}${if (it.transportStreamId > 0) "@" + it.transportStreamId else ""}:${it.language}"
+            })
         player.setMediaItem(media, startMs.coerceAtLeast(0))
         player.prepare()
         player.playWhenReady = true
