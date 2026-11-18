@@ -75,8 +75,8 @@ fun MainShell(session: ActiveSession) {
     val hazeState = rememberHazeState()
     val backStack by controller.currentBackStackEntryAsState()
     val destination = backStack?.destination
-    val current = TopLevel.entries.firstOrNull { tab -> destination?.hierarchy?.any { it.hasRoute(tab.route::class) } == true }
-    val isNowPlaying = destination?.hasRoute(NowPlayingRoute::class) == true
+    val current = TopLevel.entries.firstOrNull { tab -> destination?.hierarchy?.any { tab.matches(it) } == true }
+    val isNowPlaying = destination?.hasRoute<NowPlayingRoute>() == true
     val music = context.graph.music
     val nowPlaying by music.state.collectAsStateWithLifecycle()
     val showMini = nowPlaying.current != null && !isNowPlaying

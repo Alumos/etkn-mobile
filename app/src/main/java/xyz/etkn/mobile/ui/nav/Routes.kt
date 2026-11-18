@@ -12,6 +12,8 @@ import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.navigation.NavDestination
+import androidx.navigation.NavDestination.Companion.hasRoute
 import kotlinx.serialization.Serializable
 
 @Serializable data object HomeRoute
@@ -40,4 +42,12 @@ enum class TopLevel(val route: Any, val label: String, val icon: ImageVector, va
     Music(MusicRoute, "音乐", Icons.Outlined.LibraryMusic, Icons.Rounded.LibraryMusic),
     Search(SearchRoute, "搜索", Icons.Outlined.Search, Icons.Rounded.Search),
     Me(MeRoute, "我的", Icons.Outlined.AccountCircle, Icons.Rounded.AccountCircle),
+}
+
+fun TopLevel.matches(destination: NavDestination): Boolean = when (this) {
+    TopLevel.Home -> destination.hasRoute<HomeRoute>()
+    TopLevel.Libraries -> destination.hasRoute<LibrariesRoute>()
+    TopLevel.Music -> destination.hasRoute<MusicRoute>()
+    TopLevel.Search -> destination.hasRoute<SearchRoute>()
+    TopLevel.Me -> destination.hasRoute<MeRoute>()
 }
