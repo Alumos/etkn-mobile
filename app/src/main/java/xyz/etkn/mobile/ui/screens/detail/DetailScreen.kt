@@ -23,6 +23,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.rememberHazeState
+import xyz.etkn.mobile.ui.components.glassSource
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -123,10 +126,11 @@ private fun DetailContent(data: DetailData, episodes: EpisodesState, vm: DetailV
     val item = data.item
     val list = rememberLazyListState()
     val collapsed by remember { derivedStateOf { list.firstVisibleItemIndex > 0 } }
+    val haze = rememberHazeState()
     val seriesId = if (item.isSeries) item.id else item.seriesId
 
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(state = list, modifier = Modifier.fillMaxSize()) {
+        LazyColumn(state = list, modifier = Modifier.fillMaxSize().glassSource(haze)) {
             item(key = "header", contentType = "header") { DetailHeader(item) }
             item(key = "actions", contentType = "actions") { ActionRow(data, vm, nav) }
             if (item.mediaSources.size > 1) {
@@ -154,16 +158,16 @@ private fun DetailContent(data: DetailData, episodes: EpisodesState, vm: DetailV
             shelf("similar", "相似推荐", data.similar) { PosterCard(it, onClick = { nav.open(it) }) }
             item(key = "bottom") { Spacer(Modifier.height(LocalBottomInset.current + 24.dp)) }
         }
-        CollapsingBar(item.seriesName?.takeIf { item.isEpisode || item.isSeason } ?: item.name, collapsed, nav::back)
+        CollapsingBar(item.seriesName?.takeIf { item.isEpisode || item.isSeason } ?: item.name, collapsed, haze, nav::back)
     }
 }
 
 @Composable
-private fun CollapsingBar(title: String, collapsed: Boolean, onBack: () -> Unit) {
+private fun CollapsingBar(title: String, collapsed: Boolean, haze: HazeState, onBack: () -> Unit) {
     val shape = RoundedCornerShape(26.dp)
     Row(
         Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp, vertical = 6.dp)
-            .then(if (collapsed) Modifier.glass(shape, elevation = 8.dp) else Modifier)
+            .then(if (collapsed) Modifier.glass(shape, elevation = 8.dp, state = haze) else Modifier)
             .height(52.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

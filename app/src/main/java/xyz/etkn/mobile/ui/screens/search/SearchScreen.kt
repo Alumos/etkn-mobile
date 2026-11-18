@@ -1,7 +1,8 @@
 package xyz.etkn.mobile.ui.screens.search
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,15 +17,16 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
@@ -37,7 +39,10 @@ import androidx.lifecycle.viewModelScope
 import xyz.etkn.mobile.AppGraph
 import xyz.etkn.mobile.data.model.ItemsPage
 import xyz.etkn.mobile.ui.common.graphViewModel
+import dev.chrisbanes.haze.rememberHazeState
 import xyz.etkn.mobile.ui.components.LoadingState
+import xyz.etkn.mobile.ui.components.glass
+import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.components.MessageState
 import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.screens.library.PagedViewModel
@@ -72,44 +77,48 @@ fun SearchScreen() {
     val paged by vm.paged.collectAsStateWithLifecycle()
     val nav = LocalNav.current
     val text = rememberTextFieldState()
-    val searchState = rememberSearchBarState()
+    // Standalone field: SearchBar(state, …) hands focus to an expanded overlay we don't use,
+    // which dropped the keyboard the moment the field was tapped.
+    val barState = rememberSearchBarState()
     val keyboard = LocalSoftwareKeyboardController.current
+    val focus = remember { FocusRequester() }
     val grid = rememberLazyGridState()
+    val haze = rememberHazeState()
+    val shape = RoundedCornerShape(28.dp)
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp
 
     LaunchedEffect(text) {
         snapshotFlow { text.text.toString() }.collect(vm::onQuery)
     }
+    LaunchedEffect(Unit) { if (text.text.isEmpty()) focus.requestFocus() }
 
-    Column(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().glassSource(haze)) {
+            when {
+                vm.current.isEmpty() && text.text.isEmpty() -> MessageState("输入片名开始搜索", icon = Icons.Rounded.Search)
+                paged.items.isEmpty() && paged.loading -> LoadingState()
+                paged.items.isEmpty() && paged.endReached -> MessageState("没有找到相关影视")
+                else -> PosterGrid(paged, grid, vm::loadMore, vm::retry, top = top) { keyboard?.hide(); nav.open(it) }
+            }
+        }
         Box(
             Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = Etkn.space.screen, vertical = 8.dp),
-            contentAlignment = Alignment.Center,
+                .padding(horizontal = Etkn.space.screen, vertical = 8.dp)
+                .glass(shape, elevation = 8.dp, state = haze),
         ) {
-            SearchBar(
-                state = searchState,
-                inputField = {
-                    SearchBarDefaults.InputField(
-                        textFieldState = text,
-                        searchBarState = searchState,
-                        onSearch = { keyboard?.hide() },
-                        placeholder = { Text("搜索电影、剧集") },
-                        leadingIcon = { Icon(Icons.Rounded.Search, null) },
-                        trailingIcon = {
-                            if (text.text.isNotEmpty()) {
-                                IconButton(onClick = { text.clearText() }) { Icon(Icons.Rounded.Close, "清除") }
-                            }
-                        },
-                    )
+            SearchBarDefaults.InputField(
+                textFieldState = text,
+                searchBarState = barState,
+                onSearch = { keyboard?.hide() },
+                placeholder = { Text("搜索电影、剧集") },
+                leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                trailingIcon = {
+                    if (text.text.isNotEmpty()) {
+                        IconButton(onClick = { text.clearText(); focus.requestFocus() }) { Icon(Icons.Rounded.Close, "清除") }
+                    }
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
             )
-        }
-        when {
-            vm.current.isEmpty() && text.text.isEmpty() -> MessageState("输入片名开始搜索", icon = Icons.Rounded.Search)
-            paged.items.isEmpty() && paged.loading -> LoadingState()
-            paged.items.isEmpty() && paged.endReached -> MessageState("没有找到相关影视")
-            else -> PosterGrid(paged, grid, vm::loadMore, vm::retry) { keyboard?.hide(); nav.open(it) }
         }
     }
 }

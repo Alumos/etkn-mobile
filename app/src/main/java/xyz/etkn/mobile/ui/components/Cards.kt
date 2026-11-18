@@ -45,6 +45,7 @@ import java.util.Locale
 
 val CardShape = RoundedCornerShape(16.dp)
 val SmallCardShape = RoundedCornerShape(12.dp)
+val LargeCardShape = RoundedCornerShape(20.dp)
 
 fun formatRating(value: Double?): String? = value?.takeIf { it > 0 }?.let { String.format(Locale.ROOT, "%.1f", it) }
 
@@ -219,6 +220,29 @@ fun LibraryCard(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier, 
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
         )
+    }
+}
+
+/** Grid entry for a library or folder: clean cover, name and size underneath (fills its cell). */
+@Composable
+fun LibraryTile(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().clip(SmallCardShape).clickable(onClick = onClick)) {
+        Artwork(
+            images().primary(item, 420.dp.px()),
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(LargeCardShape),
+            item.name,
+            placeholder = libraryIcon(item.collectionType),
+        )
+        Text(
+            item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
+        )
+        (item.childCount ?: item.recursiveItemCount)?.takeIf { it > 0 }?.let { count ->
+            Text(
+                "$count 项", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
     }
 }
 

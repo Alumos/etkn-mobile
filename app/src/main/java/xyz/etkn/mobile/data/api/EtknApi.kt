@@ -6,6 +6,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import xyz.etkn.mobile.player.danmaku.DanmakuPage
+import xyz.etkn.mobile.player.danmaku.DanmakuTimeline
 import xyz.etkn.mobile.data.model.EpisodePage
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.model.ItemsPage
@@ -259,13 +261,32 @@ class EtknApi(
         val path = if (audio) "/api/tv/Items/${enc(itemId)}/PlaybackInfo"
         else query("/api/tv/Items/${enc(itemId)}/PlaybackInfo", "UserId" to s.userId)
         val result = post(path)
-        return PlaybackInfo(result.str("PlaySessionId"), result.objects("MediaSources").map(MediaSource::from))
+        return PlaybackInfo(
+            result.str("PlaySessionId"),
+            result.objects("MediaSources").map(MediaSource::from),
+            danmakuAvailable = result.obj("Danmaku")?.bool("Available"),
+        )
     }
 
-    /** `event` is "" (started), "Progress" or "Stopped". */
-    suspend fun report(event: String, payload: JsonObject, a: ActiveSession = s) {
+    /** `event` is "" (started), "Progress" or "Stopped". The reply may carry a fresh `Danmaku` state. */
+    suspend fun report(event: String, payload: JsonObject, a: ActiveSession = s): JsonObject {
         val path = "/api/tv/Sessions/Playing" + if (event.isEmpty()) "" else "/$event"
-        client.call(cred(a), "POST", path, payload)
+        return client.call(cred(a), "POST", path, payload)
+    }
+
+    // ---------- Danmaku ----------
+
+    /** Server-side danmaku service switch (read only; the client never toggles it). */
+    suspend fun danmakuAvailable(): Boolean = get("/api/tv/System/Danmaku").bool("Available")
+
+    /** One 120 s window of comments starting at [startMs] for this play session. */
+    suspend fun danmaku(itemId: String, playSessionId: String, startMs: Long): DanmakuPage {
+        val result = get(query("/api/tv/Items/${enc(itemId)}/Danmaku", "local" to "true", "session" to playSessionId, "start" to startMs))
+        return DanmakuPage(
+            enabled = result.bool("enabled"),
+            status = result.str("status"),
+            cues = DanmakuTimeline.parse(result.objects("comments")),
+        )
     }
 
     // ---------- Music ----------

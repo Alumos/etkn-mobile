@@ -56,6 +56,8 @@ import xyz.etkn.mobile.ui.screens.library.LibrariesScreen
 import xyz.etkn.mobile.ui.screens.library.LibraryScreen
 import xyz.etkn.mobile.ui.screens.me.AccountsScreen
 import xyz.etkn.mobile.ui.screens.me.MeScreen
+import xyz.etkn.mobile.ui.screens.me.SettingsPage
+import xyz.etkn.mobile.ui.screens.me.SettingsScreen
 import xyz.etkn.mobile.ui.screens.music.MiniPlayer
 import xyz.etkn.mobile.ui.screens.music.MusicHomeScreen
 import xyz.etkn.mobile.ui.screens.music.MusicListScreen
@@ -121,6 +123,10 @@ fun MainShell(session: ActiveSession) {
                     composable<MusicListRoute> { MusicListScreen(it.toRoute()) }
                     composable<NowPlayingRoute> { NowPlayingScreen() }
                     composable<AccountsRoute> { AccountsScreen() }
+                    composable<SettingsRoute> { entry ->
+                        val page = entry.toRoute<SettingsRoute>().page
+                        SettingsScreen(SettingsPage.entries.firstOrNull { it.name == page } ?: SettingsPage.Appearance)
+                    }
                 }
                 Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()

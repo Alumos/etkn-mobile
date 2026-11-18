@@ -98,6 +98,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.settings.SkipMode
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.rounded.ChatBubble
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.ui.graphics.toArgb
+import xyz.etkn.mobile.player.danmaku.DanmakuView
+import xyz.etkn.mobile.ui.screens.me.DanmakuControls
 import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.ui.components.Artwork
 import xyz.etkn.mobile.ui.components.CardShape
@@ -113,11 +120,14 @@ private val ResizeModes = listOf(
     AspectRatioFrameLayout.RESIZE_MODE_FILL to "拉伸",
 )
 
-private enum class Sheet { None, Audio, Subtitle, Speed, Episodes, Versions }
+private enum class Sheet { None, Audio, Subtitle, Speed, Episodes, Versions, Danmaku }
 
 @Composable
 fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPip: () -> Unit) {
     val ui by session.ui.collectAsStateWithLifecycle()
+    val danmakuStyle by session.danmakuStyle.collectAsStateWithLifecycle()
+    val danmakuCues by session.danmakuCues.collectAsStateWithLifecycle()
+    val themeArgb = MaterialTheme.colorScheme.primary.toArgb()
     val player = session.player
     var controls by remember { mutableStateOf(true) }
     var locked by remember { mutableStateOf(false) }
@@ -180,6 +190,17 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
             update = { view -> view.resizeMode = ResizeModes[resize].first },
             modifier = Modifier.fillMaxSize(),
         )
+        if (ui.danmakuOn && !inPip) {
+            AndroidView(
+                factory = { ctx -> DanmakuView(ctx, player) },
+                update = { view ->
+                    view.apply(danmakuStyle, themeArgb)
+                    view.setCues(danmakuCues)
+                },
+                onRelease = { it.close() },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
         if (!inPip) {
             GestureLayer(
@@ -201,6 +222,20 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
             }
         }
         gesture?.let { feedback -> GestureBadge(feedback, Modifier.align(Alignment.Center)) }
+        ui.notice?.let { message ->
+            LaunchedEffect(message) {
+                delay(3_500)
+                session.clearNotice(message)
+            }
+            Text(
+                message,
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(top = 64.dp).background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(50))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+        }
 
         if (!inPip) {
             AnimatedVisibility(controls && !locked, enter = fadeIn(), exit = fadeOut()) {
@@ -474,6 +509,9 @@ private fun Controls(
                 Spacer(Modifier.weight(1f))
                 PlayerTextAction(Icons.Rounded.Audiotrack, "音轨") { onSheet(Sheet.Audio) }
                 PlayerTextAction(Icons.Rounded.ClosedCaption, "字幕") { onSheet(Sheet.Subtitle) }
+                if (ui.danmakuSupported) {
+                    PlayerTextAction(if (ui.danmakuOn) Icons.Rounded.ChatBubble else Icons.Rounded.ChatBubbleOutline, "弹幕") { onSheet(Sheet.Danmaku) }
+                }
                 PlayerTextAction(Icons.Rounded.Speed, if (ui.speed == 1f) "倍速" else "${ui.speed}×") { onSheet(Sheet.Speed) }
                 PlayerTextAction(Icons.Rounded.AspectRatio, resizeLabel, onResize)
                 if (ui.item?.isEpisode == true) PlayerTextAction(Icons.AutoMirrored.Rounded.PlaylistPlay, "选集") { onSheet(Sheet.Episodes) }
@@ -514,9 +552,19 @@ private fun PlayerSheet(sheet: Sheet, ui: VideoUi, session: VideoSession, onDism
                 session.selectSource(i); onDismiss()
             }
             Sheet.Episodes -> EpisodeSheet(ui, session, onDismiss)
+            Sheet.Danmaku -> DanmakuSheet(session)
             Sheet.None -> Unit
         }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun DanmakuSheet(session: VideoSession) {
+    val style by session.danmakuStyle.collectAsStateWithLifecycle()
+    Text("弹幕", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+    Column(Modifier.verticalScroll(rememberScrollState())) {
+        DanmakuControls(style, session::setDanmakuStyle)
     }
 }
 

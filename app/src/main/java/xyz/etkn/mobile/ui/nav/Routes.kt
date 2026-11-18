@@ -35,6 +35,7 @@ import kotlinx.serialization.Serializable
 )
 @Serializable data object NowPlayingRoute
 @Serializable data object AccountsRoute
+@Serializable data class SettingsRoute(val page: String)
 
 enum class TopLevel(val route: Any, val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
     Home(HomeRoute, "首页", Icons.Outlined.Home, Icons.Rounded.Home),

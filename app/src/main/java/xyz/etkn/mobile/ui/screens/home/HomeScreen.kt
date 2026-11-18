@@ -1,5 +1,10 @@
 package xyz.etkn.mobile.ui.screens.home
 
+import androidx.compose.animation.animateColorAsState
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.rememberHazeState
+import xyz.etkn.mobile.ui.components.glassSource
+import xyz.etkn.mobile.ui.theme.Etkn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -92,9 +97,10 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
     val heroHeight = (screenHeight * 0.64f).coerceIn(420.dp, 620.dp)
     val collapsed by remember { derivedStateOf { list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > 200 } }
     var hiding by remember { mutableStateOf<Item?>(null) }
+    val haze = rememberHazeState()
 
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(state = list, modifier = Modifier.fillMaxSize()) {
+        LazyColumn(state = list, modifier = Modifier.fillMaxSize().glassSource(haze)) {
             if (data.hero.isNotEmpty()) {
                 item(key = "hero", contentType = "hero") {
                     HeroCarousel(
@@ -127,7 +133,7 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
             }
             item(key = "bottom") { Spacer(Modifier.height(LocalBottomInset.current + 16.dp)) }
         }
-        HomeTopBar(collapsed = collapsed || data.hero.isEmpty(), onSearch = { nav.top(TopLevel.Search) }, onFavorites = { nav.to(FavoritesRoute) }, onMe = { nav.top(TopLevel.Me) })
+        HomeTopBar(collapsed = collapsed || data.hero.isEmpty(), haze = haze, onSearch = { nav.top(TopLevel.Search) }, onFavorites = { nav.to(FavoritesRoute) }, onMe = { nav.top(TopLevel.Me) })
     }
     hiding?.let { target ->
         AlertDialog(
@@ -142,35 +148,39 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
     }
 }
 
+/**
+ * Always-glass pill. Over the hero it blurs the artwork with a dark tint and white content; once
+ * the hero scrolls away it settles into the regular surface glass.
+ */
 @Composable
-private fun HomeTopBar(collapsed: Boolean, onSearch: () -> Unit, onFavorites: () -> Unit, onMe: () -> Unit) {
+private fun HomeTopBar(collapsed: Boolean, haze: HazeState, onSearch: () -> Unit, onFavorites: () -> Unit, onMe: () -> Unit) {
     val graph = LocalContext.current.graph
     val session = (graph.sessions.state.collectAsStateWithLifecycle().value as? SessionState.SignedIn)?.session ?: return
     val urls = images()
     var menu by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(26.dp)
+    val tokens = Etkn.tokens
+    val content by animateColorAsState(if (collapsed) MaterialTheme.colorScheme.onSurface else Color.White, label = "barContent")
+    val tint by animateColorAsState(if (collapsed) tokens.glassTint else tokens.glassOnImage, label = "barTint")
     Box(
         Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Row(
             Modifier.fillMaxWidth()
-                .then(if (collapsed) Modifier.glass(shape, elevation = 8.dp) else Modifier)
+                .glass(shape, elevation = if (collapsed) 8.dp else 0.dp, tint = tint, state = haze, border = collapsed)
                 .padding(start = 16.dp, end = 4.dp).height(52.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val onImage = !collapsed
             Text(
                 session.serverName,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = if (onImage) Color.White else MaterialTheme.colorScheme.onSurface,
+                color = content,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            IconButton(onClick = onSearch) {
-                Icon(Icons.Rounded.Search, "搜索", tint = if (onImage) Color.White else MaterialTheme.colorScheme.onSurface)
-            }
+            IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "搜索", tint = content) }
             Box {
                 IconButton(onClick = { menu = true }) {
                     Artwork(

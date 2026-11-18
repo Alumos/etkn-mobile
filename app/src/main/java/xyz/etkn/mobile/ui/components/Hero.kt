@@ -2,6 +2,13 @@ package xyz.etkn.mobile.ui.components
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,7 +18,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -46,8 +52,10 @@ import xyz.etkn.mobile.ui.theme.Etkn
 import xyz.etkn.mobile.ui.theme.HeroTitleStyle
 
 /**
- * Home hero: one focal point per screen. Full-bleed backdrop, logo (or title), a single meta
- * line and two actions. Parallax is a pure graphicsLayer transform so scrolling never relayouts.
+ * Home hero: one focal point per screen. Full-bleed backdrop that fades into the page, centred
+ * logo (or title), one meta line, a short overview and two actions; page dots sit underneath.
+ * Parallax is a pure graphicsLayer transform clipped to the hero, so scrolling never relayouts
+ * and the artwork can never slide out below its own scrim.
  */
 @Composable
 fun HeroCarousel(
@@ -69,15 +77,14 @@ fun HeroCarousel(
         }
     }
     val widthPx = LocalConfiguration.current.screenWidthDp.dp.px()
-    Box(modifier.fillMaxWidth().height(height)) {
+    Box(modifier.fillMaxWidth().height(height).clipToBounds()) {
         HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), key = { items[it].id }) { page ->
-            val item = items[page]
-            HeroPage(item, widthPx, scrollOffsetPx, onPlay, onOpen)
+            HeroPage(items[page], widthPx, scrollOffsetPx, onPlay, onOpen)
         }
         if (items.size > 1) {
             Row(
-                Modifier.align(Alignment.BottomEnd).padding(end = Etkn.space.screen, bottom = 34.dp),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 repeat(items.size) { index ->
@@ -85,7 +92,7 @@ fun HeroCarousel(
                     val w by animateDpAsState(if (selected) 18.dp else 6.dp, label = "dot")
                     Box(
                         Modifier.height(6.dp).width(w).background(
-                            if (selected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.45f),
+                            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f),
                             CircleShape,
                         ),
                     )
@@ -105,7 +112,8 @@ private fun HeroPage(
 ) {
     val urls = images()
     val tokens = Etkn.tokens
-    Box(Modifier.fillMaxSize()) {
+    val scheme = MaterialTheme.colorScheme
+    Box(Modifier.fillMaxSize().clickable(onClick = { onOpen(item) })) {
         Artwork(
             urls.backdrop(item, widthPx) ?: urls.poster(item, widthPx),
             Modifier.fillMaxSize().graphicsLayer {
@@ -118,17 +126,18 @@ private fun HeroPage(
             item.name,
             contentScale = ContentScale.Crop,
         )
-        Box(Modifier.fillMaxWidth().height(180.dp).background(tokens.heroTopScrim))
-        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(300.dp).background(tokens.heroBottomScrim))
+        Box(Modifier.fillMaxWidth().height(160.dp).background(tokens.heroTopScrim))
+        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.62f).background(tokens.heroBottomScrim))
         Column(
-            Modifier.align(Alignment.BottomStart).fillMaxWidth()
-                .padding(horizontal = Etkn.space.screen).padding(bottom = 24.dp),
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .padding(horizontal = Etkn.space.screen).padding(bottom = 30.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val logo = urls.logo(item, 720)
             if (logo != null) {
                 Artwork(
                     logo,
-                    Modifier.fillMaxWidth(0.62f).heightIn(max = 96.dp).height(84.dp),
+                    Modifier.fillMaxWidth(0.72f).height(96.dp),
                     item.name,
                     contentScale = ContentScale.Fit,
                     background = Color.Transparent,
@@ -136,52 +145,61 @@ private fun HeroPage(
             } else {
                 Text(
                     item.name,
-                    style = HeroTitleStyle.copy(shadow = Shadow(Color.Black.copy(alpha = 0.5f), blurRadius = 16f)),
-                    color = MaterialTheme.colorScheme.onSurface,
+                    style = HeroTitleStyle.copy(shadow = Shadow(Color.Black.copy(alpha = 0.35f), blurRadius = 16f)),
+                    color = scheme.onSurface,
+                    textAlign = TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            val meta = listOfNotNull(
-                item.productionYear?.toString(),
-                item.genres.take(2).joinToString(" / ").takeIf { it.isNotEmpty() },
-                item.runtimeMs.takeIf { it > 0 }?.let(::formatDuration),
-                formatRating(item.bestRating)?.let { "★ $it" },
-            ).joinToString("  ·  ")
-            if (meta.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    meta, style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
+            Spacer(Modifier.height(12.dp))
+            HeroMeta(item)
             item.overview?.let {
                 Spacer(Modifier.height(8.dp))
                 Text(
                     it, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth(0.88f),
+                    color = scheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(0.9f),
                 )
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(
-                    onClick = { onPlay(item) },
-                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
-                    modifier = Modifier.height(ButtonDefaults.MediumContainerHeight),
-                ) {
+                Button(onClick = { onPlay(item) }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
                     Icon(Icons.Rounded.PlayArrow, null, Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                     Text("播放")
                 }
-                FilledTonalButton(
-                    onClick = { onOpen(item) },
-                    modifier = Modifier.height(ButtonDefaults.MediumContainerHeight),
-                ) {
+                FilledTonalButton(onClick = { onOpen(item) }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
                     Icon(Icons.Rounded.Info, null, Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                     Text("详情")
                 }
             }
+        }
+    }
+}
+
+/** ★ rating · year · genres · age rating — one centred line. */
+@Composable
+private fun HeroMeta(item: Item) {
+    val scheme = MaterialTheme.colorScheme
+    val style = MaterialTheme.typography.labelLarge
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        formatRating(item.bestRating)?.let { rating ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Star, null, Modifier.size(16.dp), tint = Etkn.tokens.rating)
+                Spacer(Modifier.width(2.dp))
+                Text(rating, style = style, color = scheme.onSurface)
+            }
+        }
+        item.productionYear?.let { Text(it.toString(), style = style, color = scheme.onSurface) }
+        item.genres.take(3).joinToString("/").takeIf { it.isNotEmpty() }?.let {
+            Text(it, style = style, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        }
+        item.officialRating?.takeIf { it.isNotBlank() }?.let {
+            Text(
+                it, style = MaterialTheme.typography.labelMedium, color = scheme.onSurface, maxLines = 1,
+                modifier = Modifier.border(1.dp, scheme.onSurface.copy(alpha = 0.6f), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 1.dp),
+            )
         }
     }
 }

@@ -384,6 +384,8 @@ data class UserInfo(
 data class PlaybackInfo(
     val playSessionId: String,
     val sources: List<MediaSource>,
+    /** null when the server does not advertise danmaku at all. */
+    val danmakuAvailable: Boolean? = null,
 )
 
 @Immutable

@@ -19,7 +19,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -32,7 +34,12 @@ import xyz.etkn.mobile.data.model.MediaSource
 import xyz.etkn.mobile.data.model.MediaStream
 import xyz.etkn.mobile.data.model.TICKS_PER_MS
 import xyz.etkn.mobile.data.session.ActiveSession
+import xyz.etkn.mobile.data.net.bool
+import xyz.etkn.mobile.data.net.obj
+import xyz.etkn.mobile.data.settings.DanmakuStyle
 import xyz.etkn.mobile.data.settings.Settings
+import xyz.etkn.mobile.player.danmaku.DanmakuCue
+import xyz.etkn.mobile.player.danmaku.DanmakuFeed
 import xyz.etkn.mobile.data.settings.SkipMode
 import java.util.Locale
 
@@ -61,6 +68,11 @@ data class VideoUi(
     val speed: Float = 1f,
     val skipMode: SkipMode = SkipMode.Button,
     val finished: Boolean = false,
+    /** Server advertised danmaku for this playback (button shown). */
+    val danmakuSupported: Boolean = false,
+    /** A feed is running and the overlay should draw. */
+    val danmakuOn: Boolean = false,
+    val notice: String? = null,
 )
 
 /**
@@ -87,12 +99,22 @@ class VideoSession(
     private var started = false
     private var stopped = true
     private var completedBySkip = false
+    private var released = false
     private var progressJob: Job? = null
     private var loadJob: Job? = null
     private var autoSkippedIntro = false
 
+    private val _danmakuStyle = MutableStateFlow(DanmakuStyle())
+    val danmakuStyle: StateFlow<DanmakuStyle> = _danmakuStyle.asStateFlow()
+    private val _danmakuCues = MutableStateFlow<List<DanmakuCue>>(emptyList())
+    val danmakuCues: StateFlow<List<DanmakuCue>> = _danmakuCues.asStateFlow()
+    /** Last server answer: null = not advertised, false = service off, true = available. */
+    private var danmakuAvailable: Boolean? = null
+    private var danmakuFeed: DanmakuFeed? = null
+
     init {
         settings = kotlinx.coroutines.runBlocking { graph.settings.flow.first() }
+        _danmakuStyle.value = settings.danmaku
         player = PlayerFactory.video(context, graph.http.media, graph.identity.userAgent, settings.decoder)
         player.setPlaybackSpeed(settings.defaultSpeed)
         _ui.update { it.copy(speed = settings.defaultSpeed, skipMode = settings.skipMode) }
@@ -118,10 +140,23 @@ class VideoSession(
 
             override fun onTracksChanged(tracks: Tracks) = publishTracks(tracks)
 
+            override fun onEvents(player: Player, events: Player.Events) {
+                danmakuFeed?.tick()
+            }
+
             override fun onPlayerError(error: PlaybackException) {
                 _ui.update { it.copy(loading = false, error = "播放失败（${error.errorCodeName}）") }
             }
         })
+    }
+
+    init {
+        scope.launch {
+            graph.settings.flow.map { it.danmaku }.distinctUntilChanged().collect { style ->
+                _danmakuStyle.value = style
+                applyDanmaku()
+            }
+        }
     }
 
     // ---------- Loading ----------
@@ -155,6 +190,8 @@ class VideoSession(
         val index = sourceId?.let { id -> info.sources.indexOfFirst { it.id == id }.takeIf { it >= 0 } } ?: 0
         item = detail
         playSession = info.playSessionId
+        closeDanmaku()
+        danmakuAvailable = info.danmakuAvailable
         _ui.update {
             it.copy(
                 item = detail,
@@ -165,6 +202,7 @@ class VideoSession(
             )
         }
         playSource(info.sources[index], startMs)
+        applyDanmaku()
         if (detail.isEpisode) loadNext(detail.id)
     }
 
@@ -333,6 +371,54 @@ class VideoSession(
         _ui.update { it.copy(speed = speed) }
     }
 
+    // ---------- Danmaku ----------
+
+    /** Starts or stops the feed to match server availability and the local switch. */
+    private fun applyDanmaku() {
+        val available = danmakuAvailable
+        val wanted = available == true && _danmakuStyle.value.enabled && playSession.isNotEmpty() && item != null
+        if (!wanted) closeDanmaku()
+        if (wanted && danmakuFeed == null) {
+            val current = item!!
+            danmakuFeed = DanmakuFeed(
+                api = api, scope = scope, player = player, itemId = current.id, playSession = playSession,
+                onCues = { _danmakuCues.value = it },
+                onNotice = ::showNotice,
+                onServiceOff = { danmakuAvailable = false; applyDanmaku() },
+            )
+        }
+        _ui.update { it.copy(danmakuSupported = available != null, danmakuOn = danmakuFeed != null) }
+    }
+
+    private fun closeDanmaku() {
+        danmakuFeed?.close()
+        danmakuFeed = null
+        _danmakuCues.value = emptyList()
+    }
+
+    /** Persists the style; switching on re-checks the server when it last said the service was off. */
+    fun setDanmakuStyle(style: DanmakuStyle) {
+        val turningOn = style.enabled && !_danmakuStyle.value.enabled
+        _danmakuStyle.value = style
+        graph.scope.launch { graph.settings.setDanmaku(style) }
+        if (turningOn && danmakuAvailable != true) {
+            val expected = playSession
+            scope.launch {
+                val available = runCatching { api.danmakuAvailable() }.getOrDefault(false)
+                if (expected != playSession) return@launch
+                danmakuAvailable = available
+                if (!available) showNotice("请在服务端增强功能中启用弹幕服务")
+                applyDanmaku()
+            }
+        } else {
+            applyDanmaku()
+        }
+    }
+
+    private fun showNotice(message: String) = _ui.update { it.copy(notice = message) }
+
+    fun clearNotice(message: String) = _ui.update { if (it.notice == message) it.copy(notice = null) else it }
+
     // ---------- Reporting ----------
 
     private fun startProgressLoop() {
@@ -369,13 +455,24 @@ class VideoSession(
             put("Client", AppGraph.CLIENT_NAME)
             put("TranscodeSessionId", "")
             if (event == "Stopped" && completedBySkip) put("PlayedToCompletion", true)
+            if (event != "Stopped" && danmakuAvailable == true && _danmakuStyle.value.enabled) put("DanmakuActive", true)
         }
+        val expected = playSession
         // Application scope: the Stopped report must outlive the player screen.
-        graph.scope.launch { runCatching { api.report(event, payload, session) } }
+        graph.scope.launch {
+            val reply = runCatching { api.report(event, payload, session) }.getOrNull() ?: return@launch
+            val state = reply.obj("Danmaku") ?: return@launch
+            if (event != "Stopped" && expected == playSession && !released) {
+                danmakuAvailable = state.bool("Available")
+                applyDanmaku()
+            }
+        }
     }
 
     fun release() {
         loadJob?.cancel()
+        closeDanmaku()
+        released = true
         stopReporting()
         player.release()
     }

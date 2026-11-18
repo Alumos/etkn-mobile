@@ -7,6 +7,17 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import dev.chrisbanes.haze.rememberHazeState
+import xyz.etkn.mobile.ui.components.LibraryTile
+import xyz.etkn.mobile.ui.components.glass
+import xyz.etkn.mobile.ui.components.glassSource
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.horizontalScroll
@@ -35,8 +46,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -48,8 +57,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import xyz.etkn.mobile.data.api.SortKey
@@ -57,10 +66,8 @@ import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.Paged
 import xyz.etkn.mobile.ui.common.graphViewModel
-import xyz.etkn.mobile.ui.common.screenPadding
 import xyz.etkn.mobile.ui.components.ErrorState
 import xyz.etkn.mobile.ui.components.InlineLoading
-import xyz.etkn.mobile.ui.components.LibraryCard
 import xyz.etkn.mobile.ui.components.LoadingState
 import xyz.etkn.mobile.ui.components.MessageState
 import xyz.etkn.mobile.ui.components.PosterCard
@@ -74,32 +81,34 @@ fun LibrariesScreen() {
     val vm = graphViewModel { LibrariesViewModel(it) }
     val state by vm.state.collectAsStateWithLifecycle()
     val nav = LocalNav.current
-    Column(Modifier.fillMaxSize()) {
-        LargeTitle("媒体库")
-        when (val s = state) {
-            Load.Loading -> LoadingState()
-            is Load.Failed -> ErrorState(s.message, vm::load)
-            is Load.Ready -> LazyVerticalGrid(
-                columns = GridCells.Adaptive(168.dp),
-                contentPadding = PaddingValues(start = Etkn.space.screen, end = Etkn.space.screen, top = 8.dp, bottom = LocalBottomInset.current),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                items(s.value, key = { it.id }) { library ->
-                    LibraryCard(library, onClick = { nav.openLibrary(library) }, modifier = Modifier.fillMaxWidth(), width = 400.dp)
-                }
+    when (val s = state) {
+        Load.Loading -> LoadingState()
+        is Load.Failed -> ErrorState(s.message, vm::load)
+        is Load.Ready -> LazyVerticalGrid(
+            columns = GridCells.Adaptive(156.dp),
+            contentPadding = PaddingValues(start = Etkn.space.screen, end = Etkn.space.screen, bottom = LocalBottomInset.current + 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            item(key = "title", span = { GridItemSpan(maxLineSpan) }, contentType = "title") {
+                LargeTitle("媒体库", horizontal = 0.dp)
+            }
+            items(s.value, key = { it.id }, contentType = { "library" }) { library ->
+                LibraryTile(library, onClick = { nav.openLibrary(library) })
             }
         }
     }
 }
 
+/** Page title under the status bar (no bottom inset: callers add their own content padding). */
 @Composable
-fun LargeTitle(title: String) {
+fun LargeTitle(title: String, horizontal: Dp = Etkn.space.screen) {
+    val status = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Text(
         title,
         style = MaterialTheme.typography.headlineLarge,
-        modifier = Modifier.padding(screenPadding(top = 16.dp, horizontal = Etkn.space.screen)).padding(bottom = 0.dp),
+        modifier = Modifier.padding(start = horizontal, end = horizontal, top = status + 16.dp, bottom = 4.dp),
     )
 }
 
@@ -109,7 +118,6 @@ fun LibraryScreen(route: LibraryRoute) {
     val paged by vm.paged.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
     val nav = LocalNav.current
-    val scroll = TopAppBarDefaults.enterAlwaysScrollBehavior()
     PosterGridScaffold(
         title = route.name,
         paged = paged,
@@ -117,11 +125,10 @@ fun LibraryScreen(route: LibraryRoute) {
         onLoadMore = vm::loadMore,
         onRetry = vm::retry,
         onOpen = nav::open,
-        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         header = if (vm.isFolderView) null else {
             {
                 Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Etkn.space.screen, vertical = 4.dp),
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -176,7 +183,7 @@ fun FavoritesScreen() {
     PosterGridScaffold("我的收藏", paged, nav::back, vm::loadMore, vm::retry, nav::open)
 }
 
-/** Shared top bar + adaptive poster grid with infinite scroll. */
+/** Floating glass bar (title + optional filters) over an adaptive poster grid with infinite scroll. */
 @Composable
 fun PosterGridScaffold(
     title: String,
@@ -189,20 +196,38 @@ fun PosterGridScaffold(
     header: (@Composable () -> Unit)? = null,
     grid: LazyGridState = rememberLazyGridState(),
 ) {
-    Column(modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            navigationIcon = {
-                if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent),
-        )
-        header?.invoke()
-        when {
-            paged.items.isEmpty() && paged.loading -> LoadingState()
-            paged.items.isEmpty() && paged.error != null -> ErrorState(paged.error, onRetry)
-            paged.items.isEmpty() && paged.endReached -> MessageState("这里还没有内容")
-            else -> PosterGrid(paged, grid, onLoadMore, onRetry, onOpen)
+    val haze = rememberHazeState()
+    val density = LocalDensity.current
+    val status = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    var barHeight by remember { mutableStateOf(64.dp) }
+    val top = status + barHeight + 12.dp
+    Box(modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().glassSource(haze)) {
+            when {
+                paged.items.isEmpty() && paged.loading -> LoadingState()
+                paged.items.isEmpty() && paged.error != null -> ErrorState(paged.error, onRetry)
+                paged.items.isEmpty() && paged.endReached -> MessageState("这里还没有内容")
+                else -> PosterGrid(paged, grid, onLoadMore, onRetry, top = top, onOpen = onOpen)
+            }
+        }
+        Column(
+            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .glass(RoundedCornerShape(26.dp), elevation = 8.dp, state = haze)
+                .onSizeChanged { barHeight = with(density) { it.height.toDp() } },
+        ) {
+            Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (onBack != null) {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") }
+                } else {
+                    Spacer(Modifier.width(16.dp))
+                }
+                Text(
+                    title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(end = 16.dp),
+                )
+            }
+            if (header != null) Box(Modifier.padding(bottom = 10.dp)) { header() }
         }
     }
 }
@@ -213,6 +238,7 @@ fun PosterGrid(
     grid: LazyGridState,
     onLoadMore: () -> Unit,
     onRetry: () -> Unit,
+    top: Dp = 8.dp,
     onOpen: (Item) -> Unit,
 ) {
     val shouldLoad by remember(paged) {
@@ -227,14 +253,14 @@ fun PosterGrid(
     LazyVerticalGrid(
         state = grid,
         columns = GridCells.Adaptive(108.dp),
-        contentPadding = PaddingValues(start = Etkn.space.screen, end = Etkn.space.screen, top = 8.dp, bottom = LocalBottomInset.current),
+        contentPadding = PaddingValues(start = Etkn.space.screen, end = Etkn.space.screen, top = top, bottom = LocalBottomInset.current),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
         items(paged.items, key = { it.id }, contentType = { "poster" }) { item ->
             if (item.type == "CollectionFolder" || item.collectionType != null && item.type != "BoxSet") {
-                LibraryCard(item, onClick = { onOpen(item) }, modifier = Modifier.fillMaxWidth(), width = 300.dp)
+                LibraryTile(item, onClick = { onOpen(item) })
             } else {
                 PosterCard(item, onClick = { onOpen(item) }, width = null)
             }

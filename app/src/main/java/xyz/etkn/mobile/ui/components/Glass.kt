@@ -20,7 +20,12 @@ import dev.chrisbanes.haze.hazeSource
 import androidx.compose.material3.MaterialTheme
 import xyz.etkn.mobile.ui.theme.Etkn
 
-/** Blur source of the current screen; null means "no blur available, paint flat". */
+/**
+ * Blur source behind the app chrome (dock, mini player); null means "no blur, paint flat".
+ * Bars that float *inside* a screen cannot sample it — Haze skips sources that are ancestors of
+ * the effect — so such screens wrap their scrolling content in [glassSource] with their own
+ * [rememberHazeState] and pass it to [glass] explicitly.
+ */
 val LocalHaze = staticCompositionLocalOf<HazeState?> { null }
 
 fun Modifier.glassSource(state: HazeState?): Modifier = if (state == null) this else hazeSource(state)
@@ -36,9 +41,9 @@ fun Modifier.glass(
     blur: Dp = 24.dp,
     border: Boolean = true,
     tint: Color? = null,
+    state: HazeState? = LocalHaze.current,
 ): Modifier {
     val tokens = Etkn.tokens
-    val state = LocalHaze.current
     val surface = MaterialTheme.colorScheme.surface
     var m = this
     if (elevation > 0.dp) {

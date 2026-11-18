@@ -11,7 +11,8 @@ xyz.etkn.mobile
 │   ├── model      Item / MediaSource / MediaStream / Chapter / UserData …（JsonObject 手工映射，类型异常只降级字段）
 │   ├── session    SessionManager（登录/恢复/切换/过期）、SessionStore（DataStore）、SecureBox（Keystore AES-GCM）
 │   └── settings   AppSettings（主题、配色来源、解码、片头片尾、倍速、自动下一集；缓存服务器主题色）
-├── player         PlayerActivity（横屏、沉浸、画中画）、VideoSession（ExoPlayer + 上报 + 下一集 + 跳过）、PlayerScreen（手势与控件）、PlayerFactory、PlaybackAddress
+├── player         danmaku/（DanmakuTimeline/Layout 解析与分道、DanmakuFeed 120 s 窗口拉取、DanmakuView 位图缓存绘制）
+│                  PlayerActivity（横屏、沉浸、画中画）、VideoSession（ExoPlayer + 上报 + 下一集 + 跳过）、PlayerScreen（手势与控件）、PlayerFactory、PlaybackAddress
 ├── music          MusicConnection（共享 ExoPlayer、ResolvingDataSource 按需解析、上报）、MusicService（MediaSession 后台播放）、Lyrics（LRC）
 └── ui
     ├── theme      MaterialExpressiveTheme + HCT 种子配色 + 8 档形状 + 语义 Tokens
@@ -28,6 +29,9 @@ xyz.etkn.mobile
 - **视频播放**：PlaybackInfo → 服务端 `DirectStreamUrl`（同源校验）→ ExoPlayer。外挂字幕作为 SubtitleConfiguration 侧载；音轨/字幕名称优先使用服务端 MediaStreams 标题。上报 Playing / 10 s Progress / Stopped，Stopped 走应用级协程。
 - **音乐**：队列项 URI 为 `etkn-music://track/<id>`，在 ExoPlayer 加载线程通过 PlaybackInfo 解析为带 `X-Emby-Token/UserId/PlaySessionId/MediaSourceId` 的直链并缓存；`MediaSessionService` 提供通知、锁屏与蓝牙控制；歌词 GET 为空才 POST 在线补取。
 
+- **弹幕**：PlaybackInfo / 上报回复里的 `Danmaku.Available` 决定是否显示入口；本机开关开启且服务可用时，`DanmakuFeed` 按播放位置拉 `I/Danmaku?local=true&session=&start=`（120 s 窗口、提前 40 s 预取、暂停不拉、busy/unavailable 15 s 重试、stale 1 s 重试），上报附 `DanmakuActive`。`DanmakuView` 跟随媒体时钟逐帧绘制，同一文本只排版一次。样式（行数/密度/字号/不透明度/速度/跟随主题色）存本机，「我的 → 弹幕」与播放器内面板共用。
+- **玻璃层**：Haze 不会采样自身所在的祖先源，所以页面内悬浮栏（首页顶栏、详情顶栏、列表顶栏、搜索框）各用页面级 `HazeState` 包住自己的滚动内容；Dock/迷你播放器继续采样整个 NavHost。
+
 ## 性能要点
 
 - 所有 Lazy 列表/网格使用稳定 key 与 contentType；Hero 视差只用 `graphicsLayer`，滚动不触发重新布局。
@@ -36,4 +40,4 @@ xyz.etkn.mobile
 
 ## 未纳入首版（后续）
 
-影视探索 / 订阅 / 资源获取（`/api/tv/discover`）、转码协助、弹幕、字幕翻译与偏移、寻址缩略图、蓝光 ISO 专用播放、Home/Events SSE 实时失效、入库通知、共享偏好写回、局域网自动发现、应用内更新。
+影视探索 / 订阅 / 资源获取（`/api/tv/discover`）、转码协助、字幕翻译与偏移、寻址缩略图、蓝光 ISO 专用播放、Home/Events SSE 实时失效、入库通知、共享偏好写回、局域网自动发现、应用内更新。
