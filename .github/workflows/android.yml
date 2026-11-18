@@ -52,7 +52,7 @@ jobs:
         if: steps.bluray.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;27.2.12479018" > /dev/null
+          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;27.2.12479018" > /dev/null
           python3 scripts/build_bluray_native.py --ndk "$ANDROID_HOME/ndk/27.2.12479018" --work "$RUNNER_TEMP/bluray" --out app/src/main/jniLibs
       - name: Unit tests, lint, release build (no signing credentials in this job)
         shell: bash
