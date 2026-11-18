@@ -18,12 +18,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.session.SessionState
 import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.ui.common.Load
@@ -88,6 +91,7 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val heroHeight = (screenHeight * 0.64f).coerceIn(420.dp, 620.dp)
     val collapsed by remember { derivedStateOf { list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > 200 } }
+    var hiding by remember { mutableStateOf<Item?>(null) }
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(state = list, modifier = Modifier.fillMaxSize()) {
@@ -105,7 +109,7 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
                 item(key = "top-space") { Spacer(Modifier.windowInsetsPadding(WindowInsets.statusBars).height(64.dp)) }
             }
             shelf("resume", "继续观看", data.resume) { item ->
-                WideCard(item, onClick = { nav.play(item) }, onLongClick = { vm.hideFromResume(item) })
+                WideCard(item, onClick = { nav.play(item) }, onLongClick = { hiding = item })
             }
             shelf("libraries", "媒体库", data.libraries, onMore = { nav.top(TopLevel.Libraries) }) { library ->
                 LibraryCard(library, onClick = { nav.openLibrary(library) })
@@ -124,6 +128,17 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
             item(key = "bottom") { Spacer(Modifier.height(LocalBottomInset.current + 16.dp)) }
         }
         HomeTopBar(collapsed = collapsed || data.hero.isEmpty(), onSearch = { nav.top(TopLevel.Search) }, onFavorites = { nav.to(FavoritesRoute) }, onMe = { nav.top(TopLevel.Me) })
+    }
+    hiding?.let { target ->
+        AlertDialog(
+            onDismissRequest = { hiding = null },
+            title = { Text("从继续观看中移除？") },
+            text = { Text(target.seriesName ?: target.name) },
+            confirmButton = { TextButton(onClick = { vm.hideFromResume(target); hiding = null }) { Text("移除") } },
+            dismissButton = {
+                TextButton(onClick = { hiding = null; nav.open(target) }) { Text("查看详情") }
+            },
+        )
     }
 }
 

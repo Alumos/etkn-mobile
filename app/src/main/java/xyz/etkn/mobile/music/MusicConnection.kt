@@ -96,6 +96,8 @@ class MusicConnection(private val context: Context, private val graph: AppGraph)
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 finishReport(completed = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
+                // Gapless advance keeps STATE_READY, so start the next track's report here.
+                if (player.playbackState == Player.STATE_READY) startReport()
             }
 
             override fun onPlaybackStateChanged(state: Int) {
