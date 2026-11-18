@@ -1,5 +1,10 @@
 package xyz.etkn.mobile.ui.screens.person
 
+import androidx.compose.foundation.layout.Box
+import dev.chrisbanes.haze.rememberHazeState
+import xyz.etkn.mobile.ui.components.GlassBackBar
+import xyz.etkn.mobile.ui.components.glassBarClearance
+import xyz.etkn.mobile.ui.components.glassSource
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -69,6 +74,7 @@ class PersonViewModel(graph: AppGraph, private val id: String) : PagedViewModel(
     init {
         viewModelScope.launch { _person.value = runCatching { api.person(id) }.getOrNull() }
         reset()
+        followChanges(graph)
     }
 
     override suspend fun fetch(start: Int, limit: Int): ItemsPage = api.personItems(id, start, limit)
@@ -86,24 +92,21 @@ fun PersonScreen(route: PersonRoute) {
     }
     LaunchedEffect(grid, paged) { snapshotFlow { shouldLoad }.collect { if (it) vm.loadMore() } }
 
-    Column(Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text(route.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            navigationIcon = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-        )
+    val haze = rememberHazeState()
+    Box(Modifier.fillMaxSize()) {
         LazyVerticalGrid(
             state = grid,
             columns = GridCells.Adaptive(108.dp),
-            contentPadding = PaddingValues(start = Etkn.space.screen, end = Etkn.space.screen, bottom = LocalBottomInset.current),
+            contentPadding = PaddingValues(start = Etkn.space.screen, end = Etkn.space.screen, top = glassBarClearance(), bottom = LocalBottomInset.current),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().glassSource(haze),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }, key = "header") { PersonHeader(route, person) }
             items(paged.items, key = { it.id }) { PosterCard(it, onClick = { nav.open(it) }, width = null) }
             if (paged.loading) item(span = { GridItemSpan(maxLineSpan) }) { InlineLoading() }
         }
+        GlassBackBar(route.name, collapsed = true, haze = haze, onBack = nav::back)
     }
 }
 

@@ -1,5 +1,6 @@
 package xyz.etkn.mobile.ui.screens.me
 
+import xyz.etkn.mobile.ui.components.GlassSheet
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,10 +25,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -88,10 +87,8 @@ fun UpdatePrompt() {
     val graph = LocalContext.current.graph
     val state by graph.updates.state.collectAsStateWithLifecycle()
     if (!state.prompt || state.release == null) return
-    ModalBottomSheet(
+    GlassSheet(
         onDismissRequest = graph.updates::dismissPrompt,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Text(
             "发现新版本 v${state.release!!.version}",

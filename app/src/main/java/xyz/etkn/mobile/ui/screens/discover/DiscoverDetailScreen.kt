@@ -1,5 +1,6 @@
 package xyz.etkn.mobile.ui.screens.discover
 
+import xyz.etkn.mobile.ui.components.GlassDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,7 +28,6 @@ import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -173,7 +173,7 @@ fun DiscoverDetailScreen(route: DiscoverDetailRoute) {
             request.season != null -> "${item.title} · 第 ${request.season.number} 季"
             else -> item.title
         }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirm = null },
             title = { Text("确认订阅") },
             text = { Text("订阅“$target”？服务端将按订阅配置自动获取资源。") },
@@ -190,7 +190,7 @@ fun DiscoverDetailScreen(route: DiscoverDetailRoute) {
         )
     }
     message?.let { (title, body) ->
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { message = null },
             title = { Text(title) },
             text = { Text(body) },

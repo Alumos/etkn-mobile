@@ -1,5 +1,6 @@
 package xyz.etkn.mobile.ui.screens.discover
 
+import xyz.etkn.mobile.ui.components.GlassSheet
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -47,14 +48,12 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -275,10 +274,8 @@ fun StatusPill(status: DiscoverStatus, modifier: Modifier = Modifier) {
 @Composable
 private fun FilterSheet(initial: DiscoverFilter, genres: List<DiscoverOption>, onDismiss: () -> Unit, onApply: (DiscoverFilter) -> Unit) {
     var draft by remember { mutableStateOf(initial) }
-    ModalBottomSheet(
+    GlassSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
             FilterGroup("排序") {

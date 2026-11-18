@@ -41,6 +41,8 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
 
     init {
         load()
+        // Changes from the item menu: reload the shelves quietly (the hero is kept).
+        viewModelScope.launch { graph.itemChanges.collect { load() } }
     }
 
     fun refresh() = load(manual = true)
@@ -143,16 +145,6 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
 
     private fun publishHero(items: List<Item>) {
         _state.update { current -> if (current is Load.Ready) Load.Ready(current.value.copy(hero = items)) else current }
-    }
-
-    fun hideFromResume(item: Item) {
-        viewModelScope.launch {
-            runCatching { api.hideFromResume(item.id) }
-            _state.update { current ->
-                if (current is Load.Ready) Load.Ready(current.value.copy(resume = current.value.resume.filterNot { it.id == item.id }))
-                else current
-            }
-        }
     }
 
     private fun hasBackdrop(item: Item) = item.backdropTags.isNotEmpty() || item.parentBackdropTags.isNotEmpty()

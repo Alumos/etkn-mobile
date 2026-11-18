@@ -1,5 +1,6 @@
 package xyz.etkn.mobile.ui.components
 
+import xyz.etkn.mobile.ui.actions.rememberItemPress
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -61,10 +62,12 @@ fun PosterCard(
 ) {
     val widthPx = (width ?: 160.dp).px()
     val url = images().poster(item, widthPx)
+    val press = rememberItemPress(item)
     Column(
         modifier.then(if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
+            .then(press.modifier)
             .clip(SmallCardShape)
-            .clickable(onClick = onClick),
+            .combinedClickable(onClick = onClick, onLongClick = if (press.enabled) press::open else null),
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(CardShape)) {
             Artwork(url, Modifier.fillMaxSize(), item.name, placeholder = Icons.Rounded.Movie)
@@ -146,14 +149,16 @@ fun WideCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     width: Dp = if (LocalWindowLayout.current.wide) Etkn.space.wideCardWide else Etkn.space.wideCard,
-    onLongClick: (() -> Unit)? = null,
+    /** Continue-watching cards add 从继续观看移除 to the long-press menu. */
+    resume: Boolean = false,
 ) {
     val url = images().landscape(item, width.px())
     val tokens = Etkn.tokens
+    val press = rememberItemPress(item, resume)
     Column(modifier.width(width)) {
         Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(CardShape)
-                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f).then(press.modifier).clip(CardShape)
+                .combinedClickable(onClick = onClick, onLongClick = if (press.enabled) press::open else null),
         ) {
             Artwork(url, Modifier.fillMaxSize(), item.name, placeholder = Icons.Rounded.Movie)
             Box(Modifier.fillMaxSize().background(tokens.wideScrim))

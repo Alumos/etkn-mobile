@@ -46,8 +46,23 @@ class DetailViewModel(graph: AppGraph, private val id: String) : ViewModel() {
     val episodes: StateFlow<EpisodesState> = _episodes.asStateFlow()
     private var episodesJob: Job? = null
     private var busy = false
+    private val _deleted = MutableStateFlow(false)
+    /** The item itself was deleted from the item menu; the page leaves. */
+    val deleted: StateFlow<Boolean> = _deleted.asStateFlow()
 
-    init { load() }
+    init {
+        load()
+        viewModelScope.launch {
+            graph.itemChanges.collect { change ->
+                val data = (_state.value as? Load.Ready)?.value
+                when {
+                    change.id == id && change.deleted -> _deleted.value = true
+                    change.id == id || data?.similar?.any { it.id == change.id } == true ||
+                        _episodes.value.items.any { it.id == change.id } -> load()
+                }
+            }
+        }
+    }
 
     fun load() {
         if (_state.value !is Load.Ready) _state.value = Load.Loading

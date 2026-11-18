@@ -53,6 +53,25 @@ enum class TopLevel(val route: Any, val label: String, val icon: ImageVector, va
     Me(MeRoute, "我的", Icons.Outlined.AccountCircle, Icons.Rounded.AccountCircle),
 }
 
+/**
+ * Tabs shown in the dock / rail. The user's pick (首页 always) or, by default, everything with
+ * 探索 taking 搜索's place on phones (search stays in the home top bar). 探索 needs the account
+ * right; the phone dock holds at most [DOCK_MAX] tabs.
+ */
+fun visibleTabs(chosen: Set<String>?, canDiscover: Boolean, side: Boolean): List<TopLevel> {
+    val picked = chosen?.let { names -> TopLevel.entries.filter { it == TopLevel.Home || it.name in names } }
+        ?: TopLevel.entries.filter { tab ->
+            when (tab) {
+                TopLevel.Search -> side || !canDiscover
+                else -> true
+            }
+        }
+    val allowed = picked.filter { it != TopLevel.Discover || canDiscover }
+    return if (side) allowed else allowed.take(DOCK_MAX)
+}
+
+const val DOCK_MAX = 5
+
 fun TopLevel.matches(destination: NavDestination): Boolean = when (this) {
     TopLevel.Home -> destination.hasRoute<HomeRoute>()
     TopLevel.Libraries -> destination.hasRoute<LibrariesRoute>()

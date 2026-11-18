@@ -1,6 +1,9 @@
 package xyz.etkn.mobile.data.api
 
 import kotlinx.serialization.json.JsonArray
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -79,10 +82,10 @@ class EtknApi(
     private fun cred(a: ActiveSession = s) = Credentials(a.server, a.token)
     private fun u(a: ActiveSession = s) = "/api/tv/Users/${enc(a.userId)}"
 
-    private suspend fun send(method: String, path: String, body: JsonElement? = null): JsonObject {
+    private suspend fun send(method: String, path: String, body: JsonElement? = null, raw: RequestBody? = null): JsonObject {
         val active = s
         try {
-            return client.call(cred(active), method, path, body)
+            return client.call(cred(active), method, path, body, raw)
         } catch (expired: EtknException.AuthExpired) {
             onExpired(active)
             throw expired
@@ -260,6 +263,66 @@ class EtknApi(
 
     suspend fun hideFromResume(id: String) {
         post("${u()}/Items/${enc(id)}/HideFromResume")
+    }
+
+    // ---------- Management (permissions: admin, or TvPermissions per action) ----------
+
+    /** The account as the server sees it now (permissions can change while signed in). */
+    suspend fun currentUser(): UserInfo = UserInfo.from(get("/api/tv/Users/Me"))
+
+    /** Raw detail JSON (Tags, CustomRating, DoubanId, Versions …) for the editors. */
+    suspend fun rawItem(id: String): JsonObject = get("${u()}/Items/${enc(id)}")
+
+    /** `action`: replace_metadata / replace_images / replace_metadata_images. Reply may carry `RefreshRunId` or `reason`. */
+    suspend fun refreshItem(id: String, action: String): JsonObject = post(query("/api/tv/Items/${enc(id)}/Refresh", "Action" to action))
+
+    /** `{RefreshRunId, status, finished}` for a run started by [refreshItem]. */
+    suspend fun refreshStatus(id: String, runId: Long): JsonObject = get("/api/tv/Items/${enc(id)}/Refresh/$runId")
+
+    /** Linked delete of every version (and seasons / episodes below a series). */
+    suspend fun deleteItem(id: String) {
+        delete("/api/tv/Items/${enc(id)}")
+    }
+
+    suspend fun deleteVersion(id: String, versionId: String) {
+        delete("/api/tv/Items/${enc(id)}/Versions/${enc(versionId)}")
+    }
+
+    /** Queues seek-preview thumbnail extraction; titles that already have them are skipped. */
+    suspend fun extractPreviews(ids: List<String>) {
+        post("/api/tv/Manage/Items/preview-thumbnails", buildJsonObject { put("media_item_ids", stringArray(ids)) })
+    }
+
+    /** Admin only: `{items: [{label, value}]}` for the custom rating picker. */
+    suspend fun ratingOptions(): List<Pair<String, String>> =
+        get("/api/tv/Manage/RatingOptions").objects("items").map { it.str("label") to it.str("value") }.filter { it.second.isNotEmpty() }
+
+    /** Admin only. Body fields: name, overview, genres, tags, custom_rating, douban_id, tmdb_rating, douban_rating. */
+    suspend fun updateMetadata(id: String, body: JsonObject) {
+        put("/api/tv/Items/${enc(id)}/Metadata", body)
+    }
+
+    /** Admin only: online candidates `{type, url, thumbnail_url, source_url, source_provider, language, width, height}`. */
+    suspend fun remoteImages(id: String, allLanguages: Boolean): List<JsonObject> =
+        get(query("/api/tv/Items/${enc(id)}/RemoteImages", "include_all_languages" to allLanguages)).objects("items")
+
+    suspend fun selectImage(id: String, candidate: JsonObject, type: String) {
+        val body = buildJsonObject {
+            put("url", candidate.str("source_url"))
+            put("image_type", type.lowercase())
+            put("source_provider", candidate.str("source_provider").ifEmpty { "tmdb" })
+            candidate.strOrNull("language")?.let { put("language", it) }
+        }
+        post("/api/tv/Items/${enc(id)}/RemoteImages", body)
+    }
+
+    /** Raw image bytes as the request body; `type` is Primary / Backdrop / Logo. */
+    suspend fun uploadImage(id: String, type: String, fileName: String, mime: String, bytes: ByteArray) {
+        send(
+            "POST",
+            query("/api/tv/Items/${enc(id)}/Images/Upload", "image_type" to type, "file_name" to fileName),
+            raw = bytes.toRequestBody(mime.toMediaType()),
+        )
     }
 
     // ---------- Playback ----------

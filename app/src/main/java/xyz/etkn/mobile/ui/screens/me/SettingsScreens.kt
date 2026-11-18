@@ -1,6 +1,19 @@
 package xyz.etkn.mobile.ui.screens.me
 
 import android.app.Activity
+import xyz.etkn.mobile.ui.theme.LocalSettings
+import xyz.etkn.mobile.ui.components.glassBarClearance
+import xyz.etkn.mobile.ui.components.glassSource
+import xyz.etkn.mobile.ui.components.GlassBackBar
+import dev.chrisbanes.haze.rememberHazeState
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.layout.FlowRow
+import xyz.etkn.mobile.ui.common.LocalWindowLayout
+import xyz.etkn.mobile.ui.nav.DOCK_MAX
+import xyz.etkn.mobile.ui.nav.visibleTabs
+import xyz.etkn.mobile.ui.nav.TopLevel
+import xyz.etkn.mobile.data.settings.NavPosition
 import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -68,15 +81,11 @@ fun SettingsScreen(page: SettingsPage) {
     val graph = LocalContext.current.graph
     val nav = LocalNav.current
     val scope = rememberCoroutineScope()
-    val settings by graph.settings.flow.collectAsStateWithLifecycle(initialValue = Settings())
+    val settings = LocalSettings.current
+    val haze = rememberHazeState()
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
     Column(Modifier.widthIn(max = 720.dp).fillMaxSize()) {
-        TopAppBar(
-            title = { Text(page.title) },
-            navigationIcon = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-        )
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 8.dp)) {
+        Column(Modifier.fillMaxSize().glassSource(haze).verticalScroll(rememberScrollState()).padding(top = glassBarClearance())) {
             SettingsGroup {
                 when (page) {
                     SettingsPage.Appearance -> {
@@ -95,6 +104,11 @@ fun SettingsScreen(page: SettingsPage) {
                             }
                         }
                         ChoiceRow("首页推荐", HeroMode.entries, settings.heroMode, { it.label }) { scope.launch { graph.settings.setHeroMode(it) } }
+                        val wide = LocalWindowLayout.current.wide
+                        if (wide) {
+                            ChoiceRow("导航位置", NavPosition.entries, settings.navPosition, { it.label }) { scope.launch { graph.settings.setNavPosition(it) } }
+                        }
+                        TabPicker(settings, side = wide && settings.navPosition == NavPosition.Side) { scope.launch { graph.settings.setTabs(it) } }
                     }
                     SettingsPage.Playback -> {
                         ChoiceRow("解码", DecoderPreference.entries, settings.decoder, { it.label }) { scope.launch { graph.settings.setDecoder(it) } }
@@ -109,6 +123,36 @@ fun SettingsScreen(page: SettingsPage) {
             Spacer(Modifier.height(LocalBottomInset.current + 16.dp))
         }
     }
+    Box(Modifier.widthIn(max = 720.dp)) { GlassBackBar(page.title, collapsed = true, haze = haze, onBack = nav::back) }
+    }
+}
+
+/**
+ * Which top-level pages the dock / rail shows. 首页 is fixed; 探索 only appears for accounts with
+ * the right; the phone dock stops at [DOCK_MAX].
+ */
+@Composable
+private fun TabPicker(settings: Settings, side: Boolean, onChange: (Set<String>) -> Unit) {
+    val canDiscover by LocalContext.current.graph.discover.allowed.collectAsStateWithLifecycle()
+    val shown = visibleTabs(settings.tabs, canDiscover, side)
+    val limit = if (side) Int.MAX_VALUE else DOCK_MAX
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(if (side) "侧栏" else "底栏", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TopLevel.entries.filter { it != TopLevel.Discover || canDiscover }.forEach { tab ->
+                val on = tab in shown
+                FilterChip(
+                    selected = on,
+                    enabled = tab != TopLevel.Home && (on || shown.size < limit),
+                    onClick = {
+                        val next = if (on) shown - tab else shown + tab
+                        onChange(next.filter { it != TopLevel.Home }.mapTo(HashSet()) { it.name })
+                    },
+                    label = { Text(tab.label) },
+                    leadingIcon = { Icon(if (on) tab.selectedIcon else tab.icon, null, Modifier.size(18.dp)) },
+                )
+            }
+        }
     }
 }
 

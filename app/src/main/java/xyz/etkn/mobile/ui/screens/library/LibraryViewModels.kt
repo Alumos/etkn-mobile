@@ -86,6 +86,20 @@ abstract class PagedViewModel : ViewModel() {
     fun replace(item: Item) {
         _paged.update { p -> p.copy(items = p.items.map { if (it.id == item.id) item else it }) }
     }
+
+    /** Drops deleted rows and re-reads changed ones in place, keeping the scroll position. */
+    protected fun followChanges(graph: AppGraph) {
+        viewModelScope.launch {
+            graph.itemChanges.collect { change ->
+                if (_paged.value.items.none { it.id == change.id }) return@collect
+                if (change.deleted) {
+                    _paged.update { p -> p.copy(items = p.items.filterNot { it.id == change.id }, total = if (p.total > 0) p.total - 1 else p.total) }
+                } else {
+                    runCatching { graph.api.item(change.id, EtknApi.LIST_FIELDS) }.onSuccess(::replace)
+                }
+            }
+        }
+    }
 }
 
 class LibraryViewModel(graph: AppGraph, private val libraryId: String, private val collectionType: String?) : PagedViewModel() {
@@ -103,7 +117,10 @@ class LibraryViewModel(graph: AppGraph, private val libraryId: String, private v
     /** Groups and plain folders list their direct children only (no recursion, no type filter). */
     val isFolderView = collectionType == "group" || collectionType == "folder"
 
-    init { reset() }
+    init {
+        reset()
+        followChanges(graph)
+    }
 
     override suspend fun fetch(start: Int, limit: Int): ItemsPage {
         if (isFolderView) {
@@ -127,6 +144,9 @@ class LibraryViewModel(graph: AppGraph, private val libraryId: String, private v
 
 class FavoritesViewModel(graph: AppGraph) : PagedViewModel() {
     private val api = graph.api
-    init { reset() }
+    init {
+        reset()
+        followChanges(graph)
+    }
     override suspend fun fetch(start: Int, limit: Int): ItemsPage = api.favorites(start, limit)
 }

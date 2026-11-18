@@ -40,6 +40,9 @@ xyz.etkn.mobile
 - **返回手势**：清单启用 `enableOnBackInvokedCallback`；NavHost 的 pop 转场即预测性返回的预览动画。每个目的地包在 `PageFrame` 里：不透明背景 + 随转场进度变化的圆角裁剪，避免透明页面缩小时与下层页面叠在一起。
 - **页面大小**：`UiScale` 在 `attachBaseContext` 用 `applyOverrideConfiguration` 只覆盖 `densityDpi`，对话框、底部面板、菜单等独立窗口同样生效；改设置后 `recreate()`。窗口尺寸一律用 `windowSizeDp()`（像素 / 当前密度），不用 `Configuration.screenWidthDp`。
 - **播放器面板**：音轨/字幕/倍速/版本/选集/弹幕都在右侧独立窗口（`ComponentDialog`）中显示；Android 12+ 由系统合成器做窗口背景模糊（可模糊 SurfaceView 视频），不支持时退化为高不透明度面板。
+- **条目菜单**：`ui/actions`。`ItemMenu` 在外壳最上层：海报卡片 / 继续观看卡片长按、详情页“更多”打开；毛玻璃菜单从卡片位置弹出（同窗口 Haze 模糊），刷新/删除/编辑元数据/编辑图片/提取缩略图按 Web 端规则与权限显示。变化经 `AppGraph.itemChanges` 广播，列表就地修补、首页静默重载、详情页重载或退出。
+- **毛玻璃**：同窗口浮层（顶栏、底栏、菜单、提示）用 Haze；对话框与底部面板是独立窗口，Android 12+ 用 `GlassDialog` / `GlassSheet`（`FLAG_BLUR_BEHIND` 模糊背后整屏 + 半透明容器）。人物、音乐列表、设置、账号页改为悬浮玻璃标题栏。
+- **导航**：`visibleTabs()` 决定底栏/侧栏项目（用户可选，首页固定；手机底栏最多 5 项；探索需权限）；宽屏可选侧边或底部。
 - **搜索**：库内无结果且有探索权限时，并发查询 TMDb 电影与剧集（`SearchViewModel`）。
 
 ## 性能要点

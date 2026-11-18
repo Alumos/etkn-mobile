@@ -1,5 +1,11 @@
 package xyz.etkn.mobile.ui.screens.music
 
+import androidx.compose.ui.unit.Dp
+import xyz.etkn.mobile.ui.components.glassSource
+import xyz.etkn.mobile.ui.components.glassBarClearance
+import xyz.etkn.mobile.ui.components.GlassBackBar
+import dev.chrisbanes.haze.rememberHazeState
+import xyz.etkn.mobile.ui.components.GlassDialog
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -40,7 +46,6 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -220,7 +225,7 @@ private fun Playlists(parentId: String) {
     }
     if (creating) {
         var name by remember { mutableStateOf("") }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { creating = false },
             title = { Text("新建歌单") },
             text = { OutlinedTextField(value = name, onValueChange = { name = it.take(80) }, singleLine = true, label = { Text("名称") }) },
@@ -229,7 +234,7 @@ private fun Playlists(parentId: String) {
         )
     }
     deleting?.let { list ->
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { deleting = null },
             title = { Text("删除歌单“${list.name}”？") },
             text = { Text("只删除歌单，保留音乐文件。") },
@@ -242,19 +247,16 @@ private fun Playlists(parentId: String) {
 @Composable
 fun MusicListScreen(route: MusicListRoute) {
     val nav = LocalNav.current
-    Column(Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text(route.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            navigationIcon = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-        )
-        MusicListBody(route, header = route.title)
+    val haze = rememberHazeState()
+    Box(Modifier.fillMaxSize()) {
+        MusicListBody(route, header = route.title, top = glassBarClearance(), modifier = Modifier.glassSource(haze))
+        GlassBackBar(route.title, collapsed = true, haze = haze, onBack = nav::back)
     }
 }
 
 /** Groups render as a square-cover grid; tracks as full-width rows (one grid, span-aware). */
 @Composable
-private fun MusicListBody(route: MusicListRoute, header: String?) {
+private fun MusicListBody(route: MusicListRoute, header: String?, top: Dp = 0.dp, modifier: Modifier = Modifier) {
     val vm = graphViewModel(key = "ml-${route.parentId}-${route.tab}-${route.key}-${route.tracksOnly}") {
         MusicListViewModel(it, route.parentId, route.tab, route.key, route.tracksOnly)
     }
@@ -275,10 +277,10 @@ private fun MusicListBody(route: MusicListRoute, header: String?) {
         else -> LazyVerticalGrid(
             state = grid,
             columns = GridCells.Adaptive(140.dp),
-            contentPadding = PaddingValues(start = Etkn.space.screen, end = Etkn.space.screen, bottom = LocalBottomInset.current),
+            contentPadding = PaddingValues(start = Etkn.space.screen, end = Etkn.space.screen, top = top, bottom = LocalBottomInset.current),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().then(modifier),
         ) {
             overview?.takeIf { it.isNotBlank() }?.let { bio ->
                 item(span = { GridItemSpan(maxLineSpan) }, key = "bio") { ArtistBio(bio) }
@@ -394,7 +396,7 @@ private fun PlaylistPicker(track: Item, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     var lists by remember { mutableStateOf<List<Playlist>?>(null) }
     LaunchedEffect(parent) { lists = runCatching { graph.api.playlists(parent ?: "") }.getOrDefault(emptyList()) }
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onDismiss,
         title = { Text("添加到歌单") },
         text = {

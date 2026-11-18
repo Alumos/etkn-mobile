@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.os.Build
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import xyz.etkn.mobile.data.api.EtknApi
@@ -23,6 +24,9 @@ import xyz.etkn.mobile.music.MusicConnection
 import java.util.UUID
 
 /** Manual dependency graph: a handful of long-lived singletons, no reflection, no DI startup cost. */
+/** [deleted] = the item is gone (whole delete); otherwise its data changed and should be re-read. */
+data class ItemChange(val id: String, val deleted: Boolean = false)
+
 class AppGraph(val app: Application) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -55,6 +59,12 @@ class AppGraph(val app: Application) {
     val updates by lazy { UpdateManager(app, http.external, scope) }
 
     val discover = DiscoverStore()
+
+    /**
+     * Item-level changes made from this device (favourite, metadata, images, delete …). Lists
+     * patch or drop the row, detail pages reload; nothing polls.
+     */
+    val itemChanges = MutableSharedFlow<ItemChange>(extraBufferCapacity = 16)
 
     init {
         sessions.api = api

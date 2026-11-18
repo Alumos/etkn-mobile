@@ -2,7 +2,7 @@
 
 本文列出 ETKN Mobile 当前**实际调用**的全部服务端接口，供移植 Windows 等其他客户端时参考。
 
-- 来源是本仓库源码（2026-11-18，v0.3.0）。契约与 ETKN TV 客户端一致，TV 仓库 `docs/etkn-mobile-api.md` 是更早的观察记录。
+- 来源是本仓库源码（2026-11-18，v0.4.0）。契约与 ETKN TV 客户端一致，TV 仓库 `docs/etkn-mobile-api.md` 是更早的观察记录。
 - 括号里的文件路径相对于 `app/src/main/java/xyz/etkn/mobile/`。
 
 ## 1. 通用约定
@@ -152,6 +152,39 @@
 - 用户数据：`UserData{Played,IsFavorite,PlaybackPositionTicks,PlayCount}`
 - 关联：`People[]{Id,Name,Role,Type,PrimaryImageTag}`、`MediaSources[]`、`ProviderIds`
 - 状态：`ChildCount`、`RecursiveItemCount`、`IsFolder`、`LocationType`（`Virtual` 表示缺集）、`Status`
+
+## 5.1 媒体管理（长按菜单 / 详情页“更多”）
+
+权限来自用户对象：
+- 管理员（`Policy.IsAdministrator`）可用全部操作；
+- `TvPermissions.CanRefreshMetadata` 只能刷新；
+- `TvPermissions.CanDeleteMedia` 只能删除。
+
+管理操作只对本地条目（`Id` 形如 `item-<数字>`）开放。服务端会对每个请求重新校验权限，返回 403 时直接提示用户。服务端实现见 ETKvNext 的 `api/tv.py`、`api/tv_management.py`、`api/web_client.py`。
+
+| 方法 | 路径与参数 | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/api/tv/Users/Me` | — | 每次打开菜单时刷新一次权限 |
+| POST | `/api/tv/Items/{id}/Refresh?Action={replace_metadata\|replace_images\|replace_metadata_images}` | 刷新 | 返回 `submitted`、`RefreshRunId`；如果有 `reason=task_already_running`，表示已有刷新任务在运行 |
+| GET | `/api/tv/Items/{id}/Refresh/{runId}` | 刷新 | 返回 `{RefreshRunId, status, finished}`。客户端每 5 秒查询一次，最多 10 分钟 |
+| DELETE | `/api/tv/Items/{id}` | 删除 | 联动删除全部版本（剧集会删除所有季和分集），返回 204 |
+| DELETE | `/api/tv/Items/{id}/Versions/{versionId}` | 删除 | 只删除一个版本 |
+| POST | `/api/tv/Manage/Items/preview-thumbnails` | 管理员 | 请求体 `{"media_item_ids": ["item-…"]}`，用于提取进度条预览缩略图；已经有缩略图的会跳过 |
+| GET | `/api/tv/Manage/RatingOptions` | 管理员 | 自定义分级选项 `items[]{label,value}`。保存时传 `value`，界面显示 `label` |
+| PUT | `/api/tv/Items/{id}/Metadata` | 管理员 | 请求体 `{name, overview, genres[], tags[], custom_rating, douban_id, tmdb_rating, douban_rating}`；评分范围 0–10，留空时传 null |
+| GET | `/api/tv/Items/{id}/RemoteImages?include_all_languages=` | 管理员 | 在线候选图 `items[]{type, url, thumbnail_url, source_url, source_provider, language, width, height}`；`url` 和 `thumbnail_url` 是同源的 `/api/image_proxy?...` 地址 |
+| POST | `/api/tv/Items/{id}/RemoteImages` | 管理员 | 选定候选图，请求体 `{url: source_url, image_type: primary\|backdrop\|logo, source_provider, language}` |
+| POST | `/api/tv/Items/{id}/Images/Upload?image_type={Primary\|Backdrop\|Logo}&file_name=` | 管理员 | 上传本地图片：请求体直接是图片字节，`Content-Type` 为图片 MIME |
+
+**删除流程：**
+1. 先请求 `GET U/Items/{id}`，从 `Versions[]` 读取版本列表；没有这个字段时，改用 `MediaSources[]` 里 `Id` 形如 `version-N` 的项，去掉前缀后就是版本 ID。
+2. 有多个版本时，让用户选择删除“全部版本”还是其中一个。
+3. 确认框要写明删除范围：整部剧（含全部季和分集）、本季（含全部分集），或该条目的全部版本。
+4. 默认选中“取消”。
+
+**编辑元数据：** 需要先读取 `GET U/Items/{id}` 的完整字段：`Name`、`Overview`、`CustomRatingCode` / `CustomRating`、`TMDbRating` / `CommunityRating`、`DoubanRating`、`DoubanId` / `ProviderIds.Douban`、`Genres`、`Tags`。
+
+**同一个页面里的变化：** 收藏、标记已看、移出继续观看、删除，以及编辑完成后，客户端都会广播一次条目变化。各列表就地删除该行或重新读取该行，详情页重新加载；如果是当前条目被删除，就退出详情页。
 
 ## 6. 播放
 

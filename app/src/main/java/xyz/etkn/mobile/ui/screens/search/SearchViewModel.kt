@@ -37,6 +37,7 @@ class SearchViewModel(private val graph: AppGraph) : PagedViewModel() {
     private var discoverTerm = ""
 
     init {
+        followChanges(graph)
         viewModelScope.launch {
             term.debounce(350).distinctUntilChanged().collect { value ->
                 current = value.trim()

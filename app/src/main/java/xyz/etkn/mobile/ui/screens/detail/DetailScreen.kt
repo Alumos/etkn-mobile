@@ -26,6 +26,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import xyz.etkn.mobile.ui.components.ArtworkBackButton
+import xyz.etkn.mobile.ui.actions.rememberItemPress
+import androidx.compose.material.icons.rounded.MoreVert
 import xyz.etkn.mobile.ui.components.GlassBackBar
 import xyz.etkn.mobile.ui.components.glassSource
 import androidx.compose.foundation.lazy.LazyListScope
@@ -109,6 +111,8 @@ fun DetailScreen(id: String) {
     val state by vm.state.collectAsStateWithLifecycle()
     val episodes by vm.episodes.collectAsStateWithLifecycle()
     val nav = LocalNav.current
+    val deleted by vm.deleted.collectAsStateWithLifecycle()
+    LaunchedEffect(deleted) { if (deleted) nav.back() }
     var resumed by remember { mutableStateOf(false) }
     // Coming back from the player: refresh progress / watched state.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (resumed) vm.load() else resumed = true }
@@ -273,6 +277,13 @@ private fun ActionRow(data: DetailData, vm: DetailViewModel, nav: AppNav) {
                 onCheckedChange = { vm.togglePlayed() },
                 modifier = Modifier.size(ButtonDefaults.MediumContainerHeight),
             ) { Icon(Icons.Rounded.Done, "已观看") }
+            val press = rememberItemPress(item)
+            if (press.enabled) {
+                FilledTonalIconButton(
+                    onClick = press::open,
+                    modifier = Modifier.size(ButtonDefaults.MediumContainerHeight).then(press.modifier),
+                ) { Icon(Icons.Rounded.MoreVert, "更多") }
+            }
         }
         if (resumable && target != null && target.progress > 0f) {
             LinearProgressIndicator(

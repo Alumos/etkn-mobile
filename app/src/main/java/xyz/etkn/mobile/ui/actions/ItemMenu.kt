@@ -1,0 +1,372 @@
+package xyz.etkn.mobile.ui.actions
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Done
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.RemoveDone
+import androidx.compose.material.icons.rounded.Slideshow
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
+import dev.chrisbanes.haze.HazeState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import xyz.etkn.mobile.AppGraph
+import xyz.etkn.mobile.ItemChange
+import xyz.etkn.mobile.data.model.Item
+import xyz.etkn.mobile.data.net.bool
+import xyz.etkn.mobile.data.net.long
+import xyz.etkn.mobile.data.net.str
+import xyz.etkn.mobile.ui.common.userMessage
+import xyz.etkn.mobile.ui.components.glass
+
+/** Long-press / overflow menu of the current shell; null outside it (previews, player). */
+val LocalItemMenu = staticCompositionLocalOf<ItemMenu?> { null }
+
+enum class ItemAction { Favorite, Played, Refresh, Metadata, Images, Previews, Delete, HideResume }
+
+internal data class Entry(val action: ItemAction, val label: String, val icon: ImageVector, val danger: Boolean = false)
+
+data class MenuTarget(val item: Item, val anchor: Rect, val resume: Boolean)
+
+/** The editors / confirmations the menu opens after it closes. */
+sealed interface ItemDialog {
+    val item: Item
+
+    data class Refresh(override val item: Item) : ItemDialog
+    data class Delete(override val item: Item) : ItemDialog
+    data class Metadata(override val item: Item) : ItemDialog
+    data class Images(override val item: Item) : ItemDialog
+}
+
+/**
+ * Same actions and permission rules as the ETKN web context menu: user data for everyone,
+ * 刷新 for admins or `CanRefreshMetadata`, 删除 for admins or `CanDeleteMedia`, editors and
+ * thumbnail extraction for admins. Management applies to local `item-*` titles only; the
+ * server checks every permission again.
+ */
+@Stable
+class ItemMenu(private val graph: AppGraph, private val scope: CoroutineScope) {
+    var target by mutableStateOf<MenuTarget?>(null)
+        private set
+    var dialog by mutableStateOf<ItemDialog?>(null)
+    var notice by mutableStateOf<String?>(null)
+    private var admin by mutableStateOf(false)
+    private var canRefresh by mutableStateOf(false)
+    private var canDelete by mutableStateOf(false)
+    private var busy = false
+
+    private val api get() = graph.api
+
+    fun open(item: Item, anchor: Rect, resume: Boolean = false) {
+        if (busy || !eligible(item)) return
+        graph.sessions.current?.let {
+            admin = it.isAdmin
+            canRefresh = it.canRefreshMetadata
+            canDelete = it.canDeleteMedia
+        }
+        target = MenuTarget(item, anchor, resume)
+        // Permissions can change while signed in; the visible menu follows the fresh answer.
+        scope.launch {
+            runCatching { api.currentUser() }.onSuccess {
+                admin = it.isAdmin
+                canRefresh = it.canRefreshMetadata
+                canDelete = it.canDeleteMedia
+            }
+        }
+    }
+
+    fun dismiss() {
+        target = null
+    }
+
+    internal fun entriesFor(t: MenuTarget): List<Entry> {
+        val item = t.item
+        val managed = MANAGED_ID.matches(item.id)
+        return buildList {
+            add(
+                if (item.userData.isFavorite) Entry(ItemAction.Favorite, "取消收藏", Icons.Rounded.Favorite)
+                else Entry(ItemAction.Favorite, "收藏", Icons.Rounded.FavoriteBorder),
+            )
+            if (item.type != "Audio") {
+                add(
+                    if (item.userData.played) Entry(ItemAction.Played, "标记为未看", Icons.Rounded.RemoveDone)
+                    else Entry(ItemAction.Played, "标记为已看", Icons.Rounded.Done),
+                )
+            }
+            if (managed && (admin || canRefresh)) add(Entry(ItemAction.Refresh, "刷新", Icons.Rounded.Refresh))
+            if (managed && admin) {
+                add(Entry(ItemAction.Metadata, "编辑元数据", Icons.Rounded.Edit))
+                add(Entry(ItemAction.Images, "编辑图片", Icons.Rounded.Image))
+                if (item.type in VIDEO_TYPES) add(Entry(ItemAction.Previews, "提取缩略图", Icons.Rounded.Slideshow))
+            }
+            if (managed && (admin || canDelete)) add(Entry(ItemAction.Delete, "删除", Icons.Rounded.Delete, danger = true))
+            if (t.resume) add(Entry(ItemAction.HideResume, "从继续观看移除", Icons.Rounded.VisibilityOff))
+        }
+    }
+
+    internal fun choose(action: ItemAction) {
+        val t = target ?: return
+        val item = t.item
+        target = null
+        when (action) {
+            ItemAction.Favorite -> perform(if (item.userData.isFavorite) "已取消收藏" else "已收藏", item.id) {
+                api.setFavorite(item.id, !item.userData.isFavorite)
+            }
+            ItemAction.Played -> perform(if (item.userData.played) "已标记为未看" else "已标记为已看", item.id) {
+                api.setPlayed(item.id, !item.userData.played)
+            }
+            ItemAction.HideResume -> perform("已从继续观看移除", item.id) { api.hideFromResume(item.id) }
+            ItemAction.Previews -> perform("缩略图任务已提交，已有缩略图自动跳过", null) { api.extractPreviews(listOf(item.id)) }
+            ItemAction.Refresh -> dialog = ItemDialog.Refresh(item)
+            ItemAction.Metadata -> dialog = ItemDialog.Metadata(item)
+            ItemAction.Images -> dialog = ItemDialog.Images(item)
+            ItemAction.Delete -> dialog = ItemDialog.Delete(item)
+        }
+    }
+
+    /** One request at a time; errors become the notice instead of a crash. */
+    private fun perform(success: String, changed: String?, block: suspend () -> Unit) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            try {
+                block()
+                notice = success
+                changed?.let { changed(it) }
+            } catch (error: Exception) {
+                notice = error.userMessage()
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    fun changed(id: String, deleted: Boolean = false) {
+        graph.itemChanges.tryEmit(ItemChange(id, deleted))
+    }
+
+    /** Submits the refresh, then follows the server task so lists repaint when it is done. */
+    fun refresh(item: Item, action: String) {
+        dialog = null
+        scope.launch {
+            val result = try {
+                api.refreshItem(item.id, action)
+            } catch (error: Exception) {
+                notice = error.userMessage()
+                return@launch
+            }
+            if (result.str("reason") == "task_already_running") {
+                notice = "已有刷新任务在运行，请稍后重试"
+                return@launch
+            }
+            notice = "元数据刷新任务已提交"
+            val run = result.long("RefreshRunId")
+            if (run <= 0) return@launch
+            repeat(REFRESH_POLLS) {
+                delay(5_000)
+                val status = runCatching { api.refreshStatus(item.id, run) }.getOrNull() ?: return@repeat
+                if (status.bool("finished")) {
+                    notice = if (status.str("status") == "succeeded") "「${item.name}」已刷新" else "刷新任务已结束（${status.str("status")}）"
+                    changed(item.id)
+                    return@launch
+                }
+            }
+        }
+    }
+
+    companion object {
+        private val MANAGED_ID = Regex("^item-[1-9]\\d*$")
+        private val ELIGIBLE = setOf("Movie", "Series", "Season", "Episode", "Video", "Audio", "MusicVideo", "BoxSet")
+        val VIDEO_TYPES = setOf("Movie", "Series", "Season", "Episode", "Video")
+        private const val REFRESH_POLLS = 120
+
+        fun eligible(item: Item): Boolean = item.id.isNotEmpty() && item.type in ELIGIBLE
+    }
+}
+
+/**
+ * Tracks where a card sits so the menu can grow out of it. Use [modifier] on the card and call
+ * [open] from its long click.
+ */
+@Stable
+class ItemPress internal constructor() {
+    internal var menu: ItemMenu? = null
+    internal var item: Item? = null
+    internal var resume = false
+    private var bounds = Rect.Zero
+    val modifier: Modifier = Modifier.onGloballyPositioned { bounds = it.boundsInRoot() }
+
+    val enabled: Boolean get() = menu != null && item?.let(ItemMenu::eligible) == true
+
+    fun open() {
+        val target = item ?: return
+        menu?.open(target, bounds, resume)
+    }
+}
+
+@Composable
+fun rememberItemPress(item: Item, resume: Boolean = false): ItemPress {
+    val press = remember { ItemPress() }
+    press.menu = LocalItemMenu.current
+    press.item = item
+    press.resume = resume
+    return press
+}
+
+/**
+ * Drawn above the whole shell (root coordinates = window): a light scrim, the glass menu growing
+ * out of the pressed card, the editors it opens, and a glass notice pill for results.
+ */
+@Composable
+fun ItemMenuHost(menu: ItemMenu, haze: HazeState?) {
+    val target = menu.target
+    // Keeps the last target on screen while the exit animation runs.
+    val last = remember { arrayOfNulls<MenuTarget>(1) }
+    if (target != null) last[0] = target
+    val current = target ?: last[0]
+
+    BackHandler(enabled = target != null) { menu.dismiss() }
+
+    Box(Modifier.fillMaxSize()) {
+        AnimatedVisibility(target != null, enter = fadeIn(), exit = fadeOut()) {
+            Box(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.18f))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { menu.dismiss() },
+            )
+        }
+        if (current != null) {
+            MenuPlacement(current.anchor) {
+                val origin = TransformOrigin(0.5f, 0f)
+                AnimatedVisibility(
+                    target != null,
+                    enter = fadeIn() + scaleIn(initialScale = 0.85f, transformOrigin = origin),
+                    exit = fadeOut() + scaleOut(targetScale = 0.9f, transformOrigin = origin),
+                ) {
+                    MenuCard(current, menu, haze)
+                }
+            }
+        }
+        menu.notice?.let { message ->
+            LaunchedEffect(message) {
+                delay(3_000)
+                if (menu.notice == message) menu.notice = null
+            }
+            Text(
+                message,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 12.dp, start = 24.dp, end = 24.dp)
+                    .glass(RoundedCornerShape(50), elevation = 10.dp, state = haze)
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+            )
+        }
+    }
+    when (val d = menu.dialog) {
+        is ItemDialog.Refresh -> RefreshDialog(onDismiss = { menu.dialog = null }) { menu.refresh(d.item, it) }
+        is ItemDialog.Delete -> DeleteDialog(d.item, menu)
+        is ItemDialog.Metadata -> MetadataSheet(d.item, menu)
+        is ItemDialog.Images -> ImageSheet(d.item, menu)
+        null -> Unit
+    }
+}
+
+/** Centres the menu on the card, a third of the way down it, kept inside the safe area. */
+@Composable
+private fun MenuPlacement(anchor: Rect, content: @Composable () -> Unit) {
+    val safe = WindowInsets.safeDrawing
+    Layout(content, Modifier.fillMaxSize()) { measurables, constraints ->
+        val margin = 12.dp.roundToPx()
+        val left = safe.getLeft(this, layoutDirection) + margin
+        val top = safe.getTop(this) + margin
+        val right = constraints.maxWidth - safe.getRight(this, layoutDirection) - margin
+        val bottom = constraints.maxHeight - safe.getBottom(this) - margin
+        val placeable = measurables.firstOrNull()?.measure(Constraints(maxWidth = (right - left).coerceAtLeast(0), maxHeight = (bottom - top).coerceAtLeast(0)))
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            if (placeable == null) return@layout
+            val x = (anchor.center.x - placeable.width / 2f).toInt().coerceIn(left, (right - placeable.width).coerceAtLeast(left))
+            val y = (anchor.top + anchor.height / 3f).toInt().coerceIn(top, (bottom - placeable.height).coerceAtLeast(top))
+            placeable.place(IntOffset(x, y))
+        }
+    }
+}
+
+@Composable
+private fun MenuCard(target: MenuTarget, menu: ItemMenu, haze: HazeState?) {
+    val entries = menu.entriesFor(target)
+    val rowShape = RoundedCornerShape(16.dp)
+    Column(Modifier.width(232.dp).glass(RoundedCornerShape(24.dp), elevation = 16.dp, state = haze).padding(vertical = 8.dp)) {
+        Text(
+            target.item.seriesName?.takeIf { target.item.isEpisode }?.let { "$it · ${target.item.name}" } ?: target.item.name,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+        )
+        entries.forEach { entry ->
+            val tint = if (entry.danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 6.dp).clip(rowShape).clickable { menu.choose(entry.action) }
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(entry.icon, null, tint = tint, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(14.dp))
+                Text(entry.label, style = MaterialTheme.typography.bodyLarge, color = tint)
+            }
+        }
+    }
+}

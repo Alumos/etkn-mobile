@@ -9,6 +9,7 @@ import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
@@ -44,6 +45,7 @@ class ApiClient(
         method: String,
         path: String,
         body: JsonElement? = null,
+        raw: RequestBody? = null,
     ): JsonObject {
         val builder = Request.Builder()
             .url(credentials.origin + path)
@@ -54,7 +56,7 @@ class ApiClient(
             builder.header("X-Emby-Token", credentials.token)
             builder.header("Cookie", "etkn_session=${credentials.token}")
         }
-        val payload = body?.let { EtknJson.encodeToString(JsonElement.serializer(), it).toRequestBody(JSON_TYPE) }
+        val payload = raw ?: body?.let { EtknJson.encodeToString(JsonElement.serializer(), it).toRequestBody(JSON_TYPE) }
         when (method) {
             "GET" -> builder.get()
             "DELETE" -> if (payload != null) builder.delete(payload) else builder.delete()

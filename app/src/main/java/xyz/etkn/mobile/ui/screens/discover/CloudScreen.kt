@@ -1,5 +1,6 @@
 package xyz.etkn.mobile.ui.screens.discover
 
+import xyz.etkn.mobile.ui.components.GlassDialog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -167,7 +167,7 @@ fun CloudScreen(route: CloudRoute) {
     }
 
     confirm?.let { row ->
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirm = null },
             title = { Text("确认获取此版本") },
             text = { Text(CloudResources.label(row) + "\n\n将按 ETKN 配置转存或获取并入库；可能消耗服务端资源积分。") },
@@ -186,7 +186,7 @@ fun CloudScreen(route: CloudRoute) {
         )
     }
     message?.let { (head, body) ->
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { message = null },
             title = { Text(head) },
             text = { Text(body) },

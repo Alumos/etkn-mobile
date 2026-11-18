@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -106,6 +107,10 @@ fun GlassBackBar(title: String, collapsed: Boolean, haze: HazeState, onBack: () 
         }
     }
 }
+
+/** Top padding that keeps scrolling content clear of a floating [GlassBackBar] at rest. */
+@Composable
+fun glassBarClearance(): Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 68.dp
 
 @Composable
 fun ArtworkBackButton(onBack: () -> Unit, modifier: Modifier = Modifier, onGlass: Boolean = false) {

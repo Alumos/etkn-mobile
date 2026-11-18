@@ -25,6 +25,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,7 +47,12 @@ import xyz.etkn.mobile.ui.common.currentWindowLayout
 import xyz.etkn.mobile.ui.components.LocalHaze
 import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.screens.music.MiniPlayer
+import xyz.etkn.mobile.data.settings.NavPosition
+import xyz.etkn.mobile.ui.actions.ItemMenu
+import xyz.etkn.mobile.ui.actions.ItemMenuHost
+import xyz.etkn.mobile.ui.actions.LocalItemMenu
 import xyz.etkn.mobile.ui.theme.Etkn
+import xyz.etkn.mobile.ui.theme.LocalSettings
 
 /** Space screens must leave at the bottom for the floating dock / mini player. */
 val LocalBottomInset = staticCompositionLocalOf { 0.dp }
@@ -67,15 +73,10 @@ fun MainShell(session: ActiveSession) {
     val layout = currentWindowLayout()
     val wide = layout.wide
     val canDiscover by context.graph.discover.allowed.collectAsStateWithLifecycle()
-    // Phone dock keeps five destinations: 探索 takes 搜索's slot when the account may discover
-    // (search stays one tap away in the home top bar); the tablet rail shows everything.
-    val tabs = TopLevel.entries.filter { tab ->
-        when (tab) {
-            TopLevel.Discover -> canDiscover
-            TopLevel.Search -> wide || !canDiscover
-            else -> true
-        }
-    }
+    val settings = LocalSettings.current
+    // Phones always use the dock; wide windows use the rail unless the user prefers the dock.
+    val side = wide && settings.navPosition == NavPosition.Side
+    val tabs = visibleTabs(settings.tabs, canDiscover, side)
 
     LaunchedEffect(session.key) {
         val discover = context.graph.discover
@@ -84,7 +85,7 @@ fun MainShell(session: ActiveSession) {
         context.graph.syncServerAppearance()
     }
 
-    val dockVisible = current != null && !wide
+    val dockVisible = current != null && !side
     val bottomInset: Dp = (if (dockVisible) Etkn.space.dockBottomInset else 24.dp) +
         (if (showMini) Etkn.space.miniPlayer + 8.dp else 0.dp)
 
@@ -92,43 +93,50 @@ fun MainShell(session: ActiveSession) {
     val railExpanded = layout == WindowLayout.Expanded
     LaunchedEffect(railExpanded) { if (railExpanded) rail.expand() else rail.collapse() }
 
+    val menuScope = rememberCoroutineScope()
+    val itemMenu = remember(session.key) { ItemMenu(context.graph, menuScope) }
+
     CompositionLocalProvider(
         LocalNav provides nav,
         LocalHaze provides hazeState,
         LocalBottomInset provides bottomInset,
         LocalWindowLayout provides layout,
+        LocalItemMenu provides itemMenu,
     ) {
-        Row(Modifier.fillMaxSize()) {
-            if (wide) {
-                WideNavigationRail(state = rail, modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
-                    tabs.forEach { tab ->
-                        WideNavigationRailItem(
-                            railExpanded = railExpanded,
-                            selected = current == tab,
-                            onClick = { nav.top(tab) },
-                            icon = { Icon(if (current == tab) tab.selectedIcon else tab.icon, null) },
-                            label = { Text(tab.label) },
-                        )
+        Box(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxSize()) {
+                if (side) {
+                    WideNavigationRail(state = rail, modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
+                        tabs.forEach { tab ->
+                            WideNavigationRailItem(
+                                railExpanded = railExpanded,
+                                selected = current == tab,
+                                onClick = { nav.top(tab) },
+                                icon = { Icon(if (current == tab) tab.selectedIcon else tab.icon, null) },
+                                label = { Text(tab.label) },
+                            )
+                        }
+                    }
+                }
+                Box(Modifier.weight(1f).fillMaxSize()) {
+                    AppNavHost(controller, Modifier.fillMaxSize().glassSource(hazeState))
+                    Column(
+                        Modifier.align(if (side) Alignment.BottomEnd else Alignment.BottomCenter)
+                            .then(if (wide) Modifier.widthIn(max = if (side) 520.dp else 640.dp) else Modifier).fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.navigationBars)
+                            .padding(horizontal = 14.dp)
+                            .padding(bottom = if (dockVisible) 10.dp else 12.dp),
+                    ) {
+                        AnimatedVisibility(showMini, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {
+                            MiniPlayer(onOpen = { nav.to(NowPlayingRoute) }, modifier = Modifier.padding(bottom = 8.dp))
+                        }
+                        AnimatedVisibility(dockVisible, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
+                            Dock(tabs, current, nav)
+                        }
                     }
                 }
             }
-            Box(Modifier.weight(1f).fillMaxSize()) {
-                AppNavHost(controller, Modifier.fillMaxSize().glassSource(hazeState))
-                Column(
-                    Modifier.align(if (wide) Alignment.BottomEnd else Alignment.BottomCenter)
-                        .then(if (wide) Modifier.widthIn(max = 520.dp) else Modifier).fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                        .padding(horizontal = 14.dp)
-                        .padding(bottom = if (dockVisible) 10.dp else 12.dp),
-                ) {
-                    AnimatedVisibility(showMini, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {
-                        MiniPlayer(onOpen = { nav.to(NowPlayingRoute) }, modifier = Modifier.padding(bottom = 8.dp))
-                    }
-                    AnimatedVisibility(dockVisible, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
-                        Dock(tabs, current, nav)
-                    }
-                }
-            }
+            ItemMenuHost(itemMenu, hazeState)
         }
     }
 }

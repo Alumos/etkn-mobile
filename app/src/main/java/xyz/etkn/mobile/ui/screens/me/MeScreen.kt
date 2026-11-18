@@ -1,5 +1,12 @@
 package xyz.etkn.mobile.ui.screens.me
 
+import xyz.etkn.mobile.ui.components.glassSource
+import xyz.etkn.mobile.ui.components.glassBarClearance
+import xyz.etkn.mobile.ui.components.GlassBackBar
+import dev.chrisbanes.haze.rememberHazeState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import xyz.etkn.mobile.ui.components.GlassDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.widthIn
@@ -29,7 +36,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import xyz.etkn.mobile.ui.nav.SettingsRoute
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.SwitchAccount
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -135,7 +141,7 @@ fun MeScreen() {
     }
 
     if (confirmLogout) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirmLogout = false },
             title = { Text("退出登录？") },
             text = { Text("将退出 ${session.userName} 在 ${session.serverName} 上的登录。") },
@@ -180,12 +186,9 @@ fun AccountsScreen() {
     val current = graph.sessions.current
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }
-    Column(Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("切换账号") },
-            navigationIcon = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-        )
+    val haze = rememberHazeState()
+    Box(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().glassSource(haze).verticalScroll(rememberScrollState()).padding(top = glassBarClearance())) {
         SettingsGroup {
             stored.accounts.forEach { account ->
                 val active = account.key == current?.key
@@ -212,5 +215,7 @@ fun AccountsScreen() {
         }
         message?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(Etkn.space.screen)) }
         Spacer(Modifier.height(LocalBottomInset.current))
+    }
+    GlassBackBar("切换账号", collapsed = true, haze = haze, onBack = nav::back)
     }
 }
