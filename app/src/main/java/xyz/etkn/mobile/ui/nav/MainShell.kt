@@ -1,7 +1,12 @@
 package xyz.etkn.mobile.ui.nav
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -22,6 +27,10 @@ import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.WideNavigationRail
 import androidx.compose.material3.WideNavigationRailItem
+import androidx.compose.material3.rememberWideNavigationRailState
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -49,7 +58,14 @@ import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.ui.components.LocalHaze
 import xyz.etkn.mobile.ui.components.glass
 import xyz.etkn.mobile.ui.components.glassSource
+import xyz.etkn.mobile.ui.common.LocalWindowLayout
+import xyz.etkn.mobile.ui.common.WindowLayout
+import xyz.etkn.mobile.ui.common.currentWindowLayout
 import xyz.etkn.mobile.ui.screens.detail.DetailScreen
+import xyz.etkn.mobile.ui.screens.discover.CloudScreen
+import xyz.etkn.mobile.ui.screens.discover.DiscoverDetailScreen
+import xyz.etkn.mobile.ui.screens.discover.DiscoverPersonScreen
+import xyz.etkn.mobile.ui.screens.discover.DiscoverScreen
 import xyz.etkn.mobile.ui.screens.home.HomeScreen
 import xyz.etkn.mobile.ui.screens.library.FavoritesScreen
 import xyz.etkn.mobile.ui.screens.library.LibrariesScreen
@@ -82,21 +98,47 @@ fun MainShell(session: ActiveSession) {
     val music = context.graph.music
     val nowPlaying by music.state.collectAsStateWithLifecycle()
     val showMini = nowPlaying.current != null && !isNowPlaying
-    val wide = LocalConfiguration.current.screenWidthDp >= 600
+    val layout = currentWindowLayout()
+    val wide = layout.wide
+    var canDiscover by remember { mutableStateOf(false) }
+    // Phone dock keeps five destinations: 探索 takes 搜索's slot when the account may discover
+    // (search stays one tap away in the home top bar); the tablet rail shows everything.
+    val tabs = TopLevel.entries.filter { tab ->
+        when (tab) {
+            TopLevel.Discover -> canDiscover
+            TopLevel.Search -> wide || !canDiscover
+            else -> true
+        }
+    }
 
-    LaunchedEffect(session.key) { context.graph.syncServerAppearance() }
+    LaunchedEffect(session.key) {
+        context.graph.discover.clear()
+        context.graph.syncServerAppearance()
+    }
+    LaunchedEffect(session.key) {
+        canDiscover = runCatching { context.graph.api.canDiscover() }.getOrDefault(false)
+    }
 
     val dockVisible = current != null && !wide
     val bottomInset: Dp = (if (dockVisible) Etkn.space.dockBottomInset else 24.dp) +
         (if (showMini) Etkn.space.miniPlayer + 8.dp else 0.dp)
 
-    CompositionLocalProvider(LocalNav provides nav, LocalHaze provides hazeState, LocalBottomInset provides bottomInset) {
+    val rail = rememberWideNavigationRailState()
+    val railExpanded = layout == WindowLayout.Expanded
+    LaunchedEffect(railExpanded) { if (railExpanded) rail.expand() else rail.collapse() }
+
+    CompositionLocalProvider(
+        LocalNav provides nav,
+        LocalHaze provides hazeState,
+        LocalBottomInset provides bottomInset,
+        LocalWindowLayout provides layout,
+    ) {
         Row(Modifier.fillMaxSize()) {
             if (wide) {
-                WideNavigationRail(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
-                    TopLevel.entries.forEach { tab ->
+                WideNavigationRail(state = rail, modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
+                    tabs.forEach { tab ->
                         WideNavigationRailItem(
-                            railExpanded = false,
+                            railExpanded = railExpanded,
                             selected = current == tab,
                             onClick = { nav.top(tab) },
                             icon = { Icon(if (current == tab) tab.selectedIcon else tab.icon, null) },
@@ -110,6 +152,14 @@ fun MainShell(session: ActiveSession) {
                     navController = controller,
                     startDestination = HomeRoute,
                     modifier = Modifier.fillMaxSize().glassSource(hazeState),
+                    // Pop transitions are what the predictive back gesture scrubs: the page being
+                    // left shrinks and slides with the finger while the previous page fades in.
+                    enterTransition = { fadeIn(tween(220, delayMillis = 60)) + slideInHorizontally(tween(260)) { it / 12 } },
+                    exitTransition = { fadeOut(tween(120)) },
+                    popEnterTransition = { fadeIn(tween(220)) + scaleIn(tween(260), initialScale = 0.96f) },
+                    popExitTransition = {
+                        scaleOut(tween(260), targetScale = 0.9f) + slideOutHorizontally(tween(260)) { it / 10 } + fadeOut(tween(200))
+                    },
                 ) {
                     composable<HomeRoute> { HomeScreen() }
                     composable<LibrariesRoute> { LibrariesScreen() }
@@ -123,13 +173,18 @@ fun MainShell(session: ActiveSession) {
                     composable<MusicListRoute> { MusicListScreen(it.toRoute()) }
                     composable<NowPlayingRoute> { NowPlayingScreen() }
                     composable<AccountsRoute> { AccountsScreen() }
+                    composable<DiscoverRoute> { DiscoverScreen() }
+                    composable<DiscoverDetailRoute> { DiscoverDetailScreen(it.toRoute()) }
+                    composable<DiscoverPersonRoute> { DiscoverPersonScreen(it.toRoute()) }
+                    composable<CloudRoute> { CloudScreen(it.toRoute()) }
                     composable<SettingsRoute> { entry ->
                         val page = entry.toRoute<SettingsRoute>().page
                         SettingsScreen(SettingsPage.entries.firstOrNull { it.name == page } ?: SettingsPage.Appearance)
                     }
                 }
                 Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    Modifier.align(if (wide) Alignment.BottomEnd else Alignment.BottomCenter)
+                        .then(if (wide) Modifier.widthIn(max = 520.dp) else Modifier).fillMaxWidth()
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(horizontal = 14.dp)
                         .padding(bottom = if (dockVisible) 10.dp else 12.dp),
@@ -138,7 +193,7 @@ fun MainShell(session: ActiveSession) {
                         MiniPlayer(onOpen = { nav.to(NowPlayingRoute) }, modifier = Modifier.padding(bottom = 8.dp))
                     }
                     AnimatedVisibility(dockVisible, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
-                        Dock(current, nav)
+                        Dock(tabs, current, nav)
                     }
                 }
             }
@@ -147,7 +202,7 @@ fun MainShell(session: ActiveSession) {
 }
 
 @Composable
-private fun Dock(current: TopLevel?, nav: AppNav) {
+private fun Dock(tabs: List<TopLevel>, current: TopLevel?, nav: AppNav) {
     val shape = RoundedCornerShape(28.dp)
     Box(Modifier.fillMaxWidth().glass(shape, elevation = 14.dp)) {
         ShortNavigationBar(
@@ -155,7 +210,7 @@ private fun Dock(current: TopLevel?, nav: AppNav) {
             contentColor = MaterialTheme.colorScheme.onSurface,
             windowInsets = WindowInsets(0, 0, 0, 0),
         ) {
-            TopLevel.entries.forEach { tab ->
+            tabs.forEach { tab ->
                 ShortNavigationBarItem(
                     selected = current == tab,
                     onClick = { nav.top(tab) },

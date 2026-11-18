@@ -6,6 +6,16 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import xyz.etkn.mobile.data.discover.CloudProvider
+import xyz.etkn.mobile.data.discover.CloudResource
+import xyz.etkn.mobile.data.discover.CloudResources
+import xyz.etkn.mobile.data.discover.DiscoverItem
+import xyz.etkn.mobile.data.discover.DiscoverKind
+import xyz.etkn.mobile.data.discover.DiscoverPage
+import xyz.etkn.mobile.data.discover.DiscoverPerson
+import xyz.etkn.mobile.data.discover.DiscoverSeason
+import xyz.etkn.mobile.data.net.long
+import xyz.etkn.mobile.data.net.rows
 import xyz.etkn.mobile.player.danmaku.DanmakuPage
 import xyz.etkn.mobile.player.danmaku.DanmakuTimeline
 import xyz.etkn.mobile.data.model.EpisodePage
@@ -274,6 +284,90 @@ class EtknApi(
         return client.call(cred(a), "POST", path, payload)
     }
 
+    // ---------- Discover (TMDb ids; `D` = /api/tv/discover) ----------
+
+    /** Discovery is a per-account right; the server enforces it again on every `D` route. */
+    suspend fun canDiscover(): Boolean = get("/api/tv/auth/check_status").obj("user")?.bool("can_access_discovery") == true
+
+    suspend fun discoverOptions(kind: DiscoverKind): JsonObject = get(query("$D/options", "media_type" to kind.wire))
+
+    suspend fun discoverQuery(kind: DiscoverKind, body: JsonObject): DiscoverPage {
+        val result = post("$D/query/${kind.wire}", body)
+        return DiscoverPage(result.rows().map { DiscoverItem(it, kind) }, result.int("total_pages", 1).coerceIn(1, 500))
+    }
+
+    suspend fun discoverSeries(tmdbId: String): JsonObject = get("$D/series/${enc(tmdbId)}")
+
+    /** Same path segment the TV client sends (`series` for shows). */
+    suspend fun discoverCredits(kind: DiscoverKind, tmdbId: String): JsonObject = get("$D/media/${kind.wire}/${enc(tmdbId)}/credits")
+
+    suspend fun discoverPerson(personId: String): DiscoverPerson {
+        val result = get("$D/person/${enc(personId)}/credits")
+        val person = result.obj("person")
+        return DiscoverPerson(
+            name = person?.str("name").orEmpty(),
+            biography = person?.str("biography").orEmpty().trim(),
+            profilePath = person?.str("profile_path").orEmpty(),
+            works = result.objects("works").map { DiscoverItem(it) },
+        )
+    }
+
+    /** Movie (`season` null) or one season; returns the server's `demand_id` if any. */
+    suspend fun discoverSubscribe(item: DiscoverItem, season: DiscoverSeason?): String {
+        val poster = season?.posterPath?.ifEmpty { null } ?: item.posterPath
+        var date = if (season == null) item.raw.str("release_date") else season.airDate
+        if (date.isEmpty() && season != null) date = item.raw.str("first_air_date")
+        val body = buildJsonObject {
+            put("tmdb_id", item.id)
+            put("name", item.title + if (season == null) "" else " 第 ${season.number} 季")
+            put("entity_type", if (season == null) "movie" else "season")
+            put("poster_path", poster)
+            put("release_date", date)
+            put("first_air_date", item.raw.str("first_air_date"))
+            put("priority", 50)
+            if (season != null) put("season_number", season.number)
+        }
+        return post("$D/subscribe", body).str("demand_id")
+    }
+
+    suspend fun cloudResources(provider: CloudProvider, item: DiscoverItem, season: Int?): List<CloudResource> {
+        val type = item.kind.mediaType
+        val path = when (provider) {
+            CloudProvider.SharedPool -> query(
+                "$D/shared-resources", "tmdb_id" to item.id, "item_type" to (if (season == null) type else "season"),
+                "q" to item.title, "limit" to 100,
+            )
+            CloudProvider.Re0 -> query(
+                "$D/re0-resources", "tmdb_id" to item.id, "media_type" to type, "require_complete" to "false", "season" to season,
+            )
+            CloudProvider.Channel -> query(
+                "$D/channel-resources", "tmdb_id" to item.id, "media_type" to type, "q" to item.title, "year" to item.year,
+                "season_number" to season,
+            )
+        }
+        return CloudResources.parse(provider, get(path), season)
+    }
+
+    /** Confirmed by the user before calling: may spend server-side points. Returns `workflow_run_id`. */
+    suspend fun acquire(row: CloudResource, item: DiscoverItem, season: Int?): Long {
+        val watch = query("", "TmdbId" to item.id, "MediaType" to (if (item.kind == DiscoverKind.Movie) "movie" else "series"), "SeasonNumber" to season)
+        val result = when (row.provider) {
+            CloudProvider.SharedPool -> post("$D/shared-resources/acquire$watch", buildJsonObject { put("source", CloudResources.sharedSource(row.source)) })
+            CloudProvider.Channel -> post("$D/channel-resources/acquire$watch", buildJsonObject { put("resource", row.source) })
+            CloudProvider.Re0 -> post(
+                "$D/re0-resources/acquire$watch",
+                buildJsonObject {
+                    put("slug", row.source.str("slug").ifEmpty { row.source.str("id") })
+                    put("title", item.title)
+                    put("tmdb_id", item.id)
+                    put("media_type", item.kind.mediaType)
+                    if (season != null) put("season_number", season)
+                },
+            )
+        }
+        return result.long("workflow_run_id")
+    }
+
     // ---------- Danmaku ----------
 
     /** Server-side danmaku service switch (read only; the client never toggles it). */
@@ -363,6 +457,7 @@ class EtknApi(
 
     companion object {
         val EMPTY = JsonObject(emptyMap())
+        private const val D = "/api/tv/discover"
         const val LIST_FIELDS =
             "PrimaryImageAspectRatio,Overview,CommunityRating,TMDbRating,DoubanRating,IMDbRating,CriticRating,ProductionYear,RecursiveItemCount,UserData"
         const val DETAIL_FIELDS = "MediaSources,MediaStreams,Overview"

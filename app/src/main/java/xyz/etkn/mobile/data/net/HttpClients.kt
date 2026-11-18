@@ -68,6 +68,16 @@ class HttpClients(currentServer: () -> String?, currentToken: () -> String?, use
         }
         .build()
 
+    /**
+     * Third-party HTTPS (GitHub releases and their download mirrors). No ETKN credentials are
+     * ever attached here; redirects are followed because release assets live on a CDN.
+     */
+    val external: OkHttpClient = base.newBuilder()
+        .readTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(false)
+        .build()
+
     /** Streaming (SSE) client: long read timeout, no redirects. */
     val events: OkHttpClient = base.newBuilder()
         .readTimeout(25, TimeUnit.SECONDS)

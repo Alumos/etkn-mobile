@@ -1,6 +1,9 @@
 package xyz.etkn.mobile.ui.screens.me
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -21,6 +24,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.ui.graphics.vector.ImageVector
 import xyz.etkn.mobile.ui.nav.SettingsRoute
 import androidx.compose.material.icons.rounded.Person
@@ -75,7 +79,9 @@ fun MeScreen() {
     val session = (graph.sessions.state.collectAsStateWithLifecycle().value as? SessionState.SignedIn)?.session ?: return
     var confirmLogout by remember { mutableStateOf(false) }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = LocalBottomInset.current)) {
+    // Tablets: a readable centred column instead of edge-to-edge rows.
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxSize(), contentPadding = PaddingValues(bottom = LocalBottomInset.current)) {
         item { LargeTitle("我的") }
         item {
             Surface(
@@ -107,6 +113,9 @@ fun MeScreen() {
                 Entry(Icons.Rounded.Palette, "外观", settings.themeMode.label) { nav.to(SettingsRoute(SettingsPage.Appearance.name)) }
                 Entry(Icons.Rounded.PlayCircle, "播放", "解码 · ${settings.decoder.label}") { nav.to(SettingsRoute(SettingsPage.Playback.name)) }
                 Entry(Icons.Rounded.ChatBubble, "弹幕", if (settings.danmaku.enabled) "开启" else "关闭") { nav.to(SettingsRoute(SettingsPage.Danmaku.name)) }
+                Entry(Icons.Rounded.SystemUpdate, "检查更新", "v${BuildConfig.VERSION_NAME} · ${if (settings.autoUpdate) "自动" else "手动"}") {
+                    nav.to(SettingsRoute(SettingsPage.Update.name))
+                }
             }
         }
         item {
@@ -122,6 +131,7 @@ fun MeScreen() {
                 modifier = Modifier.fillMaxWidth().padding(24.dp),
             )
         }
+    }
     }
 
     if (confirmLogout) {
@@ -162,6 +172,7 @@ fun AccountsScreen() {
     val nav = LocalNav.current
     val stored by graph.sessions.accounts.collectAsStateWithLifecycle(initialValue = StoredSessions())
     var adding by remember { mutableStateOf(false) }
+    BackHandler(enabled = adding) { adding = false }
     if (adding) {
         ConnectScreen(onDone = { adding = false; nav.back() }, onCancel = { adding = false })
         return

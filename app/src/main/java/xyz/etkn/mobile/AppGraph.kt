@@ -17,6 +17,8 @@ import xyz.etkn.mobile.data.session.ActiveSession
 import xyz.etkn.mobile.data.session.SessionManager
 import xyz.etkn.mobile.data.session.SessionStore
 import xyz.etkn.mobile.data.settings.AppSettings
+import xyz.etkn.mobile.data.discover.DiscoverStore
+import xyz.etkn.mobile.data.update.UpdateManager
 import xyz.etkn.mobile.music.MusicConnection
 import java.util.UUID
 
@@ -49,6 +51,10 @@ class AppGraph(val app: Application) {
     )
 
     val music by lazy { MusicConnection(app, this) }
+
+    val updates by lazy { UpdateManager(app, http.external, scope) }
+
+    val discover = DiscoverStore()
 
     init {
         sessions.api = api

@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import xyz.etkn.mobile.data.update.UpdateSource
 
 private val Context.settingsDataStore by preferencesDataStore(name = "etkn_settings")
 
@@ -54,6 +55,8 @@ data class Settings(
     val serverThemeColor: String? = null,
     val serverDarkMode: Boolean? = null,
     val danmaku: DanmakuStyle = DanmakuStyle(),
+    val autoUpdate: Boolean = true,
+    val updateSource: UpdateSource = UpdateSource.Proxy,
 )
 
 class AppSettings(private val context: Context) {
@@ -74,6 +77,8 @@ class AppSettings(private val context: Context) {
         val dmOpacity = intPreferencesKey("danmaku_opacity")
         val dmSpeed = floatPreferencesKey("danmaku_speed")
         val dmTheme = booleanPreferencesKey("danmaku_theme_color")
+        val autoUpdate = booleanPreferencesKey("auto_update")
+        val updateSource = stringPreferencesKey("update_source")
     }
 
     val flow: Flow<Settings> = context.settingsDataStore.data.map { it.toSettings() }
@@ -99,6 +104,8 @@ class AppSettings(private val context: Context) {
                 themeColor = this[Keys.dmTheme] ?: d.themeColor,
             )
         },
+        autoUpdate = this[Keys.autoUpdate] ?: true,
+        updateSource = enumOr(this[Keys.updateSource], UpdateSource.Proxy),
     )
 
     suspend fun setTheme(mode: ThemeMode) = context.settingsDataStore.edit { it[Keys.theme] = mode.name }
@@ -108,6 +115,9 @@ class AppSettings(private val context: Context) {
     suspend fun setSkipMode(value: SkipMode) = context.settingsDataStore.edit { it[Keys.skip] = value.name }
     suspend fun setAutoPlayNext(value: Boolean) = context.settingsDataStore.edit { it[Keys.autoNext] = value }
     suspend fun setDefaultSpeed(value: Float) = context.settingsDataStore.edit { it[Keys.speed] = value }
+
+    suspend fun setAutoUpdate(value: Boolean) = context.settingsDataStore.edit { it[Keys.autoUpdate] = value }
+    suspend fun setUpdateSource(value: UpdateSource) = context.settingsDataStore.edit { it[Keys.updateSource] = value.name }
 
     suspend fun setDanmaku(style: DanmakuStyle) = context.settingsDataStore.edit {
         it[Keys.dmEnabled] = style.enabled

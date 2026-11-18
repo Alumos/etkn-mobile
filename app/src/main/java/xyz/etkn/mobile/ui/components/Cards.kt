@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.model.PersonRef
+import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.theme.Etkn
 import java.util.Locale
 
@@ -55,7 +56,7 @@ fun PosterCard(
     item: Item,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    width: Dp? = Etkn.space.posterWidth,
+    width: Dp? = if (LocalWindowLayout.current.wide) Etkn.space.posterWidthWide else Etkn.space.posterWidth,
     showMeta: Boolean = true,
 ) {
     val widthPx = (width ?: 160.dp).px()
@@ -144,7 +145,7 @@ fun WideCard(
     item: Item,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    width: Dp = Etkn.space.wideCard,
+    width: Dp = if (LocalWindowLayout.current.wide) Etkn.space.wideCardWide else Etkn.space.wideCard,
     onLongClick: (() -> Unit)? = null,
 ) {
     val url = images().landscape(item, width.px())

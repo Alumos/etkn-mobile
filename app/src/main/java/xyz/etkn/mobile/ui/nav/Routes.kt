@@ -2,11 +2,13 @@ package xyz.etkn.mobile.ui.nav
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Search
@@ -36,11 +38,17 @@ import kotlinx.serialization.Serializable
 @Serializable data object NowPlayingRoute
 @Serializable data object AccountsRoute
 @Serializable data class SettingsRoute(val page: String)
+@Serializable data object DiscoverRoute
+@Serializable data class DiscoverDetailRoute(val id: String, val kind: String, val title: String)
+@Serializable data class DiscoverPersonRoute(val id: String, val name: String)
+/** [season] < 0 = whole title. */
+@Serializable data class CloudRoute(val id: String, val kind: String, val title: String, val season: Int = -1)
 
 enum class TopLevel(val route: Any, val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
     Home(HomeRoute, "首页", Icons.Outlined.Home, Icons.Rounded.Home),
     Libraries(LibrariesRoute, "媒体库", Icons.Outlined.VideoLibrary, Icons.Rounded.VideoLibrary),
     Music(MusicRoute, "音乐", Icons.Outlined.LibraryMusic, Icons.Rounded.LibraryMusic),
+    Discover(DiscoverRoute, "探索", Icons.Outlined.Explore, Icons.Rounded.Explore),
     Search(SearchRoute, "搜索", Icons.Outlined.Search, Icons.Rounded.Search),
     Me(MeRoute, "我的", Icons.Outlined.AccountCircle, Icons.Rounded.AccountCircle),
 }
@@ -49,6 +57,7 @@ fun TopLevel.matches(destination: NavDestination): Boolean = when (this) {
     TopLevel.Home -> destination.hasRoute<HomeRoute>()
     TopLevel.Libraries -> destination.hasRoute<LibrariesRoute>()
     TopLevel.Music -> destination.hasRoute<MusicRoute>()
+    TopLevel.Discover -> destination.hasRoute<DiscoverRoute>()
     TopLevel.Search -> destination.hasRoute<SearchRoute>()
     TopLevel.Me -> destination.hasRoute<MeRoute>()
 }

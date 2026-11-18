@@ -2,6 +2,22 @@ package xyz.etkn.mobile.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -70,3 +86,34 @@ fun Modifier.glass(
     if (border) m = m.border(1.dp, tokens.glassBorder, shape)
     return m
 }
+
+/**
+ * Back button over artwork that turns into a glass pill with the title once the page scrolls.
+ * [haze] must be the screen-local source wrapping that page's scrolling content.
+ */
+@Composable
+fun GlassBackBar(title: String, collapsed: Boolean, haze: HazeState, onBack: () -> Unit) {
+    val shape = RoundedCornerShape(26.dp)
+    Row(
+        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp, vertical = 6.dp)
+            .then(if (collapsed) Modifier.glass(shape, elevation = 8.dp, state = haze) else Modifier)
+            .height(52.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BackButton(onBack, Modifier.padding(start = 2.dp), onGlass = collapsed)
+        if (collapsed) {
+            Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 8.dp))
+        }
+    }
+}
+
+@Composable
+private fun BackButton(onBack: () -> Unit, modifier: Modifier = Modifier, onGlass: Boolean = false) {
+    FilledTonalIconButton(
+        onClick = onBack,
+        modifier = modifier,
+        colors = if (onGlass) IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color.Transparent)
+        else IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color.Black.copy(alpha = 0.35f), contentColor = Color.White),
+    ) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") }
+}
+

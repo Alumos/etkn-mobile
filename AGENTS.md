@@ -9,6 +9,9 @@
 - UI 统一使用 Material 3 Expressive 组件（`MaterialExpressiveTheme`、`ShortNavigationBar`/`WideNavigationRail`、`ToggleButton` 连接组、`LoadingIndicator` 等）；配色由服务器 `theme_color` 经 HCT（material-color-utilities）生成，或 Android 12+ 壁纸取色。语义色/间距只在 `ui/theme/Tokens.kt` 定义。页面避免不必要的辅助标签与说明。
 - 性能：单一 OkHttp 连接池（HTTP/2）、Coil 按显示尺寸分桶请求图片、列表全部带稳定 key/contentType、播放器硬解优先 + NextLib FFmpeg 兜底，音乐曲目地址在加载线程按需解析。
 
+- 应用更新只读公开的 GitHub Release（API 或 `SHA256SUMS.txt`），下载默认经 `gh-proxy.com`、可换 GitHub 直连，必须校验 SHA-256；外部请求不得携带任何 ETKN 令牌或账号信息。
+- 影视探索仅在 `can_access_discovery` 为真时出现；订阅与云资源获取都必须先经用户确认，不得自动重试或预取获取接口。
+
 ## 构建与容器策略
 
 - **禁止在用户本机 Mac 运行 Gradle 或构建 APK。** 编译、单元测试、Lint 与签名全部在 GitHub Actions 官方 Ubuntu runner 上完成（`.github/workflows/android.yml`）。

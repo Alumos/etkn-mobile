@@ -4,6 +4,8 @@ import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -56,7 +58,7 @@ import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.theme.Etkn
 import kotlin.math.roundToInt
 
-enum class SettingsPage(val title: String) { Appearance("外观"), Playback("播放"), Danmaku("弹幕") }
+enum class SettingsPage(val title: String) { Appearance("外观"), Playback("播放"), Danmaku("弹幕"), Update("检查更新") }
 
 @Composable
 fun SettingsScreen(page: SettingsPage) {
@@ -64,7 +66,8 @@ fun SettingsScreen(page: SettingsPage) {
     val nav = LocalNav.current
     val scope = rememberCoroutineScope()
     val settings by graph.settings.flow.collectAsStateWithLifecycle(initialValue = Settings())
-    Column(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    Column(Modifier.widthIn(max = 720.dp).fillMaxSize()) {
         TopAppBar(
             title = { Text(page.title) },
             navigationIcon = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") } },
@@ -88,10 +91,12 @@ fun SettingsScreen(page: SettingsPage) {
                         SwitchRow("自动播放下一集", settings.autoPlayNext) { scope.launch { graph.settings.setAutoPlayNext(it) } }
                     }
                     SettingsPage.Danmaku -> DanmakuControls(settings.danmaku) { scope.launch { graph.settings.setDanmaku(it) } }
+                    SettingsPage.Update -> UpdateSettings(settings)
                 }
             }
             Spacer(Modifier.height(LocalBottomInset.current + 16.dp))
         }
+    }
     }
 }
 

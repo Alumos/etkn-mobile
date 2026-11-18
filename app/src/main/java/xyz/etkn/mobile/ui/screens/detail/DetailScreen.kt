@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
+import xyz.etkn.mobile.ui.components.GlassBackBar
 import xyz.etkn.mobile.ui.components.glassSource
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
@@ -158,41 +159,16 @@ private fun DetailContent(data: DetailData, episodes: EpisodesState, vm: DetailV
             shelf("similar", "相似推荐", data.similar) { PosterCard(it, onClick = { nav.open(it) }) }
             item(key = "bottom") { Spacer(Modifier.height(LocalBottomInset.current + 24.dp)) }
         }
-        CollapsingBar(item.seriesName?.takeIf { item.isEpisode || item.isSeason } ?: item.name, collapsed, haze, nav::back)
+        GlassBackBar(item.seriesName?.takeIf { item.isEpisode || item.isSeason } ?: item.name, collapsed, haze, nav::back)
     }
-}
-
-@Composable
-private fun CollapsingBar(title: String, collapsed: Boolean, haze: HazeState, onBack: () -> Unit) {
-    val shape = RoundedCornerShape(26.dp)
-    Row(
-        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp, vertical = 6.dp)
-            .then(if (collapsed) Modifier.glass(shape, elevation = 8.dp, state = haze) else Modifier)
-            .height(52.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        BackButton(onBack, Modifier.padding(start = 2.dp), onGlass = collapsed)
-        if (collapsed) {
-            Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 8.dp))
-        }
-    }
-}
-
-@Composable
-private fun BackButton(onBack: () -> Unit, modifier: Modifier = Modifier, onGlass: Boolean = false) {
-    FilledTonalIconButton(
-        onClick = onBack,
-        modifier = modifier,
-        colors = if (onGlass) IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color.Transparent)
-        else IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color.Black.copy(alpha = 0.35f), contentColor = Color.White),
-    ) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") }
 }
 
 @Composable
 private fun DetailHeader(item: Item) {
     val urls = images()
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val height = (maxWidth * 1.08f).coerceIn(360.dp, 560.dp)
+        // Phones: a tall poster-like header; tablets: a wide band so the details stay on screen.
+        val height = if (maxWidth >= 600.dp) (maxWidth * 0.42f).coerceIn(340.dp, 520.dp) else (maxWidth * 1.08f).coerceIn(360.dp, 560.dp)
         val widthPx = maxWidth.px()
         Box(Modifier.fillMaxWidth().height(height)) {
             Artwork(

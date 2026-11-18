@@ -10,6 +10,8 @@ xyz.etkn.mobile
 │   ├── api        EtknApi（/api/tv 全部路由）、ServerProbe（ETKN 身份识别）、ImageUrls（图片 URL 规则与尺寸分桶）
 │   ├── model      Item / MediaSource / MediaStream / Chapter / UserData …（JsonObject 手工映射，类型异常只降级字段）
 │   ├── session    SessionManager（登录/恢复/切换/过期）、SessionStore（DataStore）、SecureBox（Keystore AES-GCM）
+│   ├── discover   影视探索模型（DiscoverItem/Season/Filter、DiscoverStore 跨页传递）、CloudResources（共享池/re0/频道资源解析，移植自 TV）
+│   ├── update     Releases（GitHub 发行解析、版本比较、ABI 选包）、UpdateManager（检查、镜像下载、SHA-256 校验、安装）
 │   └── settings   AppSettings（主题、配色来源、解码、片头片尾、倍速、自动下一集；缓存服务器主题色）
 ├── player         danmaku/（DanmakuTimeline/Layout 解析与分道、DanmakuFeed 120 s 窗口拉取、DanmakuView 位图缓存绘制）
 │                  PlayerActivity（横屏、沉浸、画中画）、VideoSession（ExoPlayer + 上报 + 下一集 + 跳过）、PlayerScreen（手势与控件）、PlayerFactory、PlaybackAddress
@@ -32,6 +34,11 @@ xyz.etkn.mobile
 - **弹幕**：PlaybackInfo / 上报回复里的 `Danmaku.Available` 决定是否显示入口；本机开关开启且服务可用时，`DanmakuFeed` 按播放位置拉 `I/Danmaku?local=true&session=&start=`（120 s 窗口、提前 40 s 预取、暂停不拉、busy/unavailable 15 s 重试、stale 1 s 重试），上报附 `DanmakuActive`。`DanmakuView` 跟随媒体时钟逐帧绘制，同一文本只排版一次。样式（行数/密度/字号/不透明度/速度/跟随主题色）存本机，「我的 → 弹幕」与播放器内面板共用。
 - **玻璃层**：Haze 不会采样自身所在的祖先源，所以页面内悬浮栏（首页顶栏、详情顶栏、列表顶栏、搜索框）各用页面级 `HazeState` 包住自己的滚动内容；Dock/迷你播放器继续采样整个 NavHost。
 
+- **影视探索**：`auth/check_status` 的 `user.can_access_discovery` 决定是否出现「探索」（手机底栏取代「搜索」位，搜索仍在首页顶栏；平板侧栏全部显示）。浏览 `D/query/{movie|series}` 按页（≤500）无限滚动，筛选（排序/类型/年代/评分/隐藏已入库）与 TMDb 搜索走同一请求体；详情补全 `D/series`、`D/media/{kind}/credits`，可订阅影片 / 单季 / 全部缺失季（逐季提交、首错停止）；人物页读 `D/person/{id}/credits`。云资源三源并行搜索、分别显示失败，获取前必须确认（可能消耗积分），只提交不重试；获取进度跟踪（TV 的 AcquireTracker 通知）未移植。
+- **应用更新**：启动时（可关）请求 `api.github.com/repos/Alumos/etkn-mobile/releases/latest`，失败则经镜像读该发行的 `SHA256SUMS.txt`。按本机 ABI 选包，默认经 `gh-proxy.com` 加速、失败自动换 GitHub 直连（可手动换源），Android 10+ 写入 MediaStore 下载目录（8–9 申请存储权限写公共 Download），边下边算 SHA-256 并与 GitHub 摘要比对；失败/取消即删除未完成文件。安装走系统安装器（首次需允许“安装未知应用”），签名由系统校验与旧版一致。外部请求用不带任何 ETKN 凭据的独立 OkHttp 客户端。
+- **自适应布局**：`WindowLayout`（Compact <600 / Medium / Expanded ≥840 dp）。平板：侧栏（≥840 展开带标签）、首页 Hero 改为横幅并左对齐文案、海报与卡片加宽、网格列宽加大、详情头图改横幅、「我的」与设置居中限宽 720 dp、迷你播放器靠右限宽。
+- **返回手势**：清单启用 `enableOnBackInvokedCallback`；NavHost 的 pop 转场（缩小+平移+淡出）即预测性返回的预览动画，底部面板与对话框自带预测性返回。
+
 ## 性能要点
 
 - 所有 Lazy 列表/网格使用稳定 key 与 contentType；Hero 视差只用 `graphicsLayer`，滚动不触发重新布局。
@@ -40,4 +47,4 @@ xyz.etkn.mobile
 
 ## 未纳入首版（后续）
 
-影视探索 / 订阅 / 资源获取（`/api/tv/discover`）、转码协助、字幕翻译与偏移、寻址缩略图、蓝光 ISO 专用播放、Home/Events SSE 实时失效、入库通知、共享偏好写回、局域网自动发现、应用内更新。
+获取进度跟踪与入库通知、转码协助、字幕翻译与偏移、寻址缩略图、蓝光 ISO 专用播放、Home/Events SSE 实时失效、入库通知、共享偏好写回、局域网自动发现、应用内更新。

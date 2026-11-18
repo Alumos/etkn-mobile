@@ -64,6 +64,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import xyz.etkn.mobile.data.api.SortKey
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.ui.common.Load
+import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.common.Paged
 import xyz.etkn.mobile.ui.common.graphViewModel
 import xyz.etkn.mobile.ui.components.ErrorState
@@ -85,7 +86,7 @@ fun LibrariesScreen() {
         Load.Loading -> LoadingState()
         is Load.Failed -> ErrorState(s.message, vm::load)
         is Load.Ready -> LazyVerticalGrid(
-            columns = GridCells.Adaptive(156.dp),
+            columns = GridCells.Adaptive(if (LocalWindowLayout.current.wide) 220.dp else 156.dp),
             contentPadding = PaddingValues(start = Etkn.space.screen, end = Etkn.space.screen, bottom = LocalBottomInset.current + 8.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -252,7 +253,7 @@ fun PosterGrid(
     }
     LazyVerticalGrid(
         state = grid,
-        columns = GridCells.Adaptive(108.dp),
+        columns = GridCells.Adaptive(if (LocalWindowLayout.current.wide) 140.dp else 108.dp),
         contentPadding = PaddingValues(start = Etkn.space.screen, end = Etkn.space.screen, top = top, bottom = LocalBottomInset.current),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),

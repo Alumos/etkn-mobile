@@ -24,13 +24,13 @@ data class EtknTokens(
     val onImageMuted: Color,
     val onImageTrack: Color,
     val glassTint: Color,
-    val glassOnImage: Color,
     val glassFlat: Color,
     val glassBorder: Color,
     val glassHighlight: Color,
     val glassShadow: Color,
     val heroTopScrim: Brush,
     val heroBottomScrim: Brush,
+    val heroSideScrim: Brush,
     val posterScrim: Brush,
     val wideScrim: Brush,
     val detailScrim: Brush,
@@ -44,7 +44,6 @@ fun etknTokens(scheme: ColorScheme, dark: Boolean): EtknTokens = EtknTokens(
     onImageMuted = Color.White.copy(alpha = 0.78f),
     onImageTrack = Color.White.copy(alpha = 0.26f),
     glassTint = scheme.surfaceContainer.copy(alpha = if (dark) 0.58f else 0.66f),
-    glassOnImage = Color.Black.copy(alpha = 0.22f),
     glassFlat = scheme.surfaceContainer.copy(alpha = if (dark) 0.94f else 0.96f),
     glassBorder = scheme.outlineVariant.copy(alpha = if (dark) 0.42f else 0.55f),
     glassHighlight = Color.White.copy(alpha = if (dark) 0.07f else 0.5f),
@@ -58,6 +57,11 @@ fun etknTokens(scheme: ColorScheme, dark: Boolean): EtknTokens = EtknTokens(
         0f to Color.Transparent,
         0.55f to scheme.surface.copy(alpha = 0.78f),
         1f to scheme.surface,
+    ),
+    heroSideScrim = Brush.horizontalGradient(
+        0f to scheme.surface.copy(alpha = 0.86f),
+        0.45f to scheme.surface.copy(alpha = 0.35f),
+        0.75f to Color.Transparent,
     ),
     posterScrim = Brush.verticalGradient(
         0f to Color.Transparent,
@@ -96,6 +100,7 @@ object Spacing {
     val item: Dp = 12.dp
     val posterWidth: Dp = 118.dp
     val posterWidthWide: Dp = 150.dp
+    val wideCardWide: Dp = 300.dp
     val wideCard: Dp = 236.dp
     val dockHeight: Dp = 72.dp
     val dockBottomInset: Dp = 104.dp

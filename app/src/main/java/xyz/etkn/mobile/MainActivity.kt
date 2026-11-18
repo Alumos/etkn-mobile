@@ -13,6 +13,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.first
+import xyz.etkn.mobile.ui.screens.me.UpdatePrompt
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -38,6 +41,11 @@ class MainActivity : ComponentActivity() {
 fun EtknRoot(graph: AppGraph) {
     val settings by graph.settings.flow.collectAsStateWithLifecycle(initialValue = Settings())
     val state by graph.sessions.state.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) {
+        val stored = graph.settings.flow.first()
+        graph.updates.setSource(stored.updateSource)
+        if (stored.autoUpdate) graph.updates.autoCheck()
+    }
     EtknTheme(settings) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             AnimatedContent(
@@ -65,6 +73,7 @@ fun EtknRoot(graph: AppGraph) {
                     }
                 }
             }
+            UpdatePrompt()
         }
     }
 }

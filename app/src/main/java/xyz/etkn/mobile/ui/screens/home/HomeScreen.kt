@@ -1,10 +1,11 @@
 package xyz.etkn.mobile.ui.screens.home
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalDensity
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import xyz.etkn.mobile.ui.components.glassSource
-import xyz.etkn.mobile.ui.theme.Etkn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -55,6 +56,7 @@ import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.session.SessionState
 import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.ui.common.Load
+import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.common.graphViewModel
 import xyz.etkn.mobile.ui.components.Artwork
 import xyz.etkn.mobile.ui.components.ErrorState
@@ -94,8 +96,17 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
     val nav = LocalNav.current
     val list = rememberLazyListState()
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
-    val heroHeight = (screenHeight * 0.64f).coerceIn(420.dp, 620.dp)
-    val collapsed by remember { derivedStateOf { list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > 200 } }
+    val wide = LocalWindowLayout.current.wide
+    // Tablets: a cinematic band instead of a near-full-screen poster.
+    val heroHeight = if (wide) (screenHeight * 0.58f).coerceIn(380.dp, 560.dp) else (screenHeight * 0.64f).coerceIn(420.dp, 620.dp)
+    val revealPx = with(LocalDensity.current) { 96.dp.toPx() }
+    val hasHero = data.hero.isNotEmpty()
+    // 0 over the untouched hero (bar invisible, poster unobstructed) → 1 after ~96 dp of scrolling.
+    val reveal by remember(hasHero) {
+        derivedStateOf {
+            if (!hasHero || list.firstVisibleItemIndex > 0) 1f else (list.firstVisibleItemScrollOffset / revealPx).coerceIn(0f, 1f)
+        }
+    }
     var hiding by remember { mutableStateOf<Item?>(null) }
     val haze = rememberHazeState()
 
@@ -133,7 +144,7 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
             }
             item(key = "bottom") { Spacer(Modifier.height(LocalBottomInset.current + 16.dp)) }
         }
-        HomeTopBar(collapsed = collapsed || data.hero.isEmpty(), haze = haze, onSearch = { nav.top(TopLevel.Search) }, onFavorites = { nav.to(FavoritesRoute) }, onMe = { nav.top(TopLevel.Me) })
+        HomeTopBar(reveal = { reveal }, haze = haze, onSearch = { nav.top(TopLevel.Search) }, onFavorites = { nav.to(FavoritesRoute) }, onMe = { nav.top(TopLevel.Me) })
     }
     hiding?.let { target ->
         AlertDialog(
@@ -149,26 +160,26 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
 }
 
 /**
- * Always-glass pill. Over the hero it blurs the artwork with a dark tint and white content; once
- * the hero scrolls away it settles into the regular surface glass.
+ * Over the untouched hero only the title and icons float on the poster; the glass pill fades in
+ * as soon as the page scrolls ([reveal] 0 → 1) and stays once the hero is gone.
  */
 @Composable
-private fun HomeTopBar(collapsed: Boolean, haze: HazeState, onSearch: () -> Unit, onFavorites: () -> Unit, onMe: () -> Unit) {
+private fun HomeTopBar(reveal: () -> Float, haze: HazeState, onSearch: () -> Unit, onFavorites: () -> Unit, onMe: () -> Unit) {
     val graph = LocalContext.current.graph
     val session = (graph.sessions.state.collectAsStateWithLifecycle().value as? SessionState.SignedIn)?.session ?: return
     val urls = images()
     var menu by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(26.dp)
-    val tokens = Etkn.tokens
-    val content by animateColorAsState(if (collapsed) MaterialTheme.colorScheme.onSurface else Color.White, label = "barContent")
-    val tint by animateColorAsState(if (collapsed) tokens.glassTint else tokens.glassOnImage, label = "barTint")
+    val fraction = reveal()
+    val content = lerp(Color.White, MaterialTheme.colorScheme.onSurface, fraction)
     Box(
         Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
+        if (fraction > 0f) {
+            Box(Modifier.matchParentSize().graphicsLayer { alpha = fraction }.glass(shape, elevation = 8.dp, state = haze))
+        }
         Row(
-            Modifier.fillMaxWidth()
-                .glass(shape, elevation = if (collapsed) 8.dp else 0.dp, tint = tint, state = haze, border = collapsed)
-                .padding(start = 16.dp, end = 4.dp).height(52.dp),
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp).height(52.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(

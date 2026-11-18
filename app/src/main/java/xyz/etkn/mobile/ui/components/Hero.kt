@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import xyz.etkn.mobile.data.model.Item
+import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.theme.Etkn
 import xyz.etkn.mobile.ui.theme.HeroTitleStyle
 
@@ -113,6 +115,10 @@ private fun HeroPage(
     val urls = images()
     val tokens = Etkn.tokens
     val scheme = MaterialTheme.colorScheme
+    // Phones centre the copy under the artwork; tablets anchor it bottom-left over a side scrim.
+    val wide = LocalWindowLayout.current.wide
+    val align = if (wide) Alignment.Start else Alignment.CenterHorizontally
+    val textAlign = if (wide) TextAlign.Start else TextAlign.Center
     Box(Modifier.fillMaxSize().clickable(onClick = { onOpen(item) })) {
         Artwork(
             urls.backdrop(item, widthPx) ?: urls.poster(item, widthPx),
@@ -127,17 +133,20 @@ private fun HeroPage(
             contentScale = ContentScale.Crop,
         )
         Box(Modifier.fillMaxWidth().height(160.dp).background(tokens.heroTopScrim))
+        if (wide) Box(Modifier.fillMaxSize().background(tokens.heroSideScrim))
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.62f).background(tokens.heroBottomScrim))
         Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            Modifier.align(if (wide) Alignment.BottomStart else Alignment.BottomCenter)
+                .then(if (wide) Modifier.widthIn(max = 560.dp).padding(start = 40.dp) else Modifier)
+                .fillMaxWidth()
                 .padding(horizontal = Etkn.space.screen).padding(bottom = 30.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = align,
         ) {
             val logo = urls.logo(item, 720)
             if (logo != null) {
                 Artwork(
                     logo,
-                    Modifier.fillMaxWidth(0.72f).height(96.dp),
+                    Modifier.fillMaxWidth(if (wide) 0.8f else 0.72f).height(96.dp),
                     item.name,
                     contentScale = ContentScale.Fit,
                     background = Color.Transparent,
@@ -147,7 +156,7 @@ private fun HeroPage(
                     item.name,
                     style = HeroTitleStyle.copy(shadow = Shadow(Color.Black.copy(alpha = 0.35f), blurRadius = 16f)),
                     color = scheme.onSurface,
-                    textAlign = TextAlign.Center,
+                    textAlign = textAlign,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -158,7 +167,7 @@ private fun HeroPage(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     it, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    color = scheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(0.9f),
+                    color = scheme.onSurfaceVariant, textAlign = textAlign, modifier = Modifier.fillMaxWidth(0.9f),
                 )
             }
             Spacer(Modifier.height(16.dp))
