@@ -2,6 +2,7 @@ package xyz.etkn.mobile.ui.actions
 
 import android.net.Uri
 import android.provider.OpenableColumns
+import java.util.Locale
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -35,8 +36,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
@@ -217,7 +218,7 @@ private fun versionsOf(raw: JsonObject): List<Version> {
 }
 
 private fun versionLabel(source: JsonObject): String {
-    val size = source.long("Size").takeIf { it > 0 }?.let { "%.1f GB".format(it / 1_073_741_824.0) }
+    val size = source.long("Size").takeIf { it > 0 }?.let { String.format(Locale.ROOT, "%.1f GB", it / 1_073_741_824.0) }
     return listOfNotNull(source.str("Name").ifEmpty { source.str("Container").uppercase() }.ifEmpty { "版本" }, size).joinToString(" · ")
 }
 
@@ -295,8 +296,8 @@ internal fun MetadataSheet(item: Item, menu: ItemMenu) {
                             put("tags", EtknApi.stringArray(split(tags)))
                             put("custom_rating", customRating)
                             put("douban_id", doubanId.trim())
-                            put("tmdb_rating", tmdb.trim().toDoubleOrNull()?.let(::JsonPrimitive) ?: JsonNull)
-                            put("douban_rating", douban.trim().toDoubleOrNull()?.let(::JsonPrimitive) ?: JsonNull)
+                            put("tmdb_rating", tmdb.trim().toDoubleOrNull()?.let { JsonPrimitive(it) } ?: JsonNull)
+                            put("douban_rating", douban.trim().toDoubleOrNull()?.let { JsonPrimitive(it) } ?: JsonNull)
                         }
                         scope.launch {
                             try {
@@ -320,16 +321,22 @@ internal fun MetadataSheet(item: Item, menu: ItemMenu) {
 private fun RatingPicker(options: List<Pair<String, String>>, value: String, onChange: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val label = options.firstOrNull { it.second == value }?.first ?: value
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it && options.isNotEmpty() }) {
+    Box {
         OutlinedTextField(
             value = label,
             onValueChange = {},
             readOnly = true,
+            enabled = false,
             label = { Text("自定义分级") },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledBorderColor = MaterialTheme.colorScheme.outline,
+            ),
+            modifier = Modifier.fillMaxWidth().clickable(enabled = options.isNotEmpty()) { expanded = true },
         )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(text = { Text("无") }, onClick = { onChange(""); expanded = false })
             options.forEach { (text, code) ->
                 DropdownMenuItem(text = { Text(text) }, onClick = { onChange(code); expanded = false })
@@ -338,7 +345,7 @@ private fun RatingPicker(options: List<Pair<String, String>>, value: String, onC
     }
 }
 
-private fun rating(value: Double): String = if (value <= 0) "" else "%.1f".format(value)
+private fun rating(value: Double): String = if (value <= 0) "" else String.format(Locale.ROOT, "%.1f", value)
 private fun validRating(text: String): Boolean = text.isBlank() || text.trim().toDoubleOrNull()?.let { it in 0.0..10.0 } == true
 private fun split(text: String): List<String> = text.split(',', '，').map { it.trim() }.filter { it.isNotEmpty() }
 
@@ -374,7 +381,7 @@ internal fun ImageSheet(item: Item, menu: ItemMenu) {
             .onFailure { loadError = it.userMessage() }
     }
 
-    fun apply(work: suspend () -> Unit) {
+    fun submit(work: suspend () -> Unit) {
         if (busy) return
         busy = true
         scope.launch {
@@ -393,7 +400,7 @@ internal fun ImageSheet(item: Item, menu: ItemMenu) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         val type = kind.wire
-        apply {
+        submit {
             val (bytes, mime, fileName) = withContext(Dispatchers.IO) {
                 val resolver = context.contentResolver
                 val data = resolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalStateException("无法读取图片")
@@ -454,7 +461,7 @@ internal fun ImageSheet(item: Item, menu: ItemMenu) {
                     items(candidates, key = { it.str("source_url") + it.str("type") }) { image ->
                         Column(
                             Modifier.clip(RoundedCornerShape(12.dp)).clickable(enabled = !busy) {
-                                apply { graph.api.selectImage(item.id, image, kind.wire) }
+                                submit { graph.api.selectImage(item.id, image, kind.wire) }
                             },
                         ) {
                             Artwork(
