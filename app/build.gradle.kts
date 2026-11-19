@@ -97,7 +97,11 @@ android {
             )
         }
         jniLibs {
-            useLegacyPackaging = false
+            // Compressed in the APK (extracted at install): libmpv's FFmpeg / libplacebo would
+            // otherwise triple the download.
+            useLegacyPackaging = true
+            // No 32-bit x86 build is shipped; mpv's x86 libraries would only bloat the universal APK.
+            excludes += "**/x86/*.so"
             // mpv-android and NextLib both ship FFmpeg 9 (symbol version LIBAVCODEC_63), libass and libc++.
             // mpv's copies are full builds and win; NextLib's bridge links against the same
             // sonames. CI checks the packaged libavcodec is mpv's.

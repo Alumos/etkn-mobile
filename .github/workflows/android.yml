@@ -82,6 +82,7 @@ jobs:
               echo "$(basename "$apk") $abi: libmpv + mpv FFmpeg"
             done
             unzip -Z1 "$apk" 'lib/*/libmpv.so' > /dev/null || { echo "libmpv.so missing in $apk" >&2; exit 1; }
+            if unzip -Z1 "$apk" 'lib/x86/*' > /dev/null 2>&1; then echo "32-bit x86 libraries in $apk" >&2; exit 1; fi
           done
           ls -la "$RUNNER_TEMP/unsigned"
       - name: Lint report
