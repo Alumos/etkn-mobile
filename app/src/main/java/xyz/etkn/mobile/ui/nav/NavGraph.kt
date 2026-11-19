@@ -34,6 +34,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.ui.screens.detail.DetailScreen
+import xyz.etkn.mobile.ui.screens.detail.EpisodesScreen
 import xyz.etkn.mobile.ui.screens.discover.CloudScreen
 import xyz.etkn.mobile.ui.screens.discover.DiscoverDetailScreen
 import xyz.etkn.mobile.ui.screens.discover.DiscoverPersonScreen
@@ -89,6 +90,7 @@ internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pag
         page<MeRoute> { MeScreen() }
         page<LibraryRoute> { LibraryScreen(it.toRoute()) }
         page<DetailRoute> { DetailScreen(it.toRoute<DetailRoute>().id) }
+        page<EpisodesRoute> { EpisodesScreen(it.toRoute()) }
         page<PersonRoute> { PersonScreen(it.toRoute()) }
         page<FavoritesRoute> { FavoritesScreen() }
         page<MusicListRoute> { MusicListScreen(it.toRoute()) }

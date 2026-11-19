@@ -17,6 +17,7 @@ import xyz.etkn.mobile.data.net.str
 import xyz.etkn.mobile.data.net.strList
 import xyz.etkn.mobile.data.net.strMap
 import xyz.etkn.mobile.data.net.strOrNull
+import java.util.Locale
 
 const val TICKS_PER_MS = 10_000L
 
@@ -92,6 +93,8 @@ data class MediaStream(
     val extendedVideoSubType: String = "",
     /** Blu-ray image tracks only: the MPEG-TS PID from the server's disc probe, else -1. */
     val transportStreamId: Int = -1,
+    /** Frames per second (RealFrameRate, else AverageFrameRate); 0 when unknown. */
+    val frameRate: Float = 0f,
 ) {
     val label: String get() = displayTitle.ifEmpty { title.ifEmpty { language.ifEmpty { codec.uppercase() } } }
     val previewLabel: String get() = title.ifEmpty { displayTitle.ifEmpty { language.ifEmpty { codec.uppercase() } } }
@@ -118,6 +121,7 @@ data class MediaStream(
             extendedVideoType = o.str("ExtendedVideoType"),
             extendedVideoSubType = o.str("ExtendedVideoSubType"),
             transportStreamId = o.int("TransportStreamId", -1),
+            frameRate = (o.double("RealFrameRate") ?: o.double("AverageFrameRate") ?: 0.0).toFloat(),
         )
     }
 }
@@ -294,6 +298,28 @@ data class Item(
             val e = indexNumber ?: return null
             return if (indexNumberEnd != null && indexNumberEnd > e) "第${s}季第$e-${indexNumberEnd}集" else "第${s}季第${e}集"
         }
+
+    /** Series status in words; the server passes TMDb's (Returning Series, Ended, …) or Emby's (Continuing). */
+    val statusLabel: String?
+        get() = when (status?.trim()?.lowercase()) {
+            null, "" -> null
+            "continuing", "returning series" -> "连载中"
+            "ended" -> "已完结"
+            "canceled", "cancelled" -> "已取消"
+            "in production" -> "制作中"
+            "planned" -> "筹备中"
+            "pilot" -> "试播"
+            else -> status
+        }
+
+    /** Every score the server sent, by source, for the ratings line. */
+    val ratings: List<Pair<String, String>>
+        get() = listOfNotNull(
+            tmdbRating?.takeIf { it > 0 }?.let { "TMDb" to "%.1f".format(Locale.ROOT, it) },
+            imdbRating?.takeIf { it > 0 }?.let { "IMDb" to "%.1f".format(Locale.ROOT, it) },
+            doubanRating?.takeIf { it > 0 }?.let { "豆瓣" to "%.1f".format(Locale.ROOT, it) },
+            criticRating?.takeIf { it > 0 }?.let { "烂番茄" to "${it.toInt()}%" },
+        )
 
     val artistLine: String get() = artists.joinToString(" / ")
 

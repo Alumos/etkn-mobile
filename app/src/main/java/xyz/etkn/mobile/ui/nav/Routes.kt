@@ -29,6 +29,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class LibraryRoute(val id: String, val name: String, val collectionType: String? = null)
 @Serializable data class DetailRoute(val id: String)
 @Serializable data class PersonRoute(val id: String, val name: String)
+/** All episodes of a series, opened at [seasonId]. */
+@Serializable data class EpisodesRoute(val seriesId: String, val seasonId: String?, val title: String)
 @Serializable data object FavoritesRoute
 @Serializable data class MusicListRoute(
     val parentId: String,

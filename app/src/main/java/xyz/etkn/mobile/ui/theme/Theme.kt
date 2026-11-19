@@ -92,6 +92,39 @@ fun seedColorScheme(seed: Int, dark: Boolean, amoled: Boolean): ColorScheme {
     return if (dark && amoled) scheme.toAmoled() else scheme
 }
 
+/**
+ * A page themed by its artwork (detail pages): accents from the image's colour, and surfaces
+ * tinted with its hue a little more than the tonal-spot neutrals so the page reads as that
+ * title, not as plain black or white. Light / dark follows the app.
+ */
+@Composable
+fun ArtworkTheme(seed: Int?, content: @Composable () -> Unit) {
+    if (seed == null) {
+        content()
+        return
+    }
+    val dark = Etkn.tokens.isDark
+    val scheme = remember(seed, dark) { seedColorScheme(seed, dark, amoled = false).tintedSurfaces(Hct.fromInt(seed).hue, dark) }
+    val tokens = remember(scheme, dark) { etknTokens(scheme, dark) }
+    CompositionLocalProvider(LocalEtknTokens provides tokens) {
+        MaterialExpressiveTheme(colorScheme = scheme, content = content)
+    }
+}
+
+private fun ColorScheme.tintedSurfaces(hue: Double, dark: Boolean): ColorScheme {
+    fun tone(t: Double) = Color(Hct.from(hue, if (dark) 14.0 else 8.0, t).toInt())
+    val steps = if (dark) listOf(10.0, 8.0, 12.0, 15.0, 18.0, 22.0) else listOf(96.0, 98.0, 95.0, 93.0, 91.0, 89.0)
+    return copy(
+        background = tone(steps[0]),
+        surface = tone(steps[0]),
+        surfaceContainerLowest = tone(steps[1]),
+        surfaceContainerLow = tone(steps[2]),
+        surfaceContainer = tone(steps[3]),
+        surfaceContainerHigh = tone(steps[4]),
+        surfaceContainerHighest = tone(steps[5]),
+    )
+}
+
 private fun ColorScheme.toAmoled(): ColorScheme = copy(
     background = Color.Black,
     surface = Color.Black,

@@ -2,8 +2,10 @@ package xyz.etkn.mobile.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +31,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -105,22 +108,34 @@ fun GlassPiece(haze: HazeState, shape: Shape, modifier: Modifier = Modifier, fra
 }
 
 /**
- * Back button over artwork that turns into a glass pill with the title once the page scrolls.
+ * Back button over artwork that turns into a glass pill with the title once the page scrolls;
+ * [actions] (usually [ArtworkIconButton]s, told whether they sit on glass) go to the right.
  * [haze] must be the screen-local source wrapping that page's scrolling content.
  */
 @Composable
-fun GlassBackBar(title: String, collapsed: Boolean, haze: HazeState, onBack: () -> Unit) {
+fun GlassBackBar(
+    title: String,
+    collapsed: Boolean,
+    haze: HazeState,
+    onBack: () -> Unit,
+    actions: @Composable RowScope.(onGlass: Boolean) -> Unit = {},
+) {
     val shape = RoundedCornerShape(26.dp)
     Row(
         Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp, vertical = 6.dp)
             .then(if (collapsed) Modifier.glass(shape, elevation = 8.dp, state = haze) else Modifier)
-            .height(52.dp),
+            .height(52.dp)
+            .padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        ArtworkBackButton(onBack, Modifier.padding(start = 2.dp), onGlass = collapsed)
-        if (collapsed) {
-            Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 8.dp))
-        }
+        ArtworkBackButton(onBack, onGlass = collapsed)
+        Text(
+            if (collapsed) title else "",
+            style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
+        )
+        actions(collapsed)
     }
 }
 
@@ -129,12 +144,16 @@ fun GlassBackBar(title: String, collapsed: Boolean, haze: HazeState, onBack: () 
 fun glassBarClearance(): Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 68.dp
 
 @Composable
-fun ArtworkBackButton(onBack: () -> Unit, modifier: Modifier = Modifier, onGlass: Boolean = false) {
+fun ArtworkBackButton(onBack: () -> Unit, modifier: Modifier = Modifier, onGlass: Boolean = false) =
+    ArtworkIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "返回", onBack, modifier, onGlass)
+
+/** Round button over artwork (dark veil, white icon) that goes flat once it sits on glass. */
+@Composable
+fun ArtworkIconButton(icon: ImageVector, description: String, onClick: () -> Unit, modifier: Modifier = Modifier, onGlass: Boolean = false) {
     FilledTonalIconButton(
-        onClick = onBack,
+        onClick = onClick,
         modifier = modifier,
         colors = if (onGlass) IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color.Transparent)
         else IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color.Black.copy(alpha = 0.35f), contentColor = Color.White),
-    ) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") }
+    ) { Icon(icon, description) }
 }
-

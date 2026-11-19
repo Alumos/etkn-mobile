@@ -46,6 +46,7 @@ fun Artwork(
     placeholder: ImageVector? = null,
     placeholderTint: Color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
     background: Color = Etkn.tokens.skeleton,
+    alignment: Alignment = Alignment.Center,
 ) {
     Box(modifier.background(background), contentAlignment = Alignment.Center) {
         if (placeholder != null) {
@@ -58,6 +59,7 @@ fun Artwork(
                 model = request,
                 contentDescription = contentDescription,
                 contentScale = contentScale,
+                alignment = alignment,
                 modifier = Modifier.fillMaxSize(),
             )
         }
