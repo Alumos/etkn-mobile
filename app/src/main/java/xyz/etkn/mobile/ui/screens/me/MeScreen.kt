@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Person
@@ -64,6 +65,7 @@ import xyz.etkn.mobile.ui.components.glassBarClearance
 import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.nav.AccountsRoute
+import xyz.etkn.mobile.ui.nav.DownloadsRoute
 import xyz.etkn.mobile.ui.nav.FavoritesRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
@@ -108,6 +110,7 @@ fun MeScreen() {
         item {
             SettingsGroup {
                 Entry(Icons.Rounded.Favorite, "我的收藏") { nav.to(FavoritesRoute) }
+                Entry(Icons.Rounded.Download, "下载") { nav.to(DownloadsRoute) }
                 Entry(Icons.Rounded.SwitchAccount, "切换账号") { nav.to(AccountsRoute) }
             }
         }

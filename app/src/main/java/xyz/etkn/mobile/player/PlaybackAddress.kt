@@ -20,6 +20,8 @@ object PlaybackAddress {
         // A disc whose Path names the image (local ISO / linked .iso) is read from Path like the TV
         // client; a 115 STRM disc's Path is the STRM target, so it plays from DirectStreamUrl.
         val fromPath = iso && source.path.lowercase().contains(".iso")
+        // A downloaded file plays from disk.
+        if (direct.startsWith("file:")) return direct
         var address = if (fromPath) source.path.trim() else direct
         address = when {
             address.startsWith("/") -> server + address

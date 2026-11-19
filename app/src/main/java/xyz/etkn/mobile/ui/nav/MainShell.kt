@@ -49,6 +49,7 @@ import androidx.navigation.compose.rememberNavController
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import xyz.etkn.mobile.OpenRequest
 import xyz.etkn.mobile.data.session.ActiveSession
 import xyz.etkn.mobile.data.settings.NavPosition
 import xyz.etkn.mobile.graph
@@ -116,9 +117,13 @@ fun MainShell(session: ActiveSession) {
     LaunchedEffect(railExpanded) { if (railExpanded) rail.expand() else rail.collapse() }
 
     LaunchedEffect(Unit) {
-        context.graph.openRequests.collect { id ->
+        context.graph.openRequests.collect { request ->
             context.graph.openRequests.resetReplayCache()
-            nav.to(DetailRoute(id))
+            when (request) {
+                is OpenRequest.Title -> nav.to(DetailRoute(request.itemId))
+                OpenRequest.Search -> nav.top(TopLevel.Search)
+                OpenRequest.Downloads -> nav.to(DownloadsRoute)
+            }
         }
     }
     IngestNoticesEffect(session, settings.ingestNotices)

@@ -12,7 +12,9 @@ import kotlinx.coroutines.withContext
 import xyz.etkn.mobile.data.api.EtknApi
 import xyz.etkn.mobile.data.api.ImageUrls
 import xyz.etkn.mobile.data.api.ServerProbe
+import xyz.etkn.mobile.data.cast.Dlna
 import xyz.etkn.mobile.data.discover.DiscoverStore
+import xyz.etkn.mobile.data.downloads.Downloads
 import xyz.etkn.mobile.data.events.IngestNotices
 import xyz.etkn.mobile.data.events.ServerEvents
 import xyz.etkn.mobile.data.net.ApiClient
@@ -26,12 +28,20 @@ import xyz.etkn.mobile.data.session.SessionState
 import xyz.etkn.mobile.data.session.SessionStore
 import xyz.etkn.mobile.data.settings.AppSettings
 import xyz.etkn.mobile.data.update.UpdateManager
+import xyz.etkn.mobile.launcher.LauncherEntries
 import xyz.etkn.mobile.music.MusicConnection
 import java.util.UUID
 
 /** Manual dependency graph: a handful of long-lived singletons, no reflection, no DI startup cost. */
 /** [deleted] = the item is gone (whole delete); otherwise its data changed and should be re-read. */
 data class ItemChange(val id: String, val deleted: Boolean = false)
+
+/** Where an outside entry (notification, launcher shortcut, widget) takes the user. */
+sealed interface OpenRequest {
+    data class Title(val itemId: String) : OpenRequest
+    data object Search : OpenRequest
+    data object Downloads : OpenRequest
+}
 
 class AppGraph(val app: Application) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -66,11 +76,17 @@ class AppGraph(val app: Application) {
     /** Server change feed (`Home/Events`) for live home and detail refresh. */
     val events = ServerEvents(http.events, { sessions.current }) { stale -> if (sessions.current?.generation == stale.generation) sessions.expire() }
 
+    /** 投屏 to DLNA renderers on the local network. */
+    val cast by lazy { Dlna(app, http.external) }
+
+    /** 离线下载 (system DownloadManager, per-account list). */
+    val downloads = Downloads(app, api)
+
     /** 入库通知 and acquisition results, checked while the app is in front. */
     val ingest = IngestNotices(app, api)
 
-    /** Item ids to open, from notification taps (replayed once to the shell when it starts). */
-    val openRequests = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 1)
+    /** Pages to open from notifications, shortcuts and the widget (replayed once to the shell when it starts). */
+    val openRequests = MutableSharedFlow<OpenRequest>(replay = 1, extraBufferCapacity = 1)
 
     val music by lazy { MusicConnection(app, this) }
 
@@ -88,7 +104,14 @@ class AppGraph(val app: Application) {
         sessions.api = api
         scope.launch(Dispatchers.IO) { responses.prune() }
         // Nothing of a signed-out account stays on disk.
-        scope.launch { sessions.state.collect { if (it is SessionState.SignedOut) withContext(Dispatchers.IO) { responses.clear() } } }
+        scope.launch {
+            sessions.state.collect {
+                if (it is SessionState.SignedOut) {
+                    withContext(Dispatchers.IO) { responses.clear() }
+                    LauncherEntries.clear(app)
+                }
+            }
+        }
     }
 
     /**

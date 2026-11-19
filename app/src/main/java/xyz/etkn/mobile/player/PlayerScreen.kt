@@ -1,7 +1,5 @@
 package xyz.etkn.mobile.player
 
-import android.content.Intent
-import android.net.Uri
 import android.view.ViewGroup
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -45,7 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -66,11 +63,10 @@ private val ResizeModes = listOf(
     AspectRatioFrameLayout.RESIZE_MODE_FILL to "拉伸",
 )
 
-internal enum class Sheet { None, Audio, Subtitle, Speed, Episodes, Versions, Danmaku, Sleep }
+internal enum class Sheet { None, Audio, Subtitle, Speed, Episodes, Versions, Danmaku, Sleep, Cast, More }
 
 @Composable
 fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPip: () -> Unit) {
-    val context = LocalContext.current
     val ui by session.ui.collectAsStateWithLifecycle()
     val danmakuStyle by session.danmakuStyle.collectAsStateWithLifecycle()
     val danmakuCues by session.danmakuCues.collectAsStateWithLifecycle()
@@ -234,12 +230,6 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
                     resizeLabel = ResizeModes[resize].second,
                     onLock = { locked = true; controls = false },
                     onNext = { session.playNext() },
-                    onExternal = {
-                        session.portableStream()?.let { (url, title) ->
-                            val view = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(url), "video/*").putExtra(Intent.EXTRA_TITLE, title).putExtra("title", title)
-                            if (runCatching { context.startActivity(Intent.createChooser(view, "用其他播放器打开")) }.isSuccess) core?.pause()
-                        }
-                    },
                 )
             }
             if (locked) {
@@ -264,6 +254,6 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
     }
 
     if (sheet != Sheet.None) {
-        PlayerSheet(sheet, ui, session, onDismiss = { sheet = Sheet.None })
+        PlayerSheet(sheet, ui, session, onSheet = { sheet = it }, onDismiss = { sheet = Sheet.None })
     }
 }

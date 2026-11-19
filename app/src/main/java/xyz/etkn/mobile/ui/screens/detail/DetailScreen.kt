@@ -29,6 +29,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Done
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.MoreVert
@@ -53,6 +55,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +66,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -72,10 +76,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chrisbanes.haze.rememberHazeState
+import kotlinx.coroutines.launch
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.model.MediaSource
 import xyz.etkn.mobile.data.model.resolutionLabel
 import xyz.etkn.mobile.data.update.formatBytes
+import xyz.etkn.mobile.graph
+import xyz.etkn.mobile.ui.actions.LocalItemMenu
 import xyz.etkn.mobile.ui.actions.PopupChoice
 import xyz.etkn.mobile.ui.actions.rememberItemPress
 import xyz.etkn.mobile.ui.actions.rememberPopupAnchor
@@ -84,6 +91,7 @@ import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.common.WhileStarted
 import xyz.etkn.mobile.ui.common.graphViewModel
 import xyz.etkn.mobile.ui.common.rememberArtworkSeed
+import xyz.etkn.mobile.ui.common.userMessage
 import xyz.etkn.mobile.ui.components.Artwork
 import xyz.etkn.mobile.ui.components.ArtworkBackButton
 import xyz.etkn.mobile.ui.components.ArtworkIconButton
@@ -101,6 +109,7 @@ import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.components.px
 import xyz.etkn.mobile.ui.components.shelf
 import xyz.etkn.mobile.ui.nav.AppNav
+import xyz.etkn.mobile.ui.nav.DownloadsRoute
 import xyz.etkn.mobile.ui.nav.EpisodesRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
@@ -350,11 +359,34 @@ private fun ActionRow(data: DetailData, centered: Boolean, vm: DetailViewModel, 
                 Icon(Icons.Rounded.Done, "已观看", Modifier.size(20.dp))
             }
             if (item.trailers.isNotEmpty()) TrailerButton(item.trailers)
+            if (item.isMovie || item.isEpisode || item.type == "Video") DownloadButton(item, source)
         }
     }
 }
 
 private val SmallAction = 40.dp
+
+/** Queues this title for offline viewing, or opens 下载 when it is already there. Not for private accounts. */
+@Composable
+private fun DownloadButton(item: Item, sourceId: String?) {
+    val graph = LocalContext.current.graph
+    val nav = LocalNav.current
+    val menu = LocalItemMenu.current
+    val scope = rememberCoroutineScope()
+    val session = graph.sessions.current ?: return
+    if (session.privateAccount) return
+    val entries by graph.downloads.entries.collectAsStateWithLifecycle()
+    val saved = remember(entries, item.id) { graph.downloads.find(session, item.id) != null }
+    FilledTonalIconButton(
+        onClick = {
+            if (saved) nav.to(DownloadsRoute)
+            else scope.launch {
+                menu?.notice = runCatching { graph.downloads.enqueue(session, item, sourceId) }.fold({ "已加入下载" }, { it.userMessage() })
+            }
+        },
+        modifier = Modifier.size(SmallAction),
+    ) { Icon(if (saved) Icons.Rounded.DownloadDone else Icons.Rounded.Download, if (saved) "已下载" else "下载", Modifier.size(20.dp)) }
+}
 
 /** Opens the trailer in the app that handles its link (YouTube, a browser); several → pick one. */
 @Composable

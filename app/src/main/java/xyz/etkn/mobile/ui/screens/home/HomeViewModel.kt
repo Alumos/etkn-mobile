@@ -17,6 +17,7 @@ import xyz.etkn.mobile.AppGraph
 import xyz.etkn.mobile.data.events.ServerEvent
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.net.ResponseCache
+import xyz.etkn.mobile.launcher.LauncherEntries
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.userMessage
 import java.util.UUID
@@ -87,6 +88,7 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
                 val fromCache = (_state.value as? Load.Ready) != null && lastLoad == 0L
                 lastLoad = System.currentTimeMillis()
                 _state.value = Load.Ready(data)
+                LauncherEntries.publishResume(graph.app, data.resume, keep = graph.sessions.current?.privateAccount == false)
                 // A shown hero (cached or previous) is swapped in one step, never shrunk to one card.
                 if (data.hero.isEmpty()) loadHero(data) else if (manual || fromCache) loadHero(data, quiet = true)
             } catch (error: Exception) {

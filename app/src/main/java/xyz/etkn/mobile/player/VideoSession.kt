@@ -34,6 +34,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import xyz.etkn.mobile.AppGraph
 import xyz.etkn.mobile.data.api.EtknApi
+import xyz.etkn.mobile.data.cast.CastDevice
+import xyz.etkn.mobile.data.downloads.DownloadEntry
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.model.MediaSource
 import xyz.etkn.mobile.data.model.MediaStream
@@ -99,6 +101,8 @@ data class VideoUi(
     /** Offset controls for the selected subtitle; null when it cannot be shifted. */
     val subtitleOffset: SubtitleOffset? = null,
     val sleep: SleepTimer? = null,
+    /** Name of the DLNA renderer this title was handed to. */
+    val castingTo: String? = null,
 )
 
 private const val TAG = "ETKN-Play"
@@ -150,6 +154,8 @@ class VideoSession(
     private var stopped = true
     private var completedBySkip = false
     private var released = false
+    /** Playing a downloaded file: nothing is asked of or reported to the server. */
+    private var offline = false
     private var progressJob: Job? = null
     private var loadJob: Job? = null
     private var previewJob: Job? = null
@@ -273,6 +279,15 @@ class VideoSession(
 
     // ---------- Loading ----------
 
+    /** Plays a finished download from disk with its saved tracks and chapters. */
+    fun startOffline(entry: DownloadEntry, startMs: Long = 0L) {
+        offline = true
+        val source = entry.offlineSource()
+        showItem(entry.offlineItem())
+        _ui.update { it.copy(sources = listOf(source), sourceIndex = 0, loading = true, error = null) }
+        playSource(source, startMs)
+    }
+
     fun start(itemId: String, type: String?, seriesId: String?, seasonId: String?, startMs: Long, resume: Boolean, sourceId: String?) {
         loadJob?.cancel()
         loadJob = scope.launch {
@@ -355,7 +370,7 @@ class VideoSession(
         completedBySkip = false
         autoSkippedIntro = startMs > 0
         val url = PlaybackAddress.resolve(chosen, session.server, session.token, session.userId)
-        val subtitles = chosen.subtitles.filter { it.isExternal && it.deliveryUrl != null }.mapNotNull { stream ->
+        val subtitles = chosen.subtitles.filter { it.isExternal && it.deliveryUrl != null && !offline }.mapNotNull { stream ->
             val address = PlaybackAddress.subtitle(stream.deliveryUrl!!, session.server, session.token) ?: return@mapNotNull null
             val mime = subtitleMime(stream.codec) ?: return@mapNotNull null
             MediaItem.SubtitleConfiguration.Builder(Uri.parse(address))
@@ -386,7 +401,7 @@ class VideoSession(
         startProgressLoop()
         // A core switch closed the feed bound to the previous player.
         applyDanmaku()
-        loadPreviews(current.id, chosen.id)
+        if (!offline) loadPreviews(current.id, chosen.id)
     }
 
     /** Seek thumbnails for this version; none (HTTP 204) until the server has extracted them. */
@@ -648,6 +663,33 @@ class VideoSession(
         return url to listOf(_ui.value.title, _ui.value.subtitle).filter { it.isNotEmpty() }.joinToString(" · ")
     }
 
+    // ---------- Cast ----------
+
+    private var castDevice: CastDevice? = null
+
+    /** Hands the playing version to a renderer at the current position and pauses here. */
+    fun castTo(device: CastDevice) {
+        val (url, title) = portableStream() ?: return
+        val position = player?.currentPosition ?: 0L
+        scope.launch {
+            runCatching { graph.cast.play(device, url, title, position) }
+                .onSuccess {
+                    castDevice = device
+                    player?.pause()
+                    _ui.update { it.copy(castingTo = device.name) }
+                    showNotice("已投屏到 ${device.name}")
+                }
+                .onFailure { showNotice(it.message ?: "投屏失败") }
+        }
+    }
+
+    fun stopCast() {
+        val device = castDevice ?: return
+        castDevice = null
+        _ui.update { it.copy(castingTo = null) }
+        graph.scope.launch { graph.cast.stop(device) }
+    }
+
     // ---------- Sleep timer ----------
 
     private var sleepJob: Job? = null
@@ -780,6 +822,7 @@ class VideoSession(
     }
 
     private fun report(event: String) {
+        if (offline) return
         val current = item ?: return
         val src = source ?: return
         val player = player ?: return

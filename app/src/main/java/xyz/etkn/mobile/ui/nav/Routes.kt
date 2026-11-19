@@ -43,6 +43,7 @@ import kotlinx.serialization.Serializable
 )
 @Serializable data object NowPlayingRoute
 @Serializable data object AccountsRoute
+@Serializable data object DownloadsRoute
 @Serializable data class SettingsRoute(val page: String)
 @Serializable data object DiscoverRoute
 @Serializable data class DiscoverDetailRoute(val id: String, val kind: String, val title: String)

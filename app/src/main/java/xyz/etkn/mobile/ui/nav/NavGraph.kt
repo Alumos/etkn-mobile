@@ -45,6 +45,7 @@ import xyz.etkn.mobile.ui.screens.library.FavoritesScreen
 import xyz.etkn.mobile.ui.screens.library.LibrariesScreen
 import xyz.etkn.mobile.ui.screens.library.LibraryScreen
 import xyz.etkn.mobile.ui.screens.me.AccountsScreen
+import xyz.etkn.mobile.ui.screens.me.DownloadsScreen
 import xyz.etkn.mobile.ui.screens.me.MeScreen
 import xyz.etkn.mobile.ui.screens.me.SettingsPage
 import xyz.etkn.mobile.ui.screens.me.SettingsScreen
@@ -98,6 +99,7 @@ internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pag
         page<MusicListRoute> { MusicListScreen(it.toRoute()) }
         page<NowPlayingRoute> { NowPlayingScreen() }
         page<AccountsRoute> { AccountsScreen() }
+        page<DownloadsRoute> { DownloadsScreen() }
         page<DiscoverRoute> { DiscoverScreen() }
         page<DiscoverDetailRoute> { DiscoverDetailScreen(it.toRoute()) }
         page<DiscoverPersonRoute> { DiscoverPersonScreen(it.toRoute()) }

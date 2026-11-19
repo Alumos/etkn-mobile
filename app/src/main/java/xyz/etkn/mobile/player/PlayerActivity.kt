@@ -63,7 +63,9 @@ class PlayerActivity : ComponentActivity() {
         graph.music.pause()
         val video = VideoSession(this, graph, lifecycleScope)
         session = video
-        video.start(
+        val download = intent.getLongExtra(PlayerLauncher.EXTRA_DOWNLOAD, -1L).takeIf { it >= 0 }
+            ?.let { id -> graph.downloads.entries.value.firstOrNull { it.downloadId == id } }
+        if (download != null) video.startOffline(download) else video.start(
             itemId = itemId,
             type = intent.getStringExtra(PlayerLauncher.EXTRA_TYPE),
             seriesId = intent.getStringExtra(PlayerLauncher.EXTRA_SERIES),

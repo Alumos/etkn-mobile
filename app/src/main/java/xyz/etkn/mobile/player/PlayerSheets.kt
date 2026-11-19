@@ -1,5 +1,7 @@
 package xyz.etkn.mobile.player
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +34,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import xyz.etkn.mobile.data.cast.CastDevice
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.ui.components.Artwork
@@ -53,7 +57,7 @@ import xyz.etkn.mobile.ui.screens.me.DanmakuControls
 import java.util.Locale
 
 @Composable
-internal fun PlayerSheet(sheet: Sheet, ui: VideoUi, session: VideoSession, onDismiss: () -> Unit) {
+internal fun PlayerSheet(sheet: Sheet, ui: VideoUi, session: VideoSession, onSheet: (Sheet) -> Unit, onDismiss: () -> Unit) {
     PlayerSidePanel(onDismiss) {
         when (sheet) {
             Sheet.Audio -> OptionList("音轨", ui.audio.map { it.label to it.selected }) { i -> session.selectTrack(ui.audio[i]); onDismiss() }
@@ -72,6 +76,8 @@ internal fun PlayerSheet(sheet: Sheet, ui: VideoUi, session: VideoSession, onDis
                 session.setSleepTimer(SleepTimer.entries.getOrNull(i - 1))
                 onDismiss()
             }
+            Sheet.Cast -> CastSheet(ui, session, onDismiss)
+            Sheet.More -> MoreSheet(ui, session, onSheet, onDismiss)
             Sheet.Episodes -> EpisodeSheet(ui, session, onDismiss)
             Sheet.Danmaku -> DanmakuSheet(session)
             Sheet.None -> Unit
@@ -116,6 +122,61 @@ private fun SubtitleOffsetRow(offset: SubtitleOffset, session: VideoSession) {
     }
 }
 
+/** 定时关闭 and 用其他播放器打开. */
+@Composable
+private fun MoreSheet(ui: VideoUi, session: VideoSession, onSheet: (Sheet) -> Unit, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val options = listOf(
+        "定时关闭" + (ui.sleep?.let { " · ${it.label}" } ?: "") to (ui.sleep != null),
+        "用其他播放器打开" to false,
+    )
+    OptionList("更多", options) { index ->
+        when (index) {
+            0 -> onSheet(Sheet.Sleep)
+            1 -> {
+                onDismiss()
+                session.portableStream()?.let { (url, title) ->
+                    val view = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(url), "video/*")
+                        .putExtra(Intent.EXTRA_TITLE, title).putExtra("title", title)
+                    if (runCatching { context.startActivity(Intent.createChooser(view, "用其他播放器打开")) }.isSuccess) session.player?.pause()
+                }
+            }
+        }
+    }
+}
+
+/** DLNA renderers on the Wi-Fi; picking one hands the title over at the current position. */
+@Composable
+private fun CastSheet(ui: VideoUi, session: VideoSession, onDismiss: () -> Unit) {
+    val graph = LocalContext.current.graph
+    var devices by remember { mutableStateOf<List<CastDevice>?>(null) }
+    var round by remember { mutableIntStateOf(0) }
+    LaunchedEffect(round) {
+        devices = null
+        devices = runCatching { graph.cast.discover() }.getOrDefault(emptyList())
+    }
+    Text("投屏", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+    ui.castingTo?.let { name ->
+        Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("正在投屏到 $name", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+            TextButton(onClick = { session.stopCast(); onDismiss() }) { Text("停止") }
+        }
+    }
+    when (val found = devices) {
+        null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
+        else -> {
+            if (found.isEmpty()) {
+                Text("没有找到投屏设备", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp))
+            }
+            OptionListBody(found.map { it.name to (it.name == ui.castingTo) }) { index ->
+                session.castTo(found[index])
+                onDismiss()
+            }
+            TextButton(onClick = { round++ }, modifier = Modifier.padding(horizontal = 12.dp)) { Text("重新搜索") }
+        }
+    }
+}
+
 @Composable
 private fun OptionList(title: String, options: List<Pair<String, Boolean>>, onSelect: (Int) -> Unit) {
     Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
@@ -123,6 +184,11 @@ private fun OptionList(title: String, options: List<Pair<String, Boolean>>, onSe
         Text("没有可选项", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(24.dp))
         return
     }
+    OptionListBody(options, onSelect)
+}
+
+@Composable
+private fun OptionListBody(options: List<Pair<String, Boolean>>, onSelect: (Int) -> Unit) {
     LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp), state = rememberLazyListState(options.indexOfFirst { it.second }.coerceAtLeast(0))) {
         items(options.size) { index ->
             val (label, selected) = options[index]

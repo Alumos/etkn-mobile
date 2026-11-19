@@ -23,17 +23,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
-import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Audiotrack
-import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Cast
+import androidx.compose.material.icons.rounded.CastConnected
 import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -85,7 +85,6 @@ internal fun Controls(
     resizeLabel: String,
     onLock: () -> Unit,
     onNext: () -> Unit,
-    onExternal: () -> Unit,
 ) {
     var scrubbing by remember { mutableStateOf(false) }
     var scrub by remember { mutableFloatStateOf(0f) }
@@ -108,9 +107,9 @@ internal fun Controls(
                 }
             }
             if (ui.sources.size > 1) PlayerAction(Icons.Rounded.VideoSettings, "版本") { onSheet(Sheet.Versions) }
-            PlayerAction(if (ui.sleep != null) Icons.Rounded.Bedtime else Icons.Outlined.Bedtime, "定时关闭") { onSheet(Sheet.Sleep) }
-            PlayerAction(Icons.AutoMirrored.Rounded.OpenInNew, "用其他播放器打开", onExternal)
+            PlayerAction(if (ui.castingTo != null) Icons.Rounded.CastConnected else Icons.Rounded.Cast, "投屏") { onSheet(Sheet.Cast) }
             PlayerAction(Icons.Rounded.PictureInPictureAlt, "画中画", onPip)
+            PlayerAction(Icons.Rounded.MoreVert, "更多") { onSheet(Sheet.More) }
         }
         // Center transport
         Row(

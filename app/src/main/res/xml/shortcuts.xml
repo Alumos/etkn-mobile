@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press launcher shortcuts; recent 继续观看 titles are added at run time. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="search"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_search"
+        android:shortcutShortLabel="@string/shortcut_search">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="xyz.etkn.mobile.MainActivity"
+            android:targetPackage="xyz.etkn.mobile">
+            <extra android:name="xyz.etkn.mobile.PAGE" android:value="search" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="downloads"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_download"
+        android:shortcutShortLabel="@string/shortcut_downloads">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="xyz.etkn.mobile.MainActivity"
+            android:targetPackage="xyz.etkn.mobile">
+            <extra android:name="xyz.etkn.mobile.PAGE" android:value="downloads" />
+        </intent>
+    </shortcut>
+</shortcuts>

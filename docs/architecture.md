@@ -42,6 +42,9 @@ xyz.etkn.mobile
 - **媒体库视图**：库页顶部按库类型给出「全部 / 合集 / 类型 / 电视网 / 出品公司」（`LibraryView`）；后几项是服务端分类卡片（`U/Facets`），点卡片进 `FacetRoute` 按 `{Kind}={Value}` 浏览，可排序；可生成封面的账号长按卡片生成或重取封面。管理员长按 path/list 来源的媒体库可「扫描媒体库」。电影详情显示「所属合集」。目录封面（FolderCover）只用于按目录浏览，本应用没有目录浏览，未接入。
 - **播放增强**：拖动进度条时按服务端 `PreviewThumbnails` 清单显示最近一帧（`SeekPreviews`，切片源时重取）。字幕偏移：选中字幕的 `SubtitleOffsetKey` 决定校准值（本次会话调整优先，否则服务端已存值），mpv 用 `sub-delay` 生效，「保存」写回服务端；ExoPlayer 没有字幕延迟接口，此时不显示偏移控件。AI 字幕翻译（`SubtitleTranslation`）与协助转码（`I/Transcode`）尚未接入。
 - **通用播放功能**：详情页「预告片」打开 `RemoteTrailers` 链接（交给 YouTube/浏览器）。播放器顶栏「定时关闭」（15–90 分钟或本集播完；本集播完时不连播下一集）与「用其他播放器打开」（`PlaybackAddress.portable` 把令牌、用户与版本放进查询串，只交给用户选中的应用）。设置「后台播放」开启时，`VideoPlaybackService`（MediaSessionService）包住当前内核，离开应用继续出声，媒体通知可控制；划掉应用即停止。
+- **离线下载**：`data/downloads/Downloads` 用系统 DownloadManager 下载到应用私有的 Movies/ETKN 目录（无需存储权限，卸载即删），地址为 `PlaybackAddress.portable`（令牌在查询串：请求头会被转发到 302 目标，查询参数不会）；`downloads.json` 按账号记录条目、精简条目与服务端 MediaSource，离线播放走 `VideoSession.startOffline`（不连服务端、不上报）。私密账号不能下载，原盘不支持。入口：详情页下载键、「我的 → 下载」。
+- **投屏**：`data/cast/Dlna` 在 Wi-Fi 上发 SSDP 搜索 AVTransport 渲染器，读设备描述取控制地址，`SetAVTransportURI` + `Play`（+ `Seek` 到当前位置）/ `Stop`；本机暂停。需要 `CHANGE_WIFI_MULTICAST_STATE`。播放器顶栏「投屏」，「⋮」里是定时关闭与用其他播放器打开。
+- **启动器入口**：长按图标有「搜索」「下载」（静态）和最近两部继续观看（动态），桌面小组件「继续观看」显示最近一部与进度；都由首页的继续观看刷新，私密账号与退出登录时清空。外部入口统一经 `AppGraph.openRequests`（`OpenRequest`）交给外壳。
 - **自适应布局**：`WindowLayout`（Compact <600 / Medium / Expanded ≥840 dp）。平板：侧栏（≥840 展开带标签）、首页 Hero 改为横幅并左对齐文案、海报与卡片加宽、网格列宽加大、详情头图改横幅、「我的」与设置居中限宽 720 dp、迷你播放器靠右限宽。
 - **返回手势**：清单启用 `enableOnBackInvokedCallback`；NavHost 的 pop 转场即预测性返回的预览动画。每个目的地包在 `PageFrame` 里：不透明背景 + 随转场进度变化的圆角裁剪，避免透明页面缩小时与下层页面叠在一起。
 - **页面大小**：`UiScale` 在 `attachBaseContext` 用 `applyOverrideConfiguration` 只覆盖 `densityDpi`，对话框、底部面板、菜单等独立窗口同样生效；改设置后 `recreate()`。窗口尺寸一律用 `windowSizeDp()`（像素 / 当前密度），不用 `Configuration.screenWidthDp`。

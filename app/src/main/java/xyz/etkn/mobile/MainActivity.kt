@@ -50,13 +50,22 @@ class MainActivity : ComponentActivity() {
         openFrom(intent)
     }
 
-    /** A notification tap carries the title to open; the shell takes it from [AppGraph.openRequests]. */
+    /** Notification, shortcut or widget: the shell opens it from [AppGraph.openRequests]. */
     private fun openFrom(intent: Intent?) {
-        intent?.getStringExtra(EXTRA_ITEM)?.let { graph.openRequests.tryEmit(it) }
+        intent ?: return
+        val request = intent.getStringExtra(EXTRA_ITEM)?.let(OpenRequest::Title) ?: when (intent.getStringExtra(EXTRA_PAGE)) {
+            PAGE_SEARCH -> OpenRequest.Search
+            PAGE_DOWNLOADS -> OpenRequest.Downloads
+            else -> null
+        }
+        request?.let(graph.openRequests::tryEmit)
     }
 
     companion object {
         const val EXTRA_ITEM = "xyz.etkn.mobile.ITEM"
+        const val EXTRA_PAGE = "xyz.etkn.mobile.PAGE"
+        const val PAGE_SEARCH = "search"
+        const val PAGE_DOWNLOADS = "downloads"
     }
 }
 
