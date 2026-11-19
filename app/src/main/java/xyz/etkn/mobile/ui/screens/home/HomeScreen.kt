@@ -169,18 +169,20 @@ private fun HomeTopBar(reveal: () -> Float, haze: HazeState, onSearch: () -> Uni
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        GlassPiece(fraction, haze, RoundedCornerShape(50), Modifier.weight(1f, fill = false)) {
-            Text(
-                session.serverName,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = content,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 18.dp).heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically),
-            )
+        // The name takes the free width (ellipsized when long); search and avatar stay flush right.
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            GlassPiece(fraction, haze, RoundedCornerShape(50)) {
+                Text(
+                    session.serverName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = content,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 18.dp).heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically),
+                )
+            }
         }
-        Spacer(Modifier.weight(1f))
         GlassPiece(fraction, haze, CircleShape) {
             IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "搜索", tint = content) }
         }

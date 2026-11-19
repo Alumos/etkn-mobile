@@ -287,6 +287,14 @@ data class Item(
             return if (indexNumberEnd != null && indexNumberEnd > e) "S${s}E$e-$indexNumberEnd" else "S${s}E$e"
         }
 
+    /** 第1季第3集 (第1季第3-4集 for a double episode). */
+    val episodeLabel: String?
+        get() {
+            val s = parentIndexNumber ?: return null
+            val e = indexNumber ?: return null
+            return if (indexNumberEnd != null && indexNumberEnd > e) "第${s}季第$e-${indexNumberEnd}集" else "第${s}季第${e}集"
+        }
+
     val artistLine: String get() = artists.joinToString(" / ")
 
     fun withUserData(update: JsonObject): Item = copy(userData = userData.merge(update))

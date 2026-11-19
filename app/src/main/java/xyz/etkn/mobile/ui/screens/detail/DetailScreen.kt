@@ -238,11 +238,14 @@ private fun ActionRow(data: DetailData, vm: DetailViewModel, nav: AppNav) {
     val resumable = target != null && target.positionMs > 0 && !target.userData.played
     val label = when {
         target == null -> "暂无可播放内容"
-        (item.isSeries || item.isSeason) && target.episodeCode != null ->
-            (if (resumable) "继续 " else "播放 ") + target.episodeCode
+        (item.isSeries || item.isSeason) && target.episodeLabel != null ->
+            (if (resumable) "继续播放" else "播放") + target.episodeLabel
         resumable -> "继续播放 ${formatClock(target.positionMs)}"
         else -> "播放"
     }
+    val press = rememberItemPress(item)
+    // Play gets the whole first row so its label always fits; the other actions sit below,
+    // smaller, in one row.
     Column(Modifier.padding(horizontal = Etkn.space.screen).padding(top = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
@@ -261,25 +264,6 @@ private fun ActionRow(data: DetailData, vm: DetailViewModel, nav: AppNav) {
                     modifier = Modifier.size(ButtonDefaults.MediumContainerHeight),
                 ) { Icon(Icons.Rounded.Replay, "从头播放") }
             }
-            FilledTonalIconToggleButton(
-                checked = item.userData.isFavorite,
-                onCheckedChange = { vm.toggleFavorite() },
-                modifier = Modifier.size(ButtonDefaults.MediumContainerHeight),
-            ) {
-                Icon(if (item.userData.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "收藏")
-            }
-            FilledTonalIconToggleButton(
-                checked = item.userData.played,
-                onCheckedChange = { vm.togglePlayed() },
-                modifier = Modifier.size(ButtonDefaults.MediumContainerHeight),
-            ) { Icon(Icons.Rounded.Done, "已观看") }
-            val press = rememberItemPress(item)
-            if (press.enabled) {
-                FilledTonalIconButton(
-                    onClick = press::open,
-                    modifier = Modifier.size(ButtonDefaults.MediumContainerHeight).then(press.modifier),
-                ) { Icon(Icons.Rounded.MoreVert, "更多") }
-            }
         }
         if (resumable && target.progress > 0f) {
             LinearProgressIndicator(
@@ -288,8 +272,30 @@ private fun ActionRow(data: DetailData, vm: DetailViewModel, nav: AppNav) {
                 drawStopIndicator = {},
             )
         }
+        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalIconToggleButton(
+                checked = item.userData.isFavorite,
+                onCheckedChange = { vm.toggleFavorite() },
+                modifier = Modifier.size(SmallAction),
+            ) {
+                Icon(if (item.userData.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "收藏", Modifier.size(20.dp))
+            }
+            FilledTonalIconToggleButton(
+                checked = item.userData.played,
+                onCheckedChange = { vm.togglePlayed() },
+                modifier = Modifier.size(SmallAction),
+            ) { Icon(Icons.Rounded.Done, "已观看", Modifier.size(20.dp)) }
+            if (press.enabled) {
+                FilledTonalIconButton(
+                    onClick = press::open,
+                    modifier = Modifier.size(SmallAction).then(press.modifier),
+                ) { Icon(Icons.Rounded.MoreVert, "更多", Modifier.size(20.dp)) }
+            }
+        }
     }
 }
+
+private val SmallAction = 40.dp
 
 @Composable
 private fun VersionRow(sources: List<MediaSource>, selected: Int, onSelect: (Int) -> Unit) {

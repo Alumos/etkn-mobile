@@ -414,26 +414,26 @@ private fun MenuPlacement(anchor: Rect, below: Boolean = false, content: @Compos
 @Composable
 private fun MenuCard(target: MenuTarget, menu: ItemMenu, haze: HazeState?) {
     val entries = menu.entriesFor(target)
-    val rowShape = RoundedCornerShape(16.dp)
-    Column(Modifier.width(232.dp).glass(RoundedCornerShape(24.dp), elevation = 16.dp, state = haze).padding(vertical = 8.dp)) {
+    val rowShape = RoundedCornerShape(14.dp)
+    Column(Modifier.width(MenuWidth).glass(RoundedCornerShape(20.dp), elevation = 16.dp, state = haze).padding(vertical = 6.dp)) {
         Text(
             target.item.seriesName?.takeIf { target.item.isEpisode }?.let { "$it · ${target.item.name}" } ?: target.item.name,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
         )
         entries.forEach { entry ->
             val tint = if (entry.danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 6.dp).clip(rowShape).clickable { menu.choose(entry.action) }
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                    .padding(horizontal = 12.dp, vertical = RowPadding),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(entry.icon, null, tint = tint, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(14.dp))
-                Text(entry.label, style = MaterialTheme.typography.bodyLarge, color = tint)
+                Icon(entry.icon, null, tint = tint, modifier = Modifier.size(MenuIcon))
+                Spacer(Modifier.width(12.dp))
+                Text(entry.label, style = MaterialTheme.typography.bodyMedium, color = tint)
             }
         }
     }
@@ -441,26 +441,31 @@ private fun MenuCard(target: MenuTarget, menu: ItemMenu, haze: HazeState?) {
 
 @Composable
 private fun PopupCard(popup: GlassPopup, menu: ItemMenu, haze: HazeState?) {
-    val rowShape = RoundedCornerShape(16.dp)
-    Column(Modifier.widthIn(min = 176.dp, max = 280.dp).width(IntrinsicSize.Max).glass(RoundedCornerShape(24.dp), elevation = 16.dp, state = haze).padding(vertical = 8.dp)) {
+    val rowShape = RoundedCornerShape(14.dp)
+    Column(Modifier.widthIn(min = 148.dp, max = 240.dp).width(IntrinsicSize.Max).glass(RoundedCornerShape(20.dp), elevation = 16.dp, state = haze).padding(vertical = 6.dp)) {
         popup.choices.forEach { choice ->
             val tint = if (choice.selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 6.dp).clip(rowShape)
                     .clickable { menu.dismiss(); choice.onClick() }
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                    .padding(horizontal = 12.dp, vertical = RowPadding),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 choice.icon?.let {
-                    Icon(it, null, tint = tint, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(14.dp))
+                    Icon(it, null, tint = tint, modifier = Modifier.size(MenuIcon))
+                    Spacer(Modifier.width(12.dp))
                 }
-                Text(choice.label, style = MaterialTheme.typography.bodyLarge, color = tint, modifier = Modifier.weight(1f))
+                Text(choice.label, style = MaterialTheme.typography.bodyMedium, color = tint, modifier = Modifier.weight(1f))
                 choice.trailing?.let {
                     Spacer(Modifier.width(12.dp))
-                    Icon(it, null, tint = tint, modifier = Modifier.size(18.dp))
+                    Icon(it, null, tint = tint, modifier = Modifier.size(16.dp))
                 }
             }
         }
     }
 }
+
+// Compact rows: 40 dp tall (the minimum comfortable touch height), small icon and body text.
+private val MenuWidth = 200.dp
+private val MenuIcon = 18.dp
+private val RowPadding = 11.dp
