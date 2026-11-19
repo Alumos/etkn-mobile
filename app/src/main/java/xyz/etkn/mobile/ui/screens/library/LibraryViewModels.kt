@@ -3,6 +3,8 @@ package xyz.etkn.mobile.ui.screens.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -216,9 +218,26 @@ class FacetViewModel(graph: AppGraph, private val libraryId: String, private val
 
 class FavoritesViewModel(graph: AppGraph) : PagedViewModel() {
     private val api = graph.api
+    // Favourite collections lead the list (read once per refresh); titles page after them.
+    private var collections: List<Item> = emptyList()
+
     init {
         reset()
         followChanges(graph)
     }
-    override suspend fun fetch(start: Int, limit: Int): ItemsPage = api.favorites(start, limit)
+
+    override suspend fun fetch(start: Int, limit: Int): ItemsPage {
+        if (start > 0) return merge(start, limit, api.favorites((start - collections.size).coerceAtLeast(0), limit))
+        return coroutineScope {
+            val sets = async { runCatching { api.favoriteCollections() }.getOrDefault(emptyList()) }
+            val titles = async { api.favorites(0, limit) }
+            collections = sets.await()
+            merge(0, limit, titles.await())
+        }
+    }
+
+    private fun merge(start: Int, limit: Int, titles: ItemsPage): ItemsPage {
+        val lead = collections.drop(start).take(limit)
+        return ItemsPage(lead + titles.items.take(limit - lead.size), collections.size + titles.total)
+    }
 }

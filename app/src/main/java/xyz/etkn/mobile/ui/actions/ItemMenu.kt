@@ -24,7 +24,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Done
@@ -43,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -57,6 +60,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
@@ -442,11 +447,21 @@ private fun MenuCard(target: MenuTarget, menu: ItemMenu, haze: HazeState?) {
 @Composable
 private fun PopupCard(popup: GlassPopup, menu: ItemMenu, haze: HazeState?) {
     val rowShape = RoundedCornerShape(14.dp)
-    Column(Modifier.widthIn(min = 148.dp, max = 240.dp).width(IntrinsicSize.Max).glass(RoundedCornerShape(20.dp), elevation = 16.dp, state = haze).padding(vertical = 6.dp)) {
+    // Long pickers (dozens of seasons) scroll inside the card, opening at the selected row.
+    val scroll = rememberScrollState()
+    var selectedTop by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(selectedTop) { if (selectedTop > 0) scroll.scrollTo(selectedTop) }
+    Column(
+        Modifier.widthIn(min = 148.dp, max = 240.dp).width(IntrinsicSize.Max)
+            .glass(RoundedCornerShape(20.dp), elevation = 16.dp, state = haze)
+            .verticalScroll(scroll).padding(vertical = 6.dp),
+    ) {
         popup.choices.forEach { choice ->
             val tint = if (choice.selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 6.dp).clip(rowShape)
+                Modifier.fillMaxWidth()
+                    .then(if (choice.selected) Modifier.onPlaced { selectedTop = it.positionInParent().y.toInt() } else Modifier)
+                    .padding(horizontal = 6.dp).clip(rowShape)
                     .clickable { menu.dismiss(); choice.onClick() }
                     .padding(horizontal = 12.dp, vertical = RowPadding),
                 verticalAlignment = Alignment.CenterVertically,

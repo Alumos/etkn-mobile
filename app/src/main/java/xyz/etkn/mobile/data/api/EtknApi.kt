@@ -224,6 +224,15 @@ class EtknApi(
         return ItemsPage(items, result.int("TotalRecordCount", start + items.size))
     }
 
+    /**
+     * Favourite collections. `Filters=IsFavorite` never returns BoxSets (the server keeps them out
+     * of item-state queries), but each collection's `UserData.IsFavorite` is real, so read the
+     * collection list and keep the favourites.
+     */
+    suspend fun favoriteCollections(): List<Item> =
+        get(query("${u()}/Items", "Recursive" to true, "IncludeItemTypes" to "BoxSet", "SortBy" to "SortName", "Limit" to 1000))
+            .items().filter { it.userData.isFavorite }
+
     suspend fun search(term: String, start: Int, limit: Int): ItemsPage {
         val path = query(
             "${u()}/Items",
@@ -332,7 +341,6 @@ class EtknApi(
         delete("/api/tv/Items/${enc(id)}/Versions/${enc(versionId)}")
     }
 
-    /** Queues seek-preview thumbnail extraction; titles that already have them are skipped. */
     /** Saves a subtitle calibration for this version (Web and TV apply it too); 0 removes it. */
     suspend fun saveSubtitleOffset(itemId: String, mediaSourceId: String, key: String, offsetMs: Int) {
         post(
@@ -348,9 +356,36 @@ class EtknApi(
     suspend fun previewThumbnails(itemId: String, mediaSourceId: String): JsonObject =
         get(query("/api/tv/Items/${enc(itemId)}/PreviewThumbnails", "MediaSourceId" to mediaSourceId))
 
+    /** Queues seek-preview thumbnail extraction; titles that already have them are skipped. */
     suspend fun extractPreviews(ids: List<String>) {
         post("/api/tv/Manage/Items/preview-thumbnails", buildJsonObject { put("media_item_ids", stringArray(ids)) })
     }
+
+    // ---------- Library maintenance (Web 媒体库卡片菜单) ----------
+
+    /** Administrators: regenerates the library cover now; the server's error when it could not. */
+    suspend fun generateLibraryCover(libraryId: String) {
+        val result = post("/api/tv/Manage/Libraries/GenerateCover", libraries(libraryId))
+        val failed = result.objects("items").firstOrNull { !it.bool("generated") }
+        if (failed != null) error(failed.str("error").ifEmpty { "封面生成失败" })
+    }
+
+    /** Administrators: queues seek-preview extraction for the whole library (existing ones are skipped). */
+    suspend fun extractLibraryPreviews(libraryId: String) {
+        post("/api/tv/Manage/Libraries/PreviewThumbnails", libraries(libraryId))
+    }
+
+    /** Administrators and 刷新元数据 accounts; [action] as in [refreshItem]. False when there was nothing to refresh. */
+    suspend fun refreshLibrary(libraryId: String, action: String): Boolean {
+        val result = post("/api/tv/Manage/Libraries/Refresh", buildJsonObject {
+            put("library_ids", stringArray(listOf(libraryId)))
+            put("action", action)
+        })
+        check(result.str("reason") != "task_already_running") { "已有刷新任务正在运行，请稍后重试" }
+        return result.bool("submitted")
+    }
+
+    private fun libraries(libraryId: String) = buildJsonObject { put("library_ids", stringArray(listOf(libraryId))) }
 
     /** Admin only: `{items: [{label, value}]}` for the custom rating picker. */
     suspend fun ratingOptions(): List<Pair<String, String>> =

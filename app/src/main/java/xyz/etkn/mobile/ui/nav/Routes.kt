@@ -32,7 +32,8 @@ import kotlinx.serialization.Serializable
 /** Titles of one category card of a library ([kind] Genres / Tags / Networks / Companies). */
 @Serializable data class FacetRoute(val libraryId: String, val kind: String, val value: String)
 /** All episodes of a series, opened at [seasonId]. */
-@Serializable data class EpisodesRoute(val seriesId: String, val seasonId: String?, val title: String)
+/** [seed]: the series page's artwork colour, so the grid keeps its palette. */
+@Serializable data class EpisodesRoute(val seriesId: String, val seasonId: String?, val title: String, val seed: Int? = null)
 @Serializable data object FavoritesRoute
 @Serializable data class MusicListRoute(
     val parentId: String,

@@ -101,8 +101,19 @@ class ApiClient(
         }
         if (status == 404 && path.startsWith("/api/tv/")) throw EtknException.Unsupported()
         if (status == 401) throw EtknException.AuthExpired()
-        if (status >= 400) throw EtknException.Http(status, json.str("detail").ifEmpty { "请求失败（HTTP $status）" })
+        if (status >= 400) throw EtknException.Http(status, readable(json.str("detail")).ifEmpty { "请求失败（HTTP $status）" })
         return json
+    }
+
+    /**
+     * The server passes its own upstream failures through as `detail` (Python's urllib text, e.g.
+     * `<urlopen error [Errno 111] Connection refused>` when TMDb or its network proxy is down).
+     */
+    private fun readable(detail: String): String = when {
+        !detail.contains("urlopen error", ignoreCase = true) && !detail.startsWith("[Errno") -> detail
+        detail.contains("refused", ignoreCase = true) -> "ETKN 服务器连不上外部数据源（TMDb 或服务端网络代理拒绝连接）"
+        detail.contains("timed out", ignoreCase = true) -> "ETKN 服务器访问外部数据源超时"
+        else -> "ETKN 服务器访问外部数据源失败"
     }
 
     companion object {

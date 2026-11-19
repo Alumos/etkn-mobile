@@ -149,7 +149,8 @@ fun DetailScreen(id: String) {
 private fun DetailContent(data: DetailData, vm: DetailViewModel, nav: AppNav) {
     val item = data.item
     val backdrop = images().backdrop(item, 64) ?: images().poster(item, 64)
-    ArtworkTheme(rememberArtworkSeed(backdrop)) {
+    val seed = rememberArtworkSeed(backdrop)
+    ArtworkTheme(seed) {
         val episodes by vm.episodes.state.collectAsStateWithLifecycle()
         val list = rememberLazyListState()
         val collapsed by remember { derivedStateOf { list.firstVisibleItemIndex > 0 } }
@@ -174,7 +175,7 @@ private fun DetailContent(data: DetailData, vm: DetailViewModel, nav: AppNav) {
                             currentId = item.id.takeIf { item.isEpisode },
                             list = vm.episodes,
                             onSeason = { vm.selectSeason(seriesId, it) },
-                            onAll = { nav.to(EpisodesRoute(seriesId, episodes.seasonId, item.seriesName ?: item.name)) },
+                            onAll = { nav.to(EpisodesRoute(seriesId, episodes.seasonId, item.seriesName ?: item.name, seed)) },
                         )
                     }
                 }
@@ -257,13 +258,28 @@ private fun techSource(data: DetailData): MediaSource? = with(data) {
     if (item.isSeries || item.isSeason) target?.mediaSources?.firstOrNull() else item.mediaSources.getOrNull(selectedSource)
 }
 
-/** Score, year, rating badge and status; then runtime and file; then genres. */
+/** Scores by source; year, rating badge and status; then runtime and file; then genres. */
 @Composable
 private fun MetaLines(item: Item, source: MediaSource?, align: Alignment.Horizontal) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val ratings = item.ratings
     Column(horizontalAlignment = align, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (ratings.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(14.dp, align),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.Star, null, Modifier.size(16.dp), tint = Etkn.tokens.rating)
+                ratings.forEach { (name, value) ->
+                    Row {
+                        Text(name, style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.alignByBaseline())
+                        Text(value, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, modifier = Modifier.alignByBaseline().padding(start = 4.dp))
+                    }
+                }
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            formatRating(item.bestRating)?.let {
+            formatRating(item.bestRating)?.takeIf { ratings.isEmpty() }?.let {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Star, null, Modifier.size(16.dp), tint = Etkn.tokens.rating)
                     Text(it, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 2.dp))
@@ -454,7 +470,7 @@ private fun VersionRow(sources: List<MediaSource>, selected: Int, onSelect: (Int
     }
 }
 
-/** Tagline, overview (tap to expand) and every score the server knows, by source. */
+/** Tagline and overview (tap to expand). */
 @Composable
 private fun InfoBlock(item: Item, centered: Boolean) {
     var expanded by remember { mutableStateOf(false) }
@@ -475,17 +491,6 @@ private fun InfoBlock(item: Item, centered: Boolean) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth().animateContentSize().clip(RoundedCornerShape(8.dp)).clickable { expanded = !expanded },
             )
-        }
-        val ratings = item.ratings
-        if (ratings.isNotEmpty()) {
-            FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                ratings.forEach { (source, value) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(source, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(value, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
-                    }
-                }
-            }
         }
     }
 }

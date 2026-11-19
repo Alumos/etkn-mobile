@@ -1,5 +1,6 @@
 package xyz.etkn.mobile.ui.screens.detail
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
@@ -43,6 +45,7 @@ import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.nav.EpisodesRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
+import xyz.etkn.mobile.ui.theme.ArtworkTheme
 import xyz.etkn.mobile.ui.theme.Etkn
 
 class EpisodesViewModel(graph: AppGraph, private val seriesId: String, seasonId: String?) : ViewModel() {
@@ -60,9 +63,12 @@ class EpisodesViewModel(graph: AppGraph, private val seriesId: String, seasonId:
     fun selectSeason(seasonId: String) = episodes.select(seriesId, seasonId)
 }
 
-/** Every episode of a season as a grid (the detail page's 全部), seasons switchable on top. */
+/** Every episode of a season as a grid (the detail page's 全部) in the series' artwork colours, seasons switchable on top. */
 @Composable
-fun EpisodesScreen(route: EpisodesRoute) {
+fun EpisodesScreen(route: EpisodesRoute) = ArtworkTheme(route.seed) { EpisodesContent(route) }
+
+@Composable
+private fun EpisodesContent(route: EpisodesRoute) {
     val vm = graphViewModel(key = route.seriesId) { EpisodesViewModel(it, route.seriesId, route.seasonId) }
     val state by vm.episodes.state.collectAsStateWithLifecycle()
     val seasons by vm.seasons.collectAsStateWithLifecycle()
@@ -73,7 +79,7 @@ fun EpisodesScreen(route: EpisodesRoute) {
     LaunchedEffect(nearEnd, state.hasMore) { if (nearEnd && state.hasMore) vm.episodes.more() }
     LaunchedEffect(state.seasonId) { grid.scrollToItem(0) }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         LazyVerticalGrid(
             state = grid,
             columns = GridCells.Adaptive(if (LocalWindowLayout.current.wide) 240.dp else 150.dp),

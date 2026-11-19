@@ -35,6 +35,8 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Slideshow
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -71,6 +73,7 @@ import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.ui.actions.LocalItemMenu
 import xyz.etkn.mobile.ui.actions.PopupChoice
+import xyz.etkn.mobile.ui.actions.RefreshDialog
 import xyz.etkn.mobile.ui.actions.rememberPopupAnchor
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
@@ -101,11 +104,35 @@ import xyz.etkn.mobile.ui.theme.Etkn
 fun LibrariesScreen() {
     val vm = graphViewModel { LibrariesViewModel(it) }
     val graph = LocalContext.current.graph
-    val admin = graph.sessions.current?.isAdmin == true
+    val session = graph.sessions.current
+    val admin = session?.isAdmin == true
+    val canRefresh = admin || session?.canRefreshMetadata == true
     val scope = rememberCoroutineScope()
     val menu = LocalItemMenu.current
     val state by vm.state.collectAsStateWithLifecycle()
     val nav = LocalNav.current
+    var refreshing by remember { mutableStateOf<Item?>(null) }
+
+    /** Runs one maintenance call and reports it in the glass notice pill. */
+    fun submit(done: String, block: suspend () -> Unit) {
+        scope.launch { menu?.notice = runCatching { block() }.fold({ done }, { it.userMessage() }) }
+    }
+
+    /** The Web library card menu: 生成封面 / 提取缩略图 / 扫描 for administrators, 刷新 for refresh accounts too. */
+    fun choices(library: Item): List<PopupChoice> = buildList {
+        if (!LIBRARY_ID.matches(library.id)) return@buildList
+        if (admin) {
+            add(PopupChoice("生成封面", Icons.Rounded.Image) { submit("「${library.name}」封面已生成") { graph.api.generateLibraryCover(library.id); vm.load() } })
+            if (library.collectionType != "music") {
+                add(PopupChoice("提取缩略图", Icons.Rounded.Slideshow) { submit("缩略图任务已提交，已有缩略图自动跳过") { graph.api.extractLibraryPreviews(library.id) } })
+            }
+            if (library.sourceType in SCANNABLE) {
+                add(PopupChoice("扫描", Icons.Rounded.Sync) { submit("已开始扫描「${library.name}」") { graph.api.scanLibrary(library.id) } })
+            }
+        }
+        if (canRefresh && library.sourceType != "personal_recommendation") add(PopupChoice("刷新", Icons.Rounded.Refresh) { refreshing = library })
+    }
+
     when (val s = state) {
         Load.Loading -> LoadingState()
         is Load.Failed -> ErrorState(s.message, vm::load)
@@ -121,26 +148,23 @@ fun LibrariesScreen() {
             }
             items(s.value, key = { it.id }, contentType = { "library" }) { library ->
                 val anchor = rememberPopupAnchor()
-                val scannable = admin && library.sourceType in SCANNABLE
+                val actions = choices(library)
                 LibraryTile(
                     library,
                     onClick = { nav.openLibrary(library) },
-                    onLongClick = if (scannable) {
-                        {
-                            anchor.open(
-                                listOf(
-                                    PopupChoice("扫描媒体库", Icons.Rounded.Sync) {
-                                        scope.launch {
-                                            menu?.notice = runCatching { graph.api.scanLibrary(library.id) }
-                                                .fold({ "已开始扫描「${library.name}」" }, { it.userMessage() })
-                                        }
-                                    },
-                                ),
-                            )
-                        }
-                    } else null,
+                    onLongClick = if (actions.isNotEmpty()) { { anchor.open(actions) } } else null,
                     modifier = anchor.modifier,
                 )
+            }
+        }
+    }
+
+    refreshing?.let { library ->
+        RefreshDialog(onDismiss = { refreshing = null }) { action ->
+            refreshing = null
+            scope.launch {
+                menu?.notice = runCatching { graph.api.refreshLibrary(library.id, action) }
+                    .fold({ if (it) "已提交刷新「${library.name}」" else "「${library.name}」没有需要刷新的条目" }, { it.userMessage() })
             }
         }
     }
@@ -430,3 +454,4 @@ fun PosterGrid(
 
 /** Library sources the server can re-scan (TV shows 扫描 for the same ones). */
 private val SCANNABLE = setOf("path", "list")
+private val LIBRARY_ID = Regex("library-\\d+")

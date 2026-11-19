@@ -42,7 +42,7 @@
   |---|---|
   | `401` | 令牌失效：清除该账号的会话，回到登录页 |
   | `404`（路径以 `/api/tv/` 开头） | 服务端版本过旧，提示“请先更新 ETKN 服务端” |
-  | 其他 `≥400` | 读取 `detail` 字段作为错误文案 |
+  | 其他 `≥400` | 读取 `detail` 字段作为错误文案。服务端访问外部数据源失败时，`detail` 会原样带出 Python 报错，如 `<urlopen error [Errno 111] Connection refused>`，表示 TMDb 或服务端网络代理拒绝连接；客户端把这类报错换成中文说明 |
 
 - 字段读取要宽松：缺失、类型不符时一律回退到默认值，与 TV 的 `optString` 行为相同。
 - 时间单位是 **ticks**，1 ms = 10 000 ticks。
@@ -108,6 +108,7 @@
 | GET | `U/Items?Recursive=true&ParentId=&IncludeItemTypes=&Limit=&StartIndex=&SortBy=&SortOrder=&Fields=LIST_FIELDS[&Filters=IsFavorite][&Genres=]` | 库内海报墙，返回 `Items` 和 `TotalRecordCount` |
 | GET | `U/Items?ParentId=` | 文件夹子项 |
 | GET | `U/Browse?Limit=&StartIndex=&SortBy=DateCreated&SortOrder=Descending&Filters=IsFavorite` | 收藏 |
+| GET | `U/Items?Recursive=true&IncludeItemTypes=BoxSet&SortBy=SortName&Limit=1000` | 收藏的合集：`Filters=IsFavorite` 不会返回 BoxSet，所以读合集列表，只保留 `UserData.IsFavorite` 为真的条目，排在「我的收藏」最前面 |
 | GET | `U/Items?Recursive=true&IncludeItemTypes=Movie,Series&SearchTerm=&SortBy=SortName&Limit=&StartIndex=&Fields=…` | 库内搜索 |
 | GET | `U/Libraries/{libraryId}/Collections?Limit=200` | 库内合集（库页「合集」，仅 path 来源的库有结果）；成员用 `U/Items?ParentId=<合集ID>` |
 | GET | `U/Items/{id}/Collections?Limit=60` | 电影所属合集（详情「所属合集」） |
@@ -115,7 +116,7 @@
 | GET | `U/Browse?ParentId=&{Kind}={Value}&Limit=&StartIndex=&SortBy=&SortOrder=&Fields=LIST_FIELDS` | 一张分类卡片下的影视 |
 | GET | `U/FacetArtwork?ParentId=&Kind=&Value=&tag=&maxWidth=` | 分类封面（二进制图） |
 | POST | `U/FacetArtwork?ParentId=&Kind=&Value=[&Action=icon]` | 生成类型/标签封面，或为电视网/出品公司拉取标志（`Action=icon`）；管理员或可刷新元数据的账号，逐张提交 |
-| POST | `/api/tv/Items/{libraryId}/Scan` | 扫描媒体库，`{}`；仅管理员，且库 `SourceType` 为 `path` 或 `list` |
+| POST | `/api/tv/Items/{libraryId}/Scan` | 媒体库长按「扫描」，`{}`；仅管理员，且库 `SourceType` 为 `path` 或 `list` |
 | POST | `U/Items/{id}/HideFromResume` | 从继续观看中移除 |
 
 **`SortBy` 可选值**：
@@ -176,6 +177,9 @@
 | DELETE | `/api/tv/Items/{id}` | 删除 | 联动删除全部版本（剧集会删除所有季和分集），返回 204 |
 | DELETE | `/api/tv/Items/{id}/Versions/{versionId}` | 删除 | 只删除一个版本 |
 | POST | `/api/tv/Manage/Items/preview-thumbnails` | 管理员 | 请求体 `{"media_item_ids": ["item-…"]}`，用于提取进度条预览缩略图；已经有缩略图的会跳过 |
+| POST | `/api/tv/Manage/Libraries/GenerateCover` | 管理员 | 媒体库长按「生成封面」。请求体 `{"library_ids": ["library-…"]}`；返回 `items[].generated` 和 `items[].error`，成功后重新读取 `Views` |
+| POST | `/api/tv/Manage/Libraries/PreviewThumbnails` | 管理员 | 媒体库长按「提取缩略图」，音乐库不显示。请求体同上；已经有缩略图的会跳过 |
+| POST | `/api/tv/Manage/Libraries/Refresh` | 管理员，或可刷新元数据的账号 | 媒体库长按「刷新」，个人推荐库不显示。请求体 `{"library_ids": [...], "action": "replace_metadata|replace_images|replace_metadata_images"}`；`reason=task_already_running` 表示已有任务在运行，`submitted=false` 表示没有需要刷新的条目 |
 | GET | `/api/tv/Manage/RatingOptions` | 管理员 | 自定义分级选项 `items[]{label,value}`。保存时传 `value`，界面显示 `label` |
 | PUT | `/api/tv/Items/{id}/Metadata` | 管理员 | 请求体 `{name, overview, genres[], tags[], custom_rating, douban_id, tmdb_rating, douban_rating}`；评分范围 0–10，留空时传 null |
 | GET | `/api/tv/Items/{id}/RemoteImages?include_all_languages=` | 管理员 | 在线候选图 `items[]{type, url, thumbnail_url, source_url, source_provider, language, width, height}`；`url` 和 `thumbnail_url` 是同源的 `/api/image_proxy?...` 地址 |
