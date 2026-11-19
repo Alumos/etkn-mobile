@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCompositionContext
 import androidx.compose.runtime.rememberUpdatedState
@@ -30,7 +31,6 @@ import androidx.lifecycle.findViewTreeViewModelStoreOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import xyz.etkn.mobile.R
 import xyz.etkn.mobile.ui.theme.Etkn
-import androidx.compose.runtime.getValue
 
 /**
  * Floating panel docked to the right edge of the player, so the picture stays visible on the left.

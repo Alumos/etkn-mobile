@@ -1,11 +1,5 @@
 package xyz.etkn.mobile.ui.screens.music
 
-import androidx.compose.ui.unit.Dp
-import xyz.etkn.mobile.ui.components.glassSource
-import xyz.etkn.mobile.ui.components.glassBarClearance
-import xyz.etkn.mobile.ui.components.GlassBackBar
-import dev.chrisbanes.haze.rememberHazeState
-import xyz.etkn.mobile.ui.components.GlassDialog
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,13 +31,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,10 +55,12 @@ import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,22 +68,30 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.model.Playlist
 import xyz.etkn.mobile.graph
+import xyz.etkn.mobile.ui.actions.PopupChoice
+import xyz.etkn.mobile.ui.actions.rememberPopupAnchor
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.graphViewModel
 import xyz.etkn.mobile.ui.components.Artwork
 import xyz.etkn.mobile.ui.components.ErrorState
+import xyz.etkn.mobile.ui.components.GlassBackBar
+import xyz.etkn.mobile.ui.components.GlassDialog
 import xyz.etkn.mobile.ui.components.InlineLoading
 import xyz.etkn.mobile.ui.components.LoadingState
 import xyz.etkn.mobile.ui.components.MessageState
 import xyz.etkn.mobile.ui.components.SectionHeader
 import xyz.etkn.mobile.ui.components.SquareCard
 import xyz.etkn.mobile.ui.components.formatClock
+import xyz.etkn.mobile.ui.components.glassBarClearance
+import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.components.px
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
@@ -95,10 +99,6 @@ import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.nav.MusicListRoute
 import xyz.etkn.mobile.ui.screens.library.LargeTitle
 import xyz.etkn.mobile.ui.theme.Etkn
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
-import xyz.etkn.mobile.ui.actions.rememberPopupAnchor
-import xyz.etkn.mobile.ui.actions.PopupChoice
 
 @Composable
 fun MusicHomeScreen() {

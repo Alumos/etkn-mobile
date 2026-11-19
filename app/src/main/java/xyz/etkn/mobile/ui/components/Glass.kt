@@ -2,6 +2,7 @@ package xyz.etkn.mobile.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -16,17 +17,19 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
@@ -34,7 +37,6 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
-import androidx.compose.material3.MaterialTheme
 import xyz.etkn.mobile.ui.theme.Etkn
 
 /**
@@ -86,6 +88,20 @@ fun Modifier.glass(
     }
     if (border) m = m.border(1.dp, tokens.glassBorder, shape)
     return m
+}
+
+/**
+ * One floating control of a split top bar (each control its own small glass shape). [fraction]
+ * fades the glass in, for bars that start clear over artwork; [haze] is the page's own source.
+ */
+@Composable
+fun GlassPiece(haze: HazeState, shape: Shape, modifier: Modifier = Modifier, fraction: Float = 1f, content: @Composable () -> Unit) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (fraction > 0f) {
+            Box(Modifier.matchParentSize().graphicsLayer { alpha = fraction }.glass(shape, elevation = 8.dp, state = haze))
+        }
+        content()
+    }
 }
 
 /**

@@ -17,10 +17,10 @@ import xyz.etkn.mobile.data.discover.CloudResource
 import xyz.etkn.mobile.data.discover.DiscoverFilter
 import xyz.etkn.mobile.data.discover.DiscoverItem
 import xyz.etkn.mobile.data.discover.DiscoverKind
-import xyz.etkn.mobile.data.discover.DiscoverOption
+import xyz.etkn.mobile.data.discover.DiscoverOptions
 import xyz.etkn.mobile.data.discover.DiscoverPerson
 import xyz.etkn.mobile.data.discover.DiscoverSeason
-import xyz.etkn.mobile.data.discover.DiscoverOptions
+import xyz.etkn.mobile.data.discover.PersonMatch
 import xyz.etkn.mobile.data.discover.withValues
 import xyz.etkn.mobile.data.net.objects
 import xyz.etkn.mobile.data.net.str
@@ -109,7 +109,7 @@ class DiscoverViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     /** People matching [name] for the actor / director pickers; empty on failure. */
-    suspend fun findPeople(name: String): List<DiscoverOption> =
+    suspend fun findPeople(name: String): List<PersonMatch> =
         if (name.isBlank()) emptyList() else runCatching { api.discoverPeople(name.trim()) }.getOrDefault(emptyList())
 }
 

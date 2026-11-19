@@ -1,6 +1,5 @@
 package xyz.etkn.mobile.ui.screens.discover
 
-import xyz.etkn.mobile.ui.components.GlassDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -38,9 +37,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +60,7 @@ import xyz.etkn.mobile.ui.common.userMessage
 import xyz.etkn.mobile.ui.components.Artwork
 import xyz.etkn.mobile.ui.components.CardShape
 import xyz.etkn.mobile.ui.components.GlassBackBar
+import xyz.etkn.mobile.ui.components.GlassDialog
 import xyz.etkn.mobile.ui.components.InlineLoading
 import xyz.etkn.mobile.ui.components.SectionHeader
 import xyz.etkn.mobile.ui.components.SmallCardShape
@@ -72,8 +74,6 @@ import xyz.etkn.mobile.ui.nav.DiscoverPersonRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.theme.Etkn
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
 
 @Composable
 fun DiscoverDetailScreen(route: DiscoverDetailRoute) {

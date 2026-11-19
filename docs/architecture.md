@@ -46,7 +46,7 @@ xyz.etkn.mobile
 - **蓝光原盘 ISO**：`player/bluray`（移植自 ETKN TV）。`BlurayMediaSourceFactory` 按 `BlurayTag` 走原盘（`PlaybackAddress.isDisc`：`Container`/`Path` 的 iso 标记或服务端原盘探测的 `BlurayPlaylist`/`TransportStreamId`；普通解析报容器不支持时再按原盘重试一次），`BlurayInput` 以 HTTP Range 读原文件，CI 构建的 `libetkn_bluray.so`（libbluray + libudfread + 仅解封装的 FFmpeg）选正片并拆出 MPEG-TS 流，`DiscExtractor` 用 FFmpeg `extract_extradata` 取回的 VPS/SPS/PPS 作为 csd，并按 SPS 填画面尺寸与色彩（服务端探测值兜底），只暴露主视频（PID 0x1011，丢弃杜比视界增强层与副视频）交给 Media3 硬件解码，轨道名称与默认音轨按 `TransportStreamId` 对应服务端；音频解码器无法启动时自动换音轨，其他解码失败在错误里写明格式与解码器；原盘关闭后播放线程不再调用原生句柄；杜比视界 profile 7：设备有 profile 8 解码器且屏幕支持杜比视界时转 8.1 播放（`DolbyVision`：原盘把增强层 0x1015 中同一时间戳的 RPU 用 `third_party/dovi` 转换后附到基础层帧，最多等 8 帧；MKV/MP4 单轨 P7 由 `DolbyVisionTrackOutput` 丢弃 NAL 63、转换 NAL 62），否则映射为 HEVC HDR10 基础层。
 - **条目菜单**：`ui/actions`。`ItemMenu` 在外壳最上层：海报卡片 / 继续观看卡片长按、详情页“更多”打开；毛玻璃菜单从卡片位置弹出（同窗口 Haze 模糊），刷新/删除/编辑元数据/编辑图片/提取缩略图按 Web 端规则与权限显示。变化经 `AppGraph.itemChanges` 广播，列表就地修补、首页静默重载、详情页重载或退出。
 - **毛玻璃**：同窗口浮层（顶栏、底栏、菜单、提示）用 Haze；对话框与底部面板是独立窗口，Android 12+ 用 `GlassDialog` / `GlassSheet`（`FLAG_BLUR_BEHIND` 模糊背后整屏 + 半透明容器）。人物、音乐列表、设置、账号页改为悬浮玻璃标题栏。
-- **导航**：`visibleTabs()` 决定底栏/侧栏项目（用户可选，首页固定；手机底栏最多 5 项；探索需权限）；宽屏可选侧边或底部。
+- **导航**：`visibleTabs()` 决定底栏/侧栏项目（用户可选，首页固定；手机底栏最多 5 项；探索需权限）；宽屏可选侧边或底部。这些标签页放在 `TabsRoute` 的一个 `HorizontalPager` 里，相邻页会预先组合；`LocalTabActive` 只对正在显示的页为真，搜索页靠它在打开时才聚焦（预先组合的页一旦取得焦点，会把翻页拉到自己那一页）。
 - **搜索**：库内无结果且有探索权限时，并发查询 TMDb 电影与剧集（`SearchViewModel`）。
 
 ## 性能要点

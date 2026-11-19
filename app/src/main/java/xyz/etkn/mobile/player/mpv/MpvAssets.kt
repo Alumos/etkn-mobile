@@ -1,9 +1,9 @@
 package xyz.etkn.mobile.player.mpv
 
+import `is`.xyz.mpv.Utils
 import android.content.Context
 import android.system.Os
 import android.util.Log
-import `is`.xyz.mpv.Utils
 import java.io.File
 
 /**

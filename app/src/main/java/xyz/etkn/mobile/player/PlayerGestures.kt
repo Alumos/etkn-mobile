@@ -35,11 +35,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlin.math.abs
-import kotlinx.coroutines.delay
 import androidx.media3.common.Player
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.ui.components.formatClock
+import kotlin.math.abs
 
 internal sealed interface GestureFeedback {
     data class Seek(val targetMs: Long, val deltaMs: Long) : GestureFeedback

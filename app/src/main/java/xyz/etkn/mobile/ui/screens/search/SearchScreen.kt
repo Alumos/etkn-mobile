@@ -32,12 +32,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -56,10 +61,10 @@ import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.nav.DiscoverDetailRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
+import xyz.etkn.mobile.ui.nav.LocalTabActive
 import xyz.etkn.mobile.ui.screens.discover.DiscoverCard
 import xyz.etkn.mobile.ui.screens.library.PosterGrid
 import xyz.etkn.mobile.ui.theme.Etkn
-import androidx.compose.runtime.getValue
 
 @Composable
 fun SearchScreen() {
@@ -81,7 +86,18 @@ fun SearchScreen() {
     LaunchedEffect(text) {
         snapshotFlow { text.text.toString() }.collect(vm::onQuery)
     }
-    LaunchedEffect(Unit) { if (text.text.isEmpty()) focus.requestFocus() }
+    // Open with the keyboard up, but only once this is the page shown: as a pre-composed pager
+    // neighbour the focus request would scroll the pager here. Leaving the tab drops the keyboard.
+    val active = LocalTabActive.current
+    val focusManager = LocalFocusManager.current
+    var focused by remember { mutableStateOf(false) }
+    LaunchedEffect(active) {
+        if (active) {
+            if (text.text.isEmpty()) focus.requestFocus()
+        } else if (focused) {
+            focusManager.clearFocus()
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().glassSource(haze)) {
@@ -113,7 +129,7 @@ fun SearchScreen() {
                         IconButton(onClick = { text.clearText(); focus.requestFocus() }) { Icon(Icons.Rounded.Close, "清除") }
                     }
                 },
-                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus).onFocusChanged { focused = it.isFocused },
             )
         }
     }

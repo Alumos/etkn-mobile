@@ -23,12 +23,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import dev.chrisbanes.haze.rememberHazeState
-import xyz.etkn.mobile.ui.components.ArtworkBackButton
-import xyz.etkn.mobile.ui.actions.rememberItemPress
-import androidx.compose.material.icons.rounded.MoreVert
-import xyz.etkn.mobile.ui.components.GlassBackBar
-import xyz.etkn.mobile.ui.components.glassSource
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -40,6 +34,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay
@@ -59,8 +54,10 @@ import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,14 +69,18 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.chrisbanes.haze.rememberHazeState
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.model.MediaSource
 import xyz.etkn.mobile.data.model.resolutionLabel
+import xyz.etkn.mobile.ui.actions.rememberItemPress
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.graphViewModel
 import xyz.etkn.mobile.ui.components.Artwork
+import xyz.etkn.mobile.ui.components.ArtworkBackButton
 import xyz.etkn.mobile.ui.components.CardShape
 import xyz.etkn.mobile.ui.components.ErrorState
+import xyz.etkn.mobile.ui.components.GlassBackBar
 import xyz.etkn.mobile.ui.components.InlineLoading
 import xyz.etkn.mobile.ui.components.LoadingState
 import xyz.etkn.mobile.ui.components.PersonAvatar
@@ -89,6 +90,7 @@ import xyz.etkn.mobile.ui.components.SectionHeader
 import xyz.etkn.mobile.ui.components.formatClock
 import xyz.etkn.mobile.ui.components.formatDuration
 import xyz.etkn.mobile.ui.components.formatRating
+import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.components.px
 import xyz.etkn.mobile.ui.components.shelf
@@ -98,8 +100,6 @@ import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.nav.PersonRoute
 import xyz.etkn.mobile.ui.theme.Etkn
 import xyz.etkn.mobile.ui.theme.HeroTitleStyle
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
 
 @Composable
 fun DetailScreen(id: String) {

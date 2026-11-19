@@ -1,15 +1,14 @@
 package xyz.etkn.mobile.data.api
 
 import kotlinx.serialization.json.JsonArray
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import xyz.etkn.mobile.data.discover.DiscoverOption
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import xyz.etkn.mobile.data.discover.CloudProvider
 import xyz.etkn.mobile.data.discover.CloudResource
 import xyz.etkn.mobile.data.discover.CloudResources
@@ -18,10 +17,7 @@ import xyz.etkn.mobile.data.discover.DiscoverKind
 import xyz.etkn.mobile.data.discover.DiscoverPage
 import xyz.etkn.mobile.data.discover.DiscoverPerson
 import xyz.etkn.mobile.data.discover.DiscoverSeason
-import xyz.etkn.mobile.data.net.long
-import xyz.etkn.mobile.data.net.rows
-import xyz.etkn.mobile.player.danmaku.DanmakuPage
-import xyz.etkn.mobile.player.danmaku.DanmakuTimeline
+import xyz.etkn.mobile.data.discover.PersonMatch
 import xyz.etkn.mobile.data.model.EpisodePage
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.model.ItemsPage
@@ -39,12 +35,16 @@ import xyz.etkn.mobile.data.net.EtknException
 import xyz.etkn.mobile.data.net.bool
 import xyz.etkn.mobile.data.net.enc
 import xyz.etkn.mobile.data.net.int
+import xyz.etkn.mobile.data.net.long
 import xyz.etkn.mobile.data.net.obj
 import xyz.etkn.mobile.data.net.objects
 import xyz.etkn.mobile.data.net.query
+import xyz.etkn.mobile.data.net.rows
 import xyz.etkn.mobile.data.net.str
 import xyz.etkn.mobile.data.net.strOrNull
 import xyz.etkn.mobile.data.session.ActiveSession
+import xyz.etkn.mobile.player.danmaku.DanmakuPage
+import xyz.etkn.mobile.player.danmaku.DanmakuTimeline
 
 /** Sort keys exposed by the TV poster wall; ratings are separate server fields. */
 enum class SortKey(val wire: String, val label: String) {
@@ -352,11 +352,10 @@ class EtknApi(
     }
 
     /** TMDb people by name for the actor / director filters: label = name, value = person id. */
-    suspend fun discoverPeople(name: String): List<DiscoverOption> =
+    suspend fun discoverPeople(name: String): List<PersonMatch> =
         get(query("$D/people", "q" to name)).objects("items").mapNotNull { o ->
             val id = o.str("id").ifEmpty { return@mapNotNull null }
-            val department = o.str("known_for_department")
-            DiscoverOption(o.str("name").ifEmpty { id } + if (department.isNotEmpty()) " · $department" else "", id)
+            PersonMatch(id, o.str("name").ifEmpty { id }, o.str("department"), o.str("known_for"))
         }
 
     suspend fun discoverSeries(tmdbId: String): JsonObject = get("$D/series/${enc(tmdbId)}")

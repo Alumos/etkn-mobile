@@ -301,7 +301,8 @@
 
 | 方法 | 路径与参数 | 说明 |
 |---|---|---|
-| GET | `D/options?media_type={movie\|series}` | 筛选项，`genres[]` |
+| GET | `D/options?media_type={movie\|series}` | 筛选项，`genres[]`、`countries[]`、`languages[]`、`keywords[]`、`studios[]`、`ratings[]`，每项 `{label,value}` |
+| GET | `D/people?q={姓名}` | 演员/导演选择器的人物搜索。返回 `items[]{id,name,profile_path,department,known_for}`（TMDb 热度序，最多 20，`department` 为 `Acting`/`Directing` 等）。客户端：未点选结果就确认时，取同名且部门匹配者，否则取该部门第一位 |
 | POST | `D/query/{movie\|series}` | 海报墙或片名搜索（请求体见下）。返回 `results[]`、`total_pages`（最多 500） |
 | GET | `D/series/{tmdbId}` | 剧集详情，含 `seasons[]{season_number,name,air_date,episode_count,poster_path,in_library,subscription_status}` |
 | GET | `D/media/{movie\|series}/{tmdbId}/credits` | 演职员，含 `cast[]{id,name,character,profile_path}` |

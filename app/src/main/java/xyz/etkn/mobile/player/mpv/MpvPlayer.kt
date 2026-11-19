@@ -1,5 +1,7 @@
 package xyz.etkn.mobile.player.mpv
 
+import `is`.xyz.mpv.MPVLib
+import `is`.xyz.mpv.MPVNode
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Handler
@@ -23,8 +25,6 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.Util
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import `is`.xyz.mpv.MPVLib
-import `is`.xyz.mpv.MPVNode
 import xyz.etkn.mobile.R
 import xyz.etkn.mobile.data.settings.DecoderPreference
 import java.io.File

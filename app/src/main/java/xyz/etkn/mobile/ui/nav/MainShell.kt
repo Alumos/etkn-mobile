@@ -25,6 +25,7 @@ import androidx.compose.material3.rememberWideNavigationRailState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -41,20 +42,19 @@ import androidx.navigation.compose.rememberNavController
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.data.session.ActiveSession
+import xyz.etkn.mobile.data.settings.NavPosition
 import xyz.etkn.mobile.graph
+import xyz.etkn.mobile.ui.actions.ItemMenu
+import xyz.etkn.mobile.ui.actions.ItemMenuHost
+import xyz.etkn.mobile.ui.actions.LocalItemMenu
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.common.WindowLayout
 import xyz.etkn.mobile.ui.common.currentWindowLayout
 import xyz.etkn.mobile.ui.components.LocalHaze
 import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.screens.music.MiniPlayer
-import xyz.etkn.mobile.data.settings.NavPosition
-import xyz.etkn.mobile.ui.actions.ItemMenu
-import xyz.etkn.mobile.ui.actions.ItemMenuHost
-import xyz.etkn.mobile.ui.actions.LocalItemMenu
 import xyz.etkn.mobile.ui.theme.Etkn
 import xyz.etkn.mobile.ui.theme.LocalSettings
-import androidx.compose.runtime.getValue
 
 /** Space screens must leave at the bottom for the floating dock / mini player. */
 val LocalBottomInset = staticCompositionLocalOf { 0.dp }

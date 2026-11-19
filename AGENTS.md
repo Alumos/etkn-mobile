@@ -7,7 +7,7 @@
 - 图片请求只向当前 ETKN 同源地址附加 `X-Emby-Token`，跨源跳转必须 HTTPS；视频直链使用服务端 `DirectStreamUrl`，普通直链必须同源；外挂字幕同源、去掉 `UserId`、设置 `X-Emby-Token`。
 - 播放上报：`Sessions/Playing` → 每 10 秒 `Progress` → `Stopped`（片尾/播完附 `PlayedToCompletion`），停止上报在应用级协程发出，不能随页面销毁丢失。
 - UI 统一使用 Material 3 Expressive 组件（`MaterialExpressiveTheme`、`ShortNavigationBar`/`WideNavigationRail`、`ToggleButton` 连接组、`LoadingIndicator` 等）；配色由服务器 `theme_color` 经 HCT（material-color-utilities）生成，或 Android 12+ 壁纸取色。语义色/间距只在 `ui/theme/Tokens.kt` 定义。页面避免不必要的辅助标签与说明。
-- 性能：单一 OkHttp 连接池（HTTP/2）、Coil 按显示尺寸分桶请求图片、列表全部带稳定 key/contentType、播放器双内核（`player/VideoSession` 按片源选：原盘与 HDR/杜比视界走 ExoPlayer 硬解直出 HDR，其余走 mpv `player/mpv`，MediaCodec 硬解 + gpu-next；一个内核失败自动换另一个），ExoPlayer 缺解码器时 NextLib FFmpeg 兜底；起播时 PlaybackInfo 在点击播放时即预取、不等详情，302 目标按播放器缓存；音乐曲目地址在加载线程按需解析；顶层标签页在同一个 `HorizontalPager`（`TabsRoute`）里，切换是翻页不是导航；首页与媒体库列表先显示 `ResponseCache` 中上次的响应再静默刷新（私密账号不落盘，退出登录即清空）。
+- 性能：单一 OkHttp 连接池（HTTP/2）、Coil 按显示尺寸分桶请求图片、列表全部带稳定 key/contentType、播放器双内核（`player/VideoSession` 按片源选：原盘与 HDR/杜比视界走 ExoPlayer 硬解直出 HDR，其余走 mpv `player/mpv`，MediaCodec 硬解 + gpu-next；一个内核失败自动换另一个），ExoPlayer 缺解码器时 NextLib FFmpeg 兜底；起播时 PlaybackInfo 在点击播放时即预取、不等详情，302 目标按播放器缓存；音乐曲目地址在加载线程按需解析；顶层标签页在同一个 `HorizontalPager`（`TabsRoute`）里，切换是翻页不是导航，相邻页会预先组合，未显示的页（`LocalTabActive` 为假）不得请求焦点或做“打开时”的动作；首页与媒体库列表先显示 `ResponseCache` 中上次的响应再静默刷新（私密账号不落盘，退出登录即清空）。
 
 - 应用更新只读公开的 GitHub Release（API 或 `SHA256SUMS.txt`），下载默认经 `gh-proxy.com`、可换 GitHub 直连，必须校验 SHA-256；外部请求不得携带任何 ETKN 令牌或账号信息。
 - 全部服务端接口的说明见 `docs/api-reference.md`（供其他平台移植）；新增或改动接口时同步更新。

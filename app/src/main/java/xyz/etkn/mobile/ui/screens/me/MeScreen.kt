@@ -1,14 +1,6 @@
 package xyz.etkn.mobile.ui.screens.me
 
-import xyz.etkn.mobile.ui.components.glassSource
-import xyz.etkn.mobile.ui.components.glassBarClearance
-import xyz.etkn.mobile.ui.components.GlassBackBar
-import dev.chrisbanes.haze.rememberHazeState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
-import xyz.etkn.mobile.ui.components.GlassDialog
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,9 +11,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.BugReport
@@ -29,12 +24,10 @@ import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material.icons.rounded.PlayCircle
-import androidx.compose.material.icons.rounded.SystemUpdate
-import androidx.compose.ui.graphics.vector.ImageVector
-import xyz.etkn.mobile.ui.nav.SettingsRoute
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.SwitchAccount
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -43,17 +36,21 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.BuildConfig
 import xyz.etkn.mobile.data.session.SessionState
@@ -61,16 +58,19 @@ import xyz.etkn.mobile.data.session.StoredSessions
 import xyz.etkn.mobile.data.settings.Settings
 import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.ui.components.Artwork
+import xyz.etkn.mobile.ui.components.GlassBackBar
+import xyz.etkn.mobile.ui.components.GlassDialog
+import xyz.etkn.mobile.ui.components.glassBarClearance
+import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.nav.AccountsRoute
 import xyz.etkn.mobile.ui.nav.FavoritesRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
+import xyz.etkn.mobile.ui.nav.SettingsRoute
 import xyz.etkn.mobile.ui.screens.connect.ConnectScreen
 import xyz.etkn.mobile.ui.screens.library.LargeTitle
 import xyz.etkn.mobile.ui.theme.Etkn
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
 
 @Composable
 fun MeScreen() {

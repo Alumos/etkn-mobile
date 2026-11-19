@@ -1,6 +1,5 @@
 package xyz.etkn.mobile.player
 
-import xyz.etkn.mobile.player.bluray.BlurayMediaSourceFactory
 import android.content.Context
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -14,6 +13,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import okhttp3.OkHttpClient
 import xyz.etkn.mobile.data.settings.DecoderPreference
+import xyz.etkn.mobile.player.bluray.BlurayMediaSourceFactory
 import java.util.Locale
 
 /**

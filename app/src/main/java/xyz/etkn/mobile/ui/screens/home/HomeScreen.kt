@@ -1,15 +1,6 @@
 package xyz.etkn.mobile.ui.screens.home
 
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.platform.LocalDensity
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.rememberHazeState
-import xyz.etkn.mobile.ui.components.glassSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,17 +8,21 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,28 +30,36 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import xyz.etkn.mobile.ui.common.windowSizeDp
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.rememberHazeState
 import xyz.etkn.mobile.data.session.SessionState
-import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.data.settings.HeroMode
-import xyz.etkn.mobile.ui.theme.LocalSettings
+import xyz.etkn.mobile.graph
+import xyz.etkn.mobile.ui.actions.PopupChoice
+import xyz.etkn.mobile.ui.actions.rememberPopupAnchor
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.common.graphViewModel
+import xyz.etkn.mobile.ui.common.windowSizeDp
 import xyz.etkn.mobile.ui.components.Artwork
 import xyz.etkn.mobile.ui.components.ErrorState
+import xyz.etkn.mobile.ui.components.GlassPiece
 import xyz.etkn.mobile.ui.components.HeroCarousel
 import xyz.etkn.mobile.ui.components.LibraryCard
 import xyz.etkn.mobile.ui.components.LoadingState
@@ -64,6 +67,7 @@ import xyz.etkn.mobile.ui.components.PosterCard
 import xyz.etkn.mobile.ui.components.SquareCard
 import xyz.etkn.mobile.ui.components.WideCard
 import xyz.etkn.mobile.ui.components.glass
+import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.components.shelf
 import xyz.etkn.mobile.ui.nav.FavoritesRoute
@@ -71,12 +75,7 @@ import xyz.etkn.mobile.ui.nav.LibraryRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.nav.TopLevel
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Favorite
-import xyz.etkn.mobile.ui.actions.rememberPopupAnchor
-import xyz.etkn.mobile.ui.actions.PopupChoice
+import xyz.etkn.mobile.ui.theme.LocalSettings
 
 @Composable
 fun HomeScreen() {
@@ -171,7 +170,7 @@ private fun HomeTopBar(reveal: () -> Float, haze: HazeState, onSearch: () -> Uni
     ) {
         // The name takes the free width (ellipsized when long); search and avatar stay flush right.
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            GlassPiece(fraction, haze, RoundedCornerShape(50)) {
+            GlassPiece(haze, RoundedCornerShape(50), fraction = fraction) {
                 Text(
                     session.serverName,
                     style = MaterialTheme.typography.titleLarge,
@@ -183,11 +182,11 @@ private fun HomeTopBar(reveal: () -> Float, haze: HazeState, onSearch: () -> Uni
                 )
             }
         }
-        GlassPiece(fraction, haze, CircleShape) {
+        GlassPiece(haze, CircleShape, fraction = fraction) {
             IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "搜索", tint = content) }
         }
         val account = rememberPopupAnchor()
-        GlassPiece(fraction, haze, CircleShape, account.modifier) {
+        GlassPiece(haze, CircleShape, account.modifier, fraction) {
             IconButton(
                 onClick = {
                     account.open(
@@ -206,16 +205,5 @@ private fun HomeTopBar(reveal: () -> Float, haze: HazeState, onSearch: () -> Uni
                 )
             }
         }
-    }
-}
-
-/** One floating control; its glass backing appears with [fraction]. */
-@Composable
-private fun GlassPiece(fraction: Float, haze: HazeState, shape: Shape, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Box(modifier, contentAlignment = Alignment.Center) {
-        if (fraction > 0f) {
-            Box(Modifier.matchParentSize().graphicsLayer { alpha = fraction }.glass(shape, elevation = 8.dp, state = haze))
-        }
-        content()
     }
 }

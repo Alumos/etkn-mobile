@@ -1,7 +1,5 @@
 package xyz.etkn.mobile.ui.components
 
-import androidx.compose.ui.semantics.Role
-import xyz.etkn.mobile.ui.actions.rememberItemPress
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -35,12 +33,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.model.PersonRef
+import xyz.etkn.mobile.ui.actions.rememberItemPress
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.theme.Etkn
 import java.util.Locale

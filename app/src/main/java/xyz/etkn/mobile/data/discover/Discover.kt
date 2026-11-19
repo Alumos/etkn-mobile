@@ -6,9 +6,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import kotlinx.serialization.json.add
 import kotlinx.serialization.json.putJsonArray
 import xyz.etkn.mobile.data.net.bool
 import xyz.etkn.mobile.data.net.double
@@ -96,6 +96,22 @@ class DiscoverSeason(val raw: JsonObject) {
 
 @Immutable
 data class DiscoverOption(val label: String, val value: String)
+
+/** One `GET D/people?q=` hit: TMDb person id, name, main department and best-known titles. */
+@Immutable
+data class PersonMatch(val id: String, val name: String, val department: String, val knownFor: String) {
+    val option: DiscoverOption get() = DiscoverOption(name, id)
+}
+
+/**
+ * The person a typed name most likely means: an exact name in [department] (TMDb's
+ * `Acting` / `Directing`), else the most popular one in it, else the most popular overall
+ * (the server keeps TMDb's popularity order).
+ */
+fun List<PersonMatch>.best(name: String, department: String): PersonMatch? {
+    val wanted = filter { it.department == department }
+    return wanted.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) } ?: wanted.firstOrNull() ?: firstOrNull()
+}
 
 @Immutable
 data class DiscoverPage(val items: List<DiscoverItem>, val totalPages: Int)

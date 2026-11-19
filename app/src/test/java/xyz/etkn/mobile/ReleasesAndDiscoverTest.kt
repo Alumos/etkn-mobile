@@ -13,6 +13,8 @@ import xyz.etkn.mobile.data.discover.DiscoverFilter
 import xyz.etkn.mobile.data.discover.DiscoverKind
 import xyz.etkn.mobile.data.discover.DiscoverOption
 import xyz.etkn.mobile.data.discover.DiscoverSort
+import xyz.etkn.mobile.data.discover.PersonMatch
+import xyz.etkn.mobile.data.discover.best
 import xyz.etkn.mobile.data.net.EtknJson
 import xyz.etkn.mobile.data.net.int
 import xyz.etkn.mobile.data.net.str
@@ -68,6 +70,22 @@ class ReleasesAndDiscoverTest {
         assertEquals("16,35", body.str("with_genres"))
         assertEquals("true", body.str("hide_in_library"))
         assertTrue(body.containsKey("keywords") && body.containsKey("studios"))
+    }
+
+    @Test
+    fun aTypedNameResolvesToThePersonInThatRole() {
+        val hits = listOf(
+            PersonMatch("1", "Zhang Yimou Jr", "Acting", ""),
+            PersonMatch("2", "张艺谋", "Acting", "英雄"),
+            PersonMatch("3", "张艺谋", "Directing", "英雄、红高粱"),
+            PersonMatch("4", "Some Director", "Directing", ""),
+        )
+        assertEquals("3", hits.best("张艺谋 ", "Directing")?.id)
+        assertEquals("2", hits.best("张艺谋", "Acting")?.id)
+        assertEquals("3", hits.best("Nobody", "Directing")?.id)
+        assertEquals("1", hits.best("x", "Writing")?.id)
+        assertNull(emptyList<PersonMatch>().best("张艺谋", "Directing"))
+        assertEquals(DiscoverOption("张艺谋", "3"), hits[2].option)
     }
 
     @Test

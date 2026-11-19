@@ -1,5 +1,6 @@
 package xyz.etkn.mobile.ui.nav
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.animateDp
@@ -9,21 +10,21 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
@@ -31,6 +32,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import kotlinx.coroutines.launch
 import xyz.etkn.mobile.ui.screens.detail.DetailScreen
 import xyz.etkn.mobile.ui.screens.discover.CloudScreen
 import xyz.etkn.mobile.ui.screens.discover.DiscoverDetailScreen
@@ -49,6 +51,13 @@ import xyz.etkn.mobile.ui.screens.music.MusicListScreen
 import xyz.etkn.mobile.ui.screens.music.NowPlayingScreen
 import xyz.etkn.mobile.ui.screens.person.PersonScreen
 import xyz.etkn.mobile.ui.screens.search.SearchScreen
+
+/**
+ * False while a tab sits in the pager without being the page shown: the neighbours are composed
+ * in advance, so a screen must not grab focus (a focused field scrolls the pager to itself) or
+ * start work meant for when it is open until this turns true. Always true outside the pager.
+ */
+val LocalTabActive = compositionLocalOf { true }
 
 /** Every destination inside the shell. */
 @Composable
@@ -113,14 +122,16 @@ private fun TabPager(tabs: List<TopLevel>, pager: PagerState) {
         key = { tabs.getOrNull(it)?.name ?: it },
     ) { page ->
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
-            when (tabs.getOrNull(page)) {
-                TopLevel.Home -> HomeScreen()
-                TopLevel.Libraries -> LibrariesScreen()
-                TopLevel.Music -> MusicHomeScreen()
-                TopLevel.Discover -> DiscoverScreen()
-                TopLevel.Search -> SearchScreen()
-                TopLevel.Me -> MeScreen()
-                null -> Unit
+            CompositionLocalProvider(LocalTabActive provides (pager.settledPage == page)) {
+                when (tabs.getOrNull(page)) {
+                    TopLevel.Home -> HomeScreen()
+                    TopLevel.Libraries -> LibrariesScreen()
+                    TopLevel.Music -> MusicHomeScreen()
+                    TopLevel.Discover -> DiscoverScreen()
+                    TopLevel.Search -> SearchScreen()
+                    TopLevel.Me -> MeScreen()
+                    null -> Unit
+                }
             }
         }
     }

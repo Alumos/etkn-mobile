@@ -1,9 +1,9 @@
 package xyz.etkn.mobile.player.mpv
 
-import android.content.Context
-import android.util.AttributeSet
 import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.MPVLib
+import android.content.Context
+import android.util.AttributeSet
 
 /**
  * libmpv's SurfaceView. It attaches the surface to mpv when it appears and parks the video

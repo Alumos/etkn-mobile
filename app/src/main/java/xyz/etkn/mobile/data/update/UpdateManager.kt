@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -33,7 +34,6 @@ import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 import java.security.MessageDigest
-import kotlinx.serialization.json.JsonObject
 
 @Immutable
 sealed interface DownloadState {

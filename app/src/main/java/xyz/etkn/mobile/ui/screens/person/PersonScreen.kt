@@ -1,13 +1,9 @@
 package xyz.etkn.mobile.ui.screens.person
 
-import androidx.compose.foundation.layout.Box
-import dev.chrisbanes.haze.rememberHazeState
-import xyz.etkn.mobile.ui.components.GlassBackBar
-import xyz.etkn.mobile.ui.components.glassBarClearance
-import xyz.etkn.mobile.ui.components.glassSource
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -28,8 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -47,8 +46,11 @@ import xyz.etkn.mobile.data.model.ItemsPage
 import xyz.etkn.mobile.data.model.PersonRef
 import xyz.etkn.mobile.ui.common.graphViewModel
 import xyz.etkn.mobile.ui.components.Artwork
+import xyz.etkn.mobile.ui.components.GlassBackBar
 import xyz.etkn.mobile.ui.components.InlineLoading
 import xyz.etkn.mobile.ui.components.PosterCard
+import xyz.etkn.mobile.ui.components.glassBarClearance
+import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.components.px
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
@@ -56,8 +58,6 @@ import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.nav.PersonRoute
 import xyz.etkn.mobile.ui.screens.library.PagedViewModel
 import xyz.etkn.mobile.ui.theme.Etkn
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
 
 class PersonViewModel(graph: AppGraph, private val id: String) : PagedViewModel() {
     private val api = graph.api

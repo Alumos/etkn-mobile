@@ -2,7 +2,6 @@ package xyz.etkn.mobile
 
 import android.content.Context
 import android.os.Bundle
-import xyz.etkn.mobile.data.settings.UiScale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -16,20 +15,21 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import kotlinx.coroutines.flow.first
-import xyz.etkn.mobile.ui.screens.me.UpdatePrompt
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.first
 import xyz.etkn.mobile.data.session.SessionState
 import xyz.etkn.mobile.data.settings.Settings
+import xyz.etkn.mobile.data.settings.UiScale
 import xyz.etkn.mobile.ui.components.LoadingState
 import xyz.etkn.mobile.ui.components.LocalImages
 import xyz.etkn.mobile.ui.nav.MainShell
 import xyz.etkn.mobile.ui.screens.connect.ConnectScreen
+import xyz.etkn.mobile.ui.screens.me.UpdatePrompt
 import xyz.etkn.mobile.ui.theme.EtknTheme
-import androidx.compose.runtime.getValue
 
 class MainActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: Context) {
