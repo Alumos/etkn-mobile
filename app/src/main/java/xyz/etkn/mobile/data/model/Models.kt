@@ -95,6 +95,10 @@ data class MediaStream(
     val transportStreamId: Int = -1,
     /** Frames per second (RealFrameRate, else AverageFrameRate); 0 when unknown. */
     val frameRate: Float = 0f,
+    /** Subtitle calibration shared with Web / TV: key, saved offset, and burned-in (cannot shift). */
+    val offsetKey: String = "",
+    val offsetMs: Int = 0,
+    val burnedIn: Boolean = false,
 ) {
     val label: String get() = displayTitle.ifEmpty { title.ifEmpty { language.ifEmpty { codec.uppercase() } } }
     val previewLabel: String get() = title.ifEmpty { displayTitle.ifEmpty { language.ifEmpty { codec.uppercase() } } }
@@ -122,6 +126,9 @@ data class MediaStream(
             extendedVideoSubType = o.str("ExtendedVideoSubType"),
             transportStreamId = o.int("TransportStreamId", -1),
             frameRate = (o.double("RealFrameRate") ?: o.double("AverageFrameRate") ?: 0.0).toFloat(),
+            offsetKey = o.str("SubtitleOffsetKey"),
+            offsetMs = o.int("SubtitleOffsetMs"),
+            burnedIn = o.bool("IsBurnedIn"),
         )
     }
 }

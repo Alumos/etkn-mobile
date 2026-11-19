@@ -266,6 +266,13 @@
 - Stopped 上报要在应用级任务里发出，不能因为关闭播放窗口而丢失。
 - 上报的回复里可能带 `Danmaku.Available`，用来实时更新弹幕是否可用。
 
+### 6.4 进度预览图与字幕偏移
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/tv/Items/{id}/PreviewThumbnails?MediaSourceId=` | 拖动进度条的预览图清单：`MediaSourceId, AspectRatio, IntervalSeconds, Thumbnails[]{Index, PositionTicks, ImageTag}`；未提取时 204（空体）。帧图：`GET /api/tv/Items/{id}/PreviewThumbnails/{index}?MediaSourceId=&tag=<ImageTag>`（JPEG，同源带令牌） |
+| POST | `/api/tv/Items/{id}/{mediaSourceId}/SubtitleOffsets` | 保存字幕偏移 `{SubtitleKey, OffsetMs}`（−600000…600000，0 = 删除），Web/TV 共用。键与已存值在 PlaybackInfo 的字幕流上：`SubtitleOffsetKey, SubtitleOffsetMs`；`IsBurnedIn` 的字幕不能偏移。客户端只在用户点「保存」时提交；当前只有 mpv 内核能平移字幕（`sub-delay`），ExoPlayer 播放时不显示偏移控件 |
+
 ## 7. 弹幕
 
 | 方法 | 路径与参数 | 说明 |

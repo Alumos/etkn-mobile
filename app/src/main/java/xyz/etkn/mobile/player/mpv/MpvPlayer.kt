@@ -323,6 +323,12 @@ class MpvPlayer(
         MPVLib.setPropertyDouble("panscan", if (mode == 1) 1.0 else 0.0)
     }
 
+    /** Shows subtitles [ms] later (negative = earlier). */
+    fun setSubtitleDelay(ms: Int) {
+        if (released) return
+        MPVLib.setPropertyDouble("sub-delay", ms / 1000.0)
+    }
+
     // ---------- mpv callbacks (event thread) ----------
 
     private inline fun onMain(crossinline block: () -> Unit) {

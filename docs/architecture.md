@@ -40,6 +40,7 @@ xyz.etkn.mobile
 - **服务端事件**：`ServerEvents` 读 `Home/Events`（SSE，`HttpClients.events`），首页与详情在前台（`WhileStarted`）订阅，收到变化才重载，不轮询。`IngestNotices` 在前台每分钟读 `IngestUpdates` 游标与已提交获取的 `acquire-status`，按账号分开保存游标、已通知事件与任务（7 天），发「入库通知」频道的系统通知，点按经 `MainActivity.EXTRA_ITEM` → `AppGraph.openRequests` 打开条目。设置「播放」可关闭；Android 13+ 首次开启时请求通知权限。
 - **服务端播放偏好**：设置「播放」里的默认音轨 / 默认字幕 / 最新隐藏已观看读写 `ClientPreferences.playback_preferences` 与 `PlaybackPreferences`；服务端据此下发默认轨道，`VideoSession.applyServerTracks` 在每次载入片源后按它选轨（原盘按 PID，外挂字幕按 id，其余按同类流的顺序），之后以用户手选为准。
 - **媒体库视图**：库页顶部按库类型给出「全部 / 合集 / 类型 / 电视网 / 出品公司」（`LibraryView`）；后几项是服务端分类卡片（`U/Facets`），点卡片进 `FacetRoute` 按 `{Kind}={Value}` 浏览，可排序；可生成封面的账号长按卡片生成或重取封面。管理员长按 path/list 来源的媒体库可「扫描媒体库」。电影详情显示「所属合集」。目录封面（FolderCover）只用于按目录浏览，本应用没有目录浏览，未接入。
+- **播放增强**：拖动进度条时按服务端 `PreviewThumbnails` 清单显示最近一帧（`SeekPreviews`，切片源时重取）。字幕偏移：选中字幕的 `SubtitleOffsetKey` 决定校准值（本次会话调整优先，否则服务端已存值），mpv 用 `sub-delay` 生效，「保存」写回服务端；ExoPlayer 没有字幕延迟接口，此时不显示偏移控件。AI 字幕翻译（`SubtitleTranslation`）与协助转码（`I/Transcode`）尚未接入。
 - **自适应布局**：`WindowLayout`（Compact <600 / Medium / Expanded ≥840 dp）。平板：侧栏（≥840 展开带标签）、首页 Hero 改为横幅并左对齐文案、海报与卡片加宽、网格列宽加大、详情头图改横幅、「我的」与设置居中限宽 720 dp、迷你播放器靠右限宽。
 - **返回手势**：清单启用 `enableOnBackInvokedCallback`；NavHost 的 pop 转场即预测性返回的预览动画。每个目的地包在 `PageFrame` 里：不透明背景 + 随转场进度变化的圆角裁剪，避免透明页面缩小时与下层页面叠在一起。
 - **页面大小**：`UiScale` 在 `attachBaseContext` 用 `applyOverrideConfiguration` 只覆盖 `densityDpi`，对话框、底部面板、菜单等独立窗口同样生效；改设置后 `recreate()`。窗口尺寸一律用 `windowSizeDp()`（像素 / 当前密度），不用 `Configuration.screenWidthDp`。

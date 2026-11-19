@@ -1,8 +1,10 @@
 package xyz.etkn.mobile.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -53,11 +56,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import xyz.etkn.mobile.ui.components.Artwork
 import xyz.etkn.mobile.ui.components.formatClock
 
 @Composable
@@ -127,6 +132,8 @@ internal fun Controls(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(horizontal = 16.dp, vertical = 4.dp),
         ) {
+            val previews = ui.previews
+            if (scrubbing && previews != null && duration > 0) SeekThumbnail(previews, scrub, duration)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(formatClock(if (scrubbing) (scrub * duration).toLong() else position), color = Color.White, style = MaterialTheme.typography.labelMedium)
                 val seek = remember { SliderState() }
@@ -168,5 +175,21 @@ private fun PlayerTextAction(icon: ImageVector, label: String, onClick: () -> Un
         Icon(icon, null, tint = Color.White, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(6.dp))
         Text(label, color = Color.White, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+/** The frame under the finger while scrubbing, riding above the seek bar. */
+@Composable
+private fun SeekThumbnail(previews: SeekPreviews, fraction: Float, duration: Long) {
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        val width = 176.dp
+        val height = width / previews.aspectRatio
+        val x = ((maxWidth - width) * fraction.coerceIn(0f, 1f))
+        Artwork(
+            previews.urlAt((fraction * duration).toLong()),
+            Modifier.offset(x = x).width(width).height(height).clip(RoundedCornerShape(10.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
+            background = Color.Black,
+        )
     }
 }

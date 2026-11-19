@@ -52,10 +52,15 @@ import xyz.etkn.mobile.player.bluray.DiscHint
 import xyz.etkn.mobile.player.danmaku.DanmakuCue
 import xyz.etkn.mobile.player.danmaku.DanmakuFeed
 import xyz.etkn.mobile.player.mpv.MpvPlayer
+import xyz.etkn.mobile.ui.common.userMessage
 import java.util.Locale
 
 @Immutable
-data class TrackOption(val groupIndex: Int, val trackIndex: Int, val label: String, val selected: Boolean)
+data class TrackOption(val groupIndex: Int, val trackIndex: Int, val label: String, val selected: Boolean, val stream: MediaStream? = null)
+
+/** Calibration of the shown subtitle: [ms] in effect, [saved] on the server; only the mpv core can shift. */
+@Immutable
+data class SubtitleOffset(val key: String, val ms: Int, val saved: Int)
 
 @Immutable
 data class SkipSegment(val kind: Kind, val startMs: Long, val endMs: Long) {
@@ -84,9 +89,14 @@ data class VideoUi(
     /** A feed is running and the overlay should draw. */
     val danmakuOn: Boolean = false,
     val notice: String? = null,
+    /** Seek thumbnails of the playing version, when the server has extracted them. */
+    val previews: SeekPreviews? = null,
+    /** Offset controls for the selected subtitle; null when it cannot be shifted. */
+    val subtitleOffset: SubtitleOffset? = null,
 )
 
 private const val TAG = "ETKN-Play"
+private const val MAX_OFFSET_MS = 600_000
 
 /** The two video cores. */
 enum class Engine(val label: String) { Exo("ExoPlayer"), Mpv("mpv") }
@@ -136,6 +146,8 @@ class VideoSession(
     private var released = false
     private var progressJob: Job? = null
     private var loadJob: Job? = null
+    private var previewJob: Job? = null
+    private var previewKey = ""
     private var autoSkippedIntro = false
 
     private val _danmakuStyle = MutableStateFlow(DanmakuStyle())
@@ -363,10 +375,24 @@ class VideoSession(
         player.setMediaItem(media, startMs.coerceAtLeast(0))
         player.prepare()
         player.playWhenReady = true
-        _ui.update { it.copy(segments = segments(chosen.chapters.ifEmpty { current.chapters }, chosen.runTimeTicks / TICKS_PER_MS)) }
+        // A new player starts unshifted: the selected subtitle's calibration is applied again.
+        _ui.update { it.copy(segments = segments(chosen.chapters.ifEmpty { current.chapters }, chosen.runTimeTicks / TICKS_PER_MS), subtitleOffset = null) }
         startProgressLoop()
         // A core switch closed the feed bound to the previous player.
         applyDanmaku()
+        loadPreviews(current.id, chosen.id)
+    }
+
+    /** Seek thumbnails for this version; none (HTTP 204) until the server has extracted them. */
+    private fun loadPreviews(itemId: String, sourceId: String) {
+        if (_ui.value.previews != null && previewKey == "$itemId/$sourceId") return
+        previewKey = "$itemId/$sourceId"
+        previewJob?.cancel()
+        _ui.update { it.copy(previews = null) }
+        previewJob = scope.launch {
+            val manifest = runCatching { api.previewThumbnails(itemId, sourceId) }.getOrNull() ?: return@launch
+            _ui.update { it.copy(previews = SeekPreviews.from(session.server, itemId, manifest)) }
+        }
     }
 
     fun selectSource(index: Int) {
@@ -479,13 +505,15 @@ class VideoSession(
                     C.TRACK_TYPE_TEXT -> {
                         val external = format.id?.contains("ext-") == true
                         val stream = if (external) null else discStream(format, textStreams) ?: textStreams.getOrNull(textOrdinal++)
-                        text += TrackOption(g, t, textLabel(format, stream), group.isTrackSelected(t))
+                        val server = stream ?: src?.subtitles?.firstOrNull { external && format.id?.endsWith("ext-${it.index}") == true }
+                        text += TrackOption(g, t, textLabel(format, stream), group.isTrackSelected(t), server)
                     }
                 }
             }
         }
         val textDisabled = player?.trackSelectionParameters?.disabledTrackTypes?.contains(C.TRACK_TYPE_TEXT) == true
         _ui.update { it.copy(audio = audio, text = text, textEnabled = !textDisabled && text.any { o -> o.selected }) }
+        followSubtitleOffset(text.firstOrNull { it.selected }?.stream?.takeUnless { textDisabled })
     }
 
     /**
@@ -601,6 +629,48 @@ class VideoSession(
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             .build()
+    }
+
+    // ---------- Subtitle offset ----------
+
+    /** Offsets chosen this session, by key: re-selecting a subtitle keeps its calibration. */
+    private val offsets = HashMap<String, Int>()
+
+    /** Applies the selected subtitle's calibration (session pick, else the server's saved value). */
+    private fun followSubtitleOffset(stream: MediaStream?) {
+        val mpv = player as? MpvPlayer
+        if (mpv == null || stream == null || stream.offsetKey.isEmpty() || stream.burnedIn) {
+            _ui.update { it.copy(subtitleOffset = null) }
+            return
+        }
+        val shown = _ui.value.subtitleOffset
+        if (shown?.key == stream.offsetKey) return
+        val ms = offsets[stream.offsetKey] ?: stream.offsetMs
+        mpv.setSubtitleDelay(ms)
+        _ui.update { it.copy(subtitleOffset = SubtitleOffset(stream.offsetKey, ms, stream.offsetMs)) }
+    }
+
+    fun shiftSubtitles(deltaMs: Int) {
+        val current = _ui.value.subtitleOffset ?: return
+        val ms = (current.ms + deltaMs).coerceIn(-MAX_OFFSET_MS, MAX_OFFSET_MS)
+        offsets[current.key] = ms
+        (player as? MpvPlayer)?.setSubtitleDelay(ms)
+        _ui.update { it.copy(subtitleOffset = current.copy(ms = ms)) }
+    }
+
+    /** Stores the current calibration on the server for this version (only on the user's word). */
+    fun saveSubtitleOffset() {
+        val current = _ui.value.subtitleOffset ?: return
+        val itemId = item?.id ?: return
+        val sourceId = source?.id ?: return
+        scope.launch {
+            runCatching { api.saveSubtitleOffset(itemId, sourceId, current.key, current.ms) }
+                .onSuccess {
+                    _ui.update { ui -> ui.copy(subtitleOffset = ui.subtitleOffset?.takeIf { it.key == current.key }?.copy(saved = current.ms)) }
+                    showNotice("字幕偏移已保存")
+                }
+                .onFailure { showNotice(it.userMessage()) }
+        }
     }
 
     fun setSpeed(speed: Float) {

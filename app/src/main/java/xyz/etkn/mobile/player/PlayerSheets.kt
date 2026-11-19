@@ -23,10 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,16 +50,20 @@ import xyz.etkn.mobile.ui.components.CardShape
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.components.px
 import xyz.etkn.mobile.ui.screens.me.DanmakuControls
+import java.util.Locale
 
 @Composable
 internal fun PlayerSheet(sheet: Sheet, ui: VideoUi, session: VideoSession, onDismiss: () -> Unit) {
     PlayerSidePanel(onDismiss) {
         when (sheet) {
             Sheet.Audio -> OptionList("音轨", ui.audio.map { it.label to it.selected }) { i -> session.selectTrack(ui.audio[i]); onDismiss() }
-            Sheet.Subtitle -> OptionList(
-                "字幕",
-                listOf("关闭" to !ui.textEnabled) + ui.text.map { it.label to (ui.textEnabled && it.selected) },
-            ) { i -> if (i == 0) session.disableSubtitles() else session.selectTrack(ui.text[i - 1]); onDismiss() }
+            Sheet.Subtitle -> Column {
+                ui.subtitleOffset?.let { SubtitleOffsetRow(it, session) }
+                OptionList(
+                    "字幕",
+                    listOf("关闭" to !ui.textEnabled) + ui.text.map { it.label to (ui.textEnabled && it.selected) },
+                ) { i -> if (i == 0) session.disableSubtitles() else session.selectTrack(ui.text[i - 1]); onDismiss() }
+            }
             Sheet.Speed -> OptionList("播放速度", Speeds.map { "${it}×" to (it == ui.speed) }) { i -> session.setSpeed(Speeds[i]); onDismiss() }
             Sheet.Versions -> OptionList("版本", ui.sources.mapIndexed { i, s -> s.name.ifEmpty { s.slotLabel } to (i == ui.sourceIndex) }) { i ->
                 session.selectSource(i); onDismiss()
@@ -75,6 +81,34 @@ private fun DanmakuSheet(session: VideoSession) {
     Text("弹幕", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
     Column(Modifier.verticalScroll(rememberScrollState())) {
         DanmakuControls(style, session::setDanmakuStyle)
+    }
+}
+
+/** Shift the shown subtitle in 0.1 s / 0.5 s steps; 保存 makes it this version's calibration everywhere. */
+@Composable
+private fun SubtitleOffsetRow(offset: SubtitleOffset, session: VideoSession) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("字幕偏移", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            Text(
+                "%+.1f 秒".format(Locale.ROOT, offset.ms / 1000f),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(-500, -100, 100, 500).forEach { step ->
+                FilledTonalButton(onClick = { session.shiftSubtitles(step) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(0.dp)) {
+                    Text("%+.1f".format(Locale.ROOT, step / 1000f), style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+        if (offset.ms != offset.saved) {
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { session.shiftSubtitles(offset.saved - offset.ms) }) { Text("还原") }
+                TextButton(onClick = session::saveSubtitleOffset) { Text("保存") }
+            }
+        }
     }
 }
 

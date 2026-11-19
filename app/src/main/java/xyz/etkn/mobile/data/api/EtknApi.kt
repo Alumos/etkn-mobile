@@ -333,6 +333,21 @@ class EtknApi(
     }
 
     /** Queues seek-preview thumbnail extraction; titles that already have them are skipped. */
+    /** Saves a subtitle calibration for this version (Web and TV apply it too); 0 removes it. */
+    suspend fun saveSubtitleOffset(itemId: String, mediaSourceId: String, key: String, offsetMs: Int) {
+        post(
+            "/api/tv/Items/${enc(itemId)}/${enc(mediaSourceId)}/SubtitleOffsets",
+            buildJsonObject {
+                put("SubtitleKey", key)
+                put("OffsetMs", offsetMs)
+            },
+        )
+    }
+
+    /** Seek-thumbnail manifest of one version (empty object when none were extracted). */
+    suspend fun previewThumbnails(itemId: String, mediaSourceId: String): JsonObject =
+        get(query("/api/tv/Items/${enc(itemId)}/PreviewThumbnails", "MediaSourceId" to mediaSourceId))
+
     suspend fun extractPreviews(ids: List<String>) {
         post("/api/tv/Manage/Items/preview-thumbnails", buildJsonObject { put("media_item_ids", stringArray(ids)) })
     }
