@@ -105,10 +105,10 @@ android {
             // mpv-android and NextLib both ship FFmpeg 9 (symbol version LIBAVCODEC_63), libass and libc++.
             // mpv's copies are full builds and win; NextLib's bridge links against the same
             // sonames. CI checks the packaged libavcodec is mpv's.
-            pickFirsts += setOf(
-                "**/libavcodec.so", "**/libavutil.so", "**/libswresample.so", "**/libswscale.so",
-                "**/libass.so", "**/libc++_shared.so",
-            )
+            // Per shipped ABI only: a pick-first rule would otherwise outrank the x86 exclude.
+            pickFirsts += listOf("arm64-v8a", "armeabi-v7a", "x86_64").flatMap { abi ->
+                listOf("libavcodec", "libavutil", "libswresample", "libswscale", "libass", "libc++_shared").map { "**/$abi/$it.so" }
+            }
         }
     }
 }
