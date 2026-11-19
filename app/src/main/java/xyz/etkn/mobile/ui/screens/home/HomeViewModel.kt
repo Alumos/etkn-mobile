@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import xyz.etkn.mobile.AppGraph
+import xyz.etkn.mobile.data.events.ServerEvent
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.net.ResponseCache
 import xyz.etkn.mobile.ui.common.Load
@@ -49,6 +50,16 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     fun refresh() = load(manual = true)
+
+    /** Reloads the shelves whenever the server's home revision moves (while the screen is started). */
+    suspend fun followServer() {
+        var seen: String? = null
+        graph.events.stream().collect { event ->
+            if (event !is ServerEvent.Home) return@collect
+            if (seen != null && seen != event.revision) load()
+            seen = event.revision
+        }
+    }
 
     /** Called when the screen resumes; reloads only the volatile shelves after a minute. */
     fun onResume() {

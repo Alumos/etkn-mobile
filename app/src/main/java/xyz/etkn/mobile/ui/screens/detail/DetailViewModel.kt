@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.AppGraph
 import xyz.etkn.mobile.data.api.EtknApi
+import xyz.etkn.mobile.data.events.ServerEvent
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.userMessage
@@ -25,7 +26,7 @@ data class DetailData(
     val selectedSource: Int = 0,
 )
 
-class DetailViewModel(graph: AppGraph, private val id: String) : ViewModel() {
+class DetailViewModel(private val graph: AppGraph, private val id: String) : ViewModel() {
     private val api = graph.api
     private val _state = MutableStateFlow<Load<DetailData>>(Load.Loading)
     val state: StateFlow<Load<DetailData>> = _state.asStateFlow()
@@ -97,6 +98,9 @@ class DetailViewModel(graph: AppGraph, private val id: String) : ViewModel() {
             }
         }
     }
+
+    /** Re-reads the page when the server reports changes to its rows (metadata, images, versions). */
+    suspend fun followServer() = graph.events.stream(id).collect { if (it is ServerEvent.Items && !it.initial) load() }
 
     fun selectSeason(seriesId: String, seasonId: String) = episodes.select(seriesId, seasonId)
 

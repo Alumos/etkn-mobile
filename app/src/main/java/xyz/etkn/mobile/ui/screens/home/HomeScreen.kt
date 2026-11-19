@@ -55,6 +55,7 @@ import xyz.etkn.mobile.ui.actions.PopupChoice
 import xyz.etkn.mobile.ui.actions.rememberPopupAnchor
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
+import xyz.etkn.mobile.ui.common.WhileStarted
 import xyz.etkn.mobile.ui.common.graphViewModel
 import xyz.etkn.mobile.ui.common.windowSizeDp
 import xyz.etkn.mobile.ui.components.Artwork
@@ -83,6 +84,7 @@ fun HomeScreen() {
     val state by vm.state.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.onResume() }
+    WhileStarted(vm) { vm.followServer() }
 
     when (val s = state) {
         Load.Loading -> LoadingState()

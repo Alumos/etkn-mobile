@@ -2,9 +2,14 @@ package xyz.etkn.mobile.ui.common
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.CoroutineScope
 import xyz.etkn.mobile.AppGraph
 import xyz.etkn.mobile.graph
 
@@ -37,4 +42,11 @@ data class Paged<T>(
     val endReached: Boolean = false,
 ) {
     val canLoadMore: Boolean get() = !loading && !endReached && error == null
+}
+
+/** Runs [block] while the screen is at least started (foreground), cancelling it in between. */
+@Composable
+fun WhileStarted(key: Any?, block: suspend CoroutineScope.() -> Unit) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(key, lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED, block) }
 }

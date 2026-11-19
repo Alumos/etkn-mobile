@@ -76,7 +76,8 @@
 | GET | `/api/tv/Users/Me` | 校验令牌，返回用户对象 |
 | GET | `/api/tv/Users/Me/AccountPreferences` | 读取 `remember_admin_account` |
 | POST | `/api/tv/Sessions/Logout` | 退出（失败时忽略） |
-| GET | `/api/tv/Users/Me/ClientPreferences` | 服务端外观：`theme_color`（种子色）、`mode`（深/浅色） |
+| GET | `/api/tv/Users/Me/ClientPreferences` | 服务端外观：`theme_color`（种子色）、`mode`（深/浅色）；`playback_preferences{preferences, global_preferences, effective_preferences, hide_watched_latest}` |
+| POST | `/api/tv/Users/Me/PlaybackPreferences` | 一次一个键：`audio_lang_priority`（`chi/yue/original/eng/jpn/kor`）/ `subtitle_priority`（`effect/chs/cht/chs_eng/…/original/eng/jpn/kor`）为有序数组，`null` = 跟随全局；`hide_watched_latest` 布尔。之后重读 ClientPreferences。服务端据此给出 PlaybackInfo 的 `DefaultAudioStreamIndex / DefaultSubtitleStreamIndex`（客户端在两个内核上都按它选初始轨道，`-1` = 关闭字幕），并在最新列表去掉已看 |
 | GET | `/api/tv/auth/check_status` | 读取 `user.can_access_discovery`，决定是否显示影视探索 |
 
 **用户对象字段：**
@@ -351,6 +352,16 @@
 - 订阅和获取资源前都必须让用户确认，获取可能消耗服务端积分。
 - 不要自动重试，也不要预取 acquire 接口。
 - 三个资源来源要并发搜索，并分别显示各自的结果或失败原因。
+
+## 9.1 变更推送与入库通知（`data/events`）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/tv/Users/{uid}/Home/Events[?ItemId=]` | **SSE**（`Accept: text/event-stream`，`X-Emby-Token`，禁止跳转，读超时 25 s）。首页读 `event: home` 的 `{revision}`，变化即静默重载；详情带 `ItemId`，读 `event: items` 的 `{Initial, Updated, Added, Removed, Versions}`，非初始即重载。`event: auth-expired` 或 401 = 会话失效。前台连接，断线 3 s 重连 |
+| GET | `/api/tv/Users/{uid}/IngestUpdates?After={cursor}` | 入库通知：`Items[]{Id, VersionId, EventId, Outcome(ingested/replaced/version_added), Name, SeriesName, Type}`、`Cursor`、`Initial`、`HasMore`。账号首次只记游标；每轮最多 5 页；按 `EventId` 去重 |
+| GET | `D/acquire-status/{runId}` | 已确认的获取（`workflow_run_id`）结果：`finished, failed, title, error, ingest_items[]`（同上的行）。本机跟踪 7 天，完成即停 |
+
+客户端在前台每分钟检查一次入库与获取结果，逐条发系统通知（点按打开条目）；后台不运行。
 
 ## 10. 图片（`data/api/ImageUrls.kt`）
 

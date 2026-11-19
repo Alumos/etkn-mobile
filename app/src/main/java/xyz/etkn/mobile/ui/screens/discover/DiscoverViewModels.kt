@@ -249,6 +249,8 @@ class CloudViewModel(private val graph: AppGraph, val item: DiscoverItem, val se
         }
     }
 
+    /** Submits one acquisition; its result is reported later by [xyz.etkn.mobile.data.events.IngestNotices]. */
     suspend fun acquire(row: CloudResource): Result<Long> = runCatching { graph.api.acquire(row, item, season) }
+        .onSuccess { runId -> graph.sessions.current?.let { graph.ingest.track(it, runId) } }
         .onSuccess { _submitted.update { it + row } }
 }

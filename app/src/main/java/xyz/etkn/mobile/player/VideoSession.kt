@@ -128,7 +128,7 @@ class VideoSession(
     private var lastTracks: Tracks = Tracks.EMPTY
     /** Formats whose decoder failed on this source; never offered again. */
     private val failedFormats = HashSet<String>()
-    private var discAudioApplied = false
+    private var defaultsApplied = false
     private var playSession = ""
     private var started = false
     private var stopped = true
@@ -175,7 +175,7 @@ class VideoSession(
 
         override fun onTracksChanged(tracks: Tracks) {
             if (!tracks.isEmpty) lastTracks = tracks
-            applyDiscAudio(tracks)
+            applyServerTracks(tracks)
             publishTracks(tracks)
         }
 
@@ -325,9 +325,10 @@ class VideoSession(
             discTried = false
             forcedEngine = null
             failedFormats.clear()
-            discAudioApplied = false
             lastTracks = Tracks.EMPTY
         }
+        // New media in the player (new source or the other core): its tracks start from the server's defaults again.
+        defaultsApplied = false
         source = chosen
         discTried = discTried || disc
         val player = ensurePlayer(engineFor(chosen, disc))
@@ -511,26 +512,55 @@ class VideoSession(
         chosen.streams.filter { it.transportStreamId > 0 }
             .associate { it.transportStreamId to DiscHint(it.width, it.height, it.channels) }
 
-    /** Disc: start on the server's default audio (its user preferences), matched by PID. */
-    private fun applyDiscAudio(tracks: Tracks) {
-        if (discAudioApplied || tracks.isEmpty) return
+    /**
+     * Starts on the server's default audio and subtitle, which follow the account's language
+     * priority (默认音轨 / 默认字幕): disc tracks matched by PID, external subtitles by their
+     * sideloaded id, the rest by their order among the file's own streams; `-1` turns subtitles
+     * off. Once per loaded source, so the user's own picks stay.
+     */
+    private fun applyServerTracks(tracks: Tracks) {
+        if (defaultsApplied || tracks.isEmpty) return
         val src = source ?: return
         val player = player ?: return
-        val wanted = src.audio.firstOrNull { it.index == src.defaultAudioIndex }?.takeIf { it.transportStreamId > 0 } ?: return
-        discAudioApplied = true
+        defaultsApplied = true
+        val params = player.trackSelectionParameters.buildUpon()
+        var changed = false
+        fun select(found: Pair<Tracks.Group, Int>?) {
+            val (group, index) = found ?: return
+            if (!group.isTrackSupported(index) || group.isTrackSelected(index)) return
+            params.setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, index)).setTrackTypeDisabled(group.type, false)
+            changed = true
+        }
+        src.audio.firstOrNull { it.index == src.defaultAudioIndex }?.let { select(findTrack(tracks, C.TRACK_TYPE_AUDIO, src.audio, it)) }
+        when (val index = src.defaultSubtitleIndex) {
+            null -> Unit
+            -1 -> {
+                params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                changed = true
+            }
+            else -> src.subtitles.firstOrNull { it.index == index }?.let { select(findTrack(tracks, C.TRACK_TYPE_TEXT, src.subtitles, it)) }
+        }
+        if (changed) player.trackSelectionParameters = params.build()
+    }
+
+    /** The player's track for server stream [wanted] (one of [streams], the source's streams of that type). */
+    private fun findTrack(tracks: Tracks, type: Int, streams: List<MediaStream>, wanted: MediaStream): Pair<Tracks.Group, Int>? {
+        val ordinal = streams.filterNot { it.isExternal }.indexOf(wanted)
+        var seen = 0
         for (group in tracks.groups) {
-            if (group.type != C.TRACK_TYPE_AUDIO) continue
+            if (group.type != type) continue
             for (t in 0 until group.length) {
                 val format = group.getTrackFormat(t)
-                if (!group.isTrackSupported(t) || discStream(format, listOf(wanted)) == null) continue
-                if (!group.isTrackSelected(t)) {
-                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                        .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, t))
-                        .build()
+                val external = format.id?.contains("ext-") == true
+                when {
+                    wanted.isExternal -> if (format.id?.endsWith("ext-${wanted.index}") == true) return group to t
+                    external -> Unit
+                    BlurayMediaSourceFactory.discPid(format.id) > 0 -> if (discStream(format, listOf(wanted)) != null) return group to t
+                    seen++ == ordinal -> return group to t
                 }
-                return
             }
         }
+        return null
     }
 
     /**

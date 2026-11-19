@@ -105,6 +105,8 @@ data class Settings(
     /** Names of the chosen top-level tabs; null = automatic default. */
     val tabs: Set<String>? = null,
     val navPosition: NavPosition = NavPosition.Side,
+    /** System notifications for new / replaced titles and cloud acquisitions. */
+    val ingestNotices: Boolean = true,
 )
 
 class AppSettings(private val context: Context) {
@@ -131,6 +133,7 @@ class AppSettings(private val context: Context) {
         val heroMode = stringPreferencesKey("hero_mode")
         val tabs = stringSetPreferencesKey("nav_tabs")
         val navPosition = stringPreferencesKey("nav_position")
+        val ingestNotices = booleanPreferencesKey("ingest_notices")
     }
 
     val flow: Flow<Settings> = context.settingsDataStore.data.map { it.toSettings() }
@@ -162,6 +165,7 @@ class AppSettings(private val context: Context) {
         heroMode = enumOr(this[Keys.heroMode], HeroMode.Auto),
         tabs = this[Keys.tabs],
         navPosition = enumOr(this[Keys.navPosition], NavPosition.Side),
+        ingestNotices = this[Keys.ingestNotices] ?: true,
     )
 
     suspend fun setTheme(mode: ThemeMode) = context.settingsDataStore.edit { it[Keys.theme] = mode.name }
@@ -175,6 +179,7 @@ class AppSettings(private val context: Context) {
 
     suspend fun setTabs(value: Set<String>?) = context.settingsDataStore.edit { if (value == null) it.remove(Keys.tabs) else it[Keys.tabs] = value }
     suspend fun setNavPosition(value: NavPosition) = context.settingsDataStore.edit { it[Keys.navPosition] = value.name }
+    suspend fun setIngestNotices(value: Boolean) = context.settingsDataStore.edit { it[Keys.ingestNotices] = value }
     suspend fun setHeroMode(value: HeroMode) = context.settingsDataStore.edit { it[Keys.heroMode] = value.name }
 
     suspend fun setAutoUpdate(value: Boolean) = context.settingsDataStore.edit { it[Keys.autoUpdate] = value }

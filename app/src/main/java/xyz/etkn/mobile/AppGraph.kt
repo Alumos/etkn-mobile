@@ -13,6 +13,8 @@ import xyz.etkn.mobile.data.api.EtknApi
 import xyz.etkn.mobile.data.api.ImageUrls
 import xyz.etkn.mobile.data.api.ServerProbe
 import xyz.etkn.mobile.data.discover.DiscoverStore
+import xyz.etkn.mobile.data.events.IngestNotices
+import xyz.etkn.mobile.data.events.ServerEvents
 import xyz.etkn.mobile.data.net.ApiClient
 import xyz.etkn.mobile.data.net.ClientIdentity
 import xyz.etkn.mobile.data.net.HttpClients
@@ -60,6 +62,15 @@ class AppGraph(val app: Application) {
         session = { sessions.require() },
         onExpired = { stale -> if (sessions.current?.generation == stale.generation) sessions.expire() },
     )
+
+    /** Server change feed (`Home/Events`) for live home and detail refresh. */
+    val events = ServerEvents(http.events, { sessions.current }) { stale -> if (sessions.current?.generation == stale.generation) sessions.expire() }
+
+    /** 入库通知 and acquisition results, checked while the app is in front. */
+    val ingest = IngestNotices(app, api)
+
+    /** Item ids to open, from notification taps (replayed once to the shell when it starts). */
+    val openRequests = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 1)
 
     val music by lazy { MusicConnection(app, this) }
 

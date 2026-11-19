@@ -76,6 +76,7 @@ import xyz.etkn.mobile.data.update.formatBytes
 import xyz.etkn.mobile.ui.actions.rememberItemPress
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
+import xyz.etkn.mobile.ui.common.WhileStarted
 import xyz.etkn.mobile.ui.common.graphViewModel
 import xyz.etkn.mobile.ui.common.rememberArtworkSeed
 import xyz.etkn.mobile.ui.components.Artwork
@@ -114,6 +115,7 @@ fun DetailScreen(id: String) {
     var resumed by remember { mutableStateOf(false) }
     // Coming back from the player: refresh progress / watched state.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (resumed) vm.load() else resumed = true }
+    WhileStarted(vm) { vm.followServer() }
 
     when (val s = state) {
         Load.Loading -> LoadingState()

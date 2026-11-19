@@ -1,5 +1,11 @@
 package xyz.etkn.mobile.ui.nav
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -34,12 +40,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.chrisbanes.haze.rememberHazeState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.data.session.ActiveSession
 import xyz.etkn.mobile.data.settings.NavPosition
@@ -48,6 +56,7 @@ import xyz.etkn.mobile.ui.actions.ItemMenu
 import xyz.etkn.mobile.ui.actions.ItemMenuHost
 import xyz.etkn.mobile.ui.actions.LocalItemMenu
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
+import xyz.etkn.mobile.ui.common.WhileStarted
 import xyz.etkn.mobile.ui.common.WindowLayout
 import xyz.etkn.mobile.ui.common.currentWindowLayout
 import xyz.etkn.mobile.ui.components.LocalHaze
@@ -106,6 +115,14 @@ fun MainShell(session: ActiveSession) {
     val railExpanded = layout == WindowLayout.Expanded
     LaunchedEffect(railExpanded) { if (railExpanded) rail.expand() else rail.collapse() }
 
+    LaunchedEffect(Unit) {
+        context.graph.openRequests.collect { id ->
+            context.graph.openRequests.resetReplayCache()
+            nav.to(DetailRoute(id))
+        }
+    }
+    IngestNoticesEffect(session, settings.ingestNotices)
+
     val menuScope = rememberCoroutineScope()
     val itemMenu = remember(session.key) { ItemMenu(context.graph, menuScope) }
 
@@ -150,6 +167,32 @@ fun MainShell(session: ActiveSession) {
                 }
             }
             ItemMenuHost(itemMenu, hazeState)
+        }
+    }
+}
+
+/**
+ * While the app is in front: asks once for the notification permission (Android 13+), then
+ * checks 入库通知 and pending acquisitions every minute.
+ */
+@Composable
+private fun IngestNoticesEffect(session: ActiveSession, enabled: Boolean) {
+    val context = LocalContext.current
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    LaunchedEffect(enabled) {
+        val prefs = context.getSharedPreferences("ingest_notices", Context.MODE_PRIVATE)
+        if (enabled && Build.VERSION.SDK_INT >= 33 && !prefs.getBoolean("asked_permission", false) &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            prefs.edit().putBoolean("asked_permission", true).apply()
+            permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    WhileStarted(session.key to enabled) {
+        if (!enabled) return@WhileStarted
+        while (true) {
+            context.graph.ingest.check(session)
+            delay(60_000)
         }
     }
 }

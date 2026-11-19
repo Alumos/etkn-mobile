@@ -18,6 +18,8 @@ import xyz.etkn.mobile.data.discover.DiscoverPage
 import xyz.etkn.mobile.data.discover.DiscoverPerson
 import xyz.etkn.mobile.data.discover.DiscoverSeason
 import xyz.etkn.mobile.data.discover.PersonMatch
+import xyz.etkn.mobile.data.events.AcquireStatus
+import xyz.etkn.mobile.data.events.IngestPage
 import xyz.etkn.mobile.data.model.EpisodePage
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.model.ItemsPage
@@ -122,6 +124,17 @@ class EtknApi(
     }
 
     suspend fun clientPreferences(): JsonObject = get("/api/tv/Users/Me/ClientPreferences")
+
+    /** Audio / subtitle language priority (null = follow the server-wide default) or hide-watched-latest; one key per call. */
+    suspend fun savePlaybackPreference(key: String, value: JsonElement) {
+        post("/api/tv/Users/Me/PlaybackPreferences", buildJsonObject { put(key, value) })
+    }
+
+    /** New, replaced or extra versions since [after] (empty = start a cursor). */
+    suspend fun ingestUpdates(after: String): IngestPage =
+        IngestPage.from(get(query("${u()}/IngestUpdates", "After" to after.ifEmpty { null })))
+
+    suspend fun acquireStatus(runId: Long): AcquireStatus = AcquireStatus.from(get("$D/acquire-status/$runId"))
 
     // ---------- Home ----------
 

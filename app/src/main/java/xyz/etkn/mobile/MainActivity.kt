@@ -1,6 +1,7 @@
 package xyz.etkn.mobile
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -40,7 +41,22 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        openFrom(intent)
         setContent { EtknRoot(graph) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openFrom(intent)
+    }
+
+    /** A notification tap carries the title to open; the shell takes it from [AppGraph.openRequests]. */
+    private fun openFrom(intent: Intent?) {
+        intent?.getStringExtra(EXTRA_ITEM)?.let { graph.openRequests.tryEmit(it) }
+    }
+
+    companion object {
+        const val EXTRA_ITEM = "xyz.etkn.mobile.ITEM"
     }
 }
 
