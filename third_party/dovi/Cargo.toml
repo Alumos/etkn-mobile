@@ -1,0 +1,20 @@
+# Dolby Vision RPU conversion for libetkn_bluray.so (built in CI by scripts/build_bluray_native.py).
+[package]
+name = "etkn_dovi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+
+[lib]
+crate-type = ["staticlib"]
+path = "lib.rs"
+
+[dependencies]
+# quietvoid/dovi_tool's RPU library (MIT); only parsing, conversion and writing are used.
+dolby_vision = { version = "=3.4.0", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

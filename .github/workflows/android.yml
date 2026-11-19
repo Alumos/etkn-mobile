@@ -47,12 +47,14 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: app/src/main/jniLibs
-          key: bluray-r27c-${{ hashFiles('scripts/build_bluray_native.py', 'third_party/bluray/**') }}
+          key: bluray-r27c-${{ hashFiles('scripts/build_bluray_native.py', 'third_party/bluray/**', 'third_party/dovi/**') }}
       - name: Build Blu-ray native library (pinned, checksum-verified sources; NDK r27c)
         if: steps.bluray.outputs.cache-hit != 'true'
         shell: bash
         run: |
           (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;27.2.12479018" > /dev/null
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+          rustc --version
           python3 scripts/build_bluray_native.py --ndk "$ANDROID_HOME/ndk/27.2.12479018" --work "$RUNNER_TEMP/bluray" --out app/src/main/jniLibs
       - name: Unit tests, lint, release build (no signing credentials in this job)
         shell: bash

@@ -1,4 +1,5 @@
-"""Build libetkn_bluray.so: Blu-ray ISO reader + MPEG-TS demuxer for Media3 (no network, menus or decryption).
+"""Build libetkn_bluray.so: Blu-ray ISO reader + MPEG-TS demuxer for Media3 (no network, menus or decryption),
+plus the Dolby Vision profile 7 -> 8.1 RPU converter (third_party/dovi, Rust, needs cargo with the Android targets).
 
 Ported from ETKN TV's scripts/Build-BlurayNative.py (Linux / macOS hosts only); runs in CI, never on
 the developer's machine. Upstream sources are downloaded from their release servers and verified
@@ -29,6 +30,28 @@ TARGETS = {
     "armeabi-v7a": ("arm", "armv7a-linux-androideabi26"),
     "x86_64": ("x86_64", "x86_64-linux-android26"),
 }
+
+
+# Rust targets for third_party/dovi (rustup target add …); dependencies pinned by its Cargo.lock.
+RUST_TARGETS = {
+    "arm64-v8a": "aarch64-linux-android",
+    "armeabi-v7a": "armv7-linux-androideabi",
+    "x86_64": "x86_64-linux-android",
+}
+
+
+def build_dovi(root: Path, work: Path, abi: str) -> Path:
+    """Static libetkn_dovi.a for one ABI. A missing Cargo.lock is created and printed for committing."""
+    triple = RUST_TARGETS[abi]
+    manifest = root / "third_party/dovi/Cargo.toml"
+    lock = manifest.with_name("Cargo.lock")
+    locked = lock.exists()
+    env = dict(os.environ, CARGO_TARGET_DIR=str(work / "dovi-target"))
+    subprocess.run(["cargo", "build", "--release", "--target", triple, "--manifest-path", str(manifest), *(["--locked"] if locked else [])],
+                   env=env, check=True)
+    if not locked:
+        print("::group::third_party/dovi/Cargo.lock (generated)\n" + lock.read_text(encoding="utf-8") + "::endgroup::", flush=True)
+    return work / "dovi-target" / triple / "release" / "libetkn_dovi.a"
 
 
 def fetch(work: Path):
@@ -116,12 +139,13 @@ def main():
 
         with ThreadPoolExecutor(max_workers=int(jobs)) as pool:
             objects = list(pool.map(compile_one, enumerate(files)))
+        dovi = build_dovi(root, args.work, abi)
         out = args.out / abi / "libetkn_bluray.so"
         out.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run([str(cxx), *common, "-shared", "-std=c++17", "-idirafter", str(ffbuild), "-idirafter", str(ffmpeg),
                         str(root / "third_party/bluray/bluray_jni.cpp"), *map(str, objects),
-                        *[str(ffbuild / ("lib" + n) / ("lib" + n + ".a")) for n in ["avformat", "avcodec", "avutil"]],
-                        "-ldl", "-lm", "-lz", "-llog", "-static-libstdc++", "-Wl,--no-undefined", "-Wl,--exclude-libs,ALL",
+                        *[str(ffbuild / ("lib" + n) / ("lib" + n + ".a")) for n in ["avformat", "avcodec", "avutil"]], str(dovi),
+                        "-ldl", "-lm", "-lz", "-llog", "-static-libstdc++", "-Wl,--no-undefined", "-Wl,--exclude-libs,ALL", "-Wl,--gc-sections",
                         "-Wl,-z,max-page-size=16384", "-Wl,-soname,libetkn_bluray.so", "-o", str(out)], check=True)
         subprocess.run([str(toolbin / "llvm-strip"), "--strip-unneeded", str(out)], check=True)
         print(abi, out.stat().st_size, hashlib.sha256(out.read_bytes()).hexdigest(), flush=True)

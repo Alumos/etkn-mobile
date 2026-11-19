@@ -23,12 +23,13 @@ import androidx.media3.extractor.ExtractorOutput
 import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.extractor.ForwardingExtractor
 import androidx.media3.extractor.ForwardingExtractorOutput
-import androidx.media3.extractor.ForwardingTrackOutput
 import androidx.media3.extractor.PositionHolder
 import androidx.media3.extractor.SeekMap
 import androidx.media3.extractor.SeekPoint
 import androidx.media3.extractor.TrackOutput
 import okhttp3.OkHttpClient
+import xyz.etkn.mobile.player.DolbyVision
+import xyz.etkn.mobile.player.DolbyVisionTrackOutput
 import java.io.ByteArrayOutputStream
 import java.io.EOFException
 import java.io.IOException
@@ -102,8 +103,14 @@ class BlurayMediaSourceFactory(
                 .build()
         }
 
-        /** Default extractors whose track formats go through [baseLayer]. */
-        fun baseLayerExtractors(delegate: ExtractorsFactory = DefaultExtractorsFactory()): ExtractorsFactory = object : ExtractorsFactory {
+        /**
+         * Default extractors whose Dolby Vision profile 7 video plays as profile 8.1 where the
+         * device can ([DolbyVision]), else as its HDR10 base layer ([baseLayer]).
+         */
+        fun baseLayerExtractors(
+            delegate: ExtractorsFactory = DefaultExtractorsFactory(),
+            convert: Boolean = DolbyVision.convertProfile7,
+        ): ExtractorsFactory = object : ExtractorsFactory {
             override fun createExtractors(): Array<Extractor> = wrap(delegate.createExtractors())
             override fun createExtractors(uri: Uri, responseHeaders: Map<String, List<String>>): Array<Extractor> =
                 wrap(delegate.createExtractors(uri, responseHeaders))
@@ -114,9 +121,7 @@ class BlurayMediaSourceFactory(
                         super.init(object : ForwardingExtractorOutput(output) {
                             private val tracks = HashMap<Int, TrackOutput>()
                             override fun track(id: Int, type: Int): TrackOutput = tracks.getOrPut(id) {
-                                object : ForwardingTrackOutput(super.track(id, type)) {
-                                    override fun format(format: Format) = super.format(baseLayer(format))
-                                }
+                                DolbyVisionTrackOutput(super.track(id, type), convert && type == C.TRACK_TYPE_VIDEO)
                             }
                         })
                     }
@@ -130,6 +135,9 @@ class BlurayMediaSourceFactory(
 
         /** Blu-ray primary video PID; a disc track's format id is `etkn-ts-<pid>-<mime>`. */
         const val PRIMARY_VIDEO_PID = 0x1011
+        /** UHD Blu-ray Dolby Vision enhancement layer (carries the RPUs). */
+        const val DV_ENHANCEMENT_PID = 0x1015
+        private const val MAX_RPU_WAIT = 8
         private val DISC_TRACK = Regex("etkn-ts-(\\d+)-")
 
         /** PID of a disc track from its (possibly source-prefixed) format id, else -1. */
@@ -231,6 +239,14 @@ class BlurayMediaSourceFactory(
         private var buffer = ByteArray(2 * 1024 * 1024)
         private val metadata = LongArray(3)
         private var initialized = false
+        // Dolby Vision profile 7 played as 8.1: base-layer frames wait for the enhancement layer's
+        // RPU of the same presentation time, which is converted and appended to the frame.
+        private var dvPicture = -1
+        private var dvEnhancement = -1
+        private val rpus = java.util.TreeMap<Long, ByteArray>()
+        private val waiting = ArrayDeque<Frame>()
+
+        private class Frame(val timeUs: Long, val flags: Int, val bytes: ByteArray, val size: Int)
 
         override fun sniff(input: ExtractorInput): Boolean = true
 
@@ -249,12 +265,16 @@ class BlurayMediaSourceFactory(
                 // plays on its own, and exposing them lets the selector pick a wrong stream.
                 val videos = descriptions.filter { it.type == C.TRACK_TYPE_VIDEO }
                 val picture = videos.firstOrNull { it.pid == PRIMARY_VIDEO_PID } ?: videos.firstOrNull()
+                val enhancement = videos.firstOrNull { it.pid == DV_ENHANCEMENT_PID }
+                val dolbyVision = DolbyVision.convertProfile7 && picture?.pid == PRIMARY_VIDEO_PID && enhancement != null
+                dvPicture = if (dolbyVision) picture!!.index else -1
+                dvEnhancement = if (dolbyVision) enhancement!!.index else -1
                 if (first) {
                     Log.i(LOG_TAG, "disc title ${session.durationUs / 1_000_000}s playlist=${session.playlist} tracks: " + descriptions.joinToString(" | ") {
                         "${it.pid}:${it.mime}" + (if (it.width > 0) " ${it.width}x${it.height}" else "") +
                             (if (it.channels > 0) " ${it.channels}ch ${it.sampleRate}Hz" else "") +
                             " init=${it.initialization.size}" + (if (it.type == C.TRACK_TYPE_VIDEO && it !== picture) " skipped" else "")
-                    })
+                    } + if (dolbyVision) " | dolby vision 7->8.1" else "")
                 }
                 for (track in descriptions) {
                     if (track.type == C.TRACK_TYPE_VIDEO && track !== picture) continue
@@ -282,7 +302,7 @@ class BlurayMediaSourceFactory(
                             format.setInitializationData(nals?.toList() ?: listOf(track.initialization))
                         }
                         target = output.track(known.size, track.type)
-                        target.format(baseLayer(format.build()))
+                        target.format(if (dolbyVision && track === picture) DolbyVision.profile81(format.build()) else baseLayer(format.build()))
                         known[identity] = target
                     }
                     if (target != null) {
@@ -306,9 +326,23 @@ class BlurayMediaSourceFactory(
                 buffer = ByteArray(-count)
                 return Extractor.RESULT_CONTINUE
             }
-            if (count == -1) return Extractor.RESULT_END_OF_INPUT
+            if (count == -1) {
+                flushFrames(force = true)
+                return Extractor.RESULT_END_OF_INPUT
+            }
             if (count > 0) {
                 val index = metadata[0].toInt()
+                if (index == dvEnhancement) {
+                    DolbyVision.convertedRpu(buffer, 0, count)?.let { rpus[metadata[1]] = it }
+                    while (rpus.size > 64) rpus.pollFirstEntry()
+                    flushFrames(force = false)
+                    return Extractor.RESULT_CONTINUE
+                }
+                if (index == dvPicture) {
+                    waiting.addLast(Frame(metadata[1], metadata[2].toInt(), buffer.copyOf(count), count))
+                    flushFrames(force = false)
+                    return Extractor.RESULT_CONTINUE
+                }
                 val subtitles = pgs[index]
                 val track = tracks[index]
                 if (subtitles != null) {
@@ -321,7 +355,24 @@ class BlurayMediaSourceFactory(
             return Extractor.RESULT_CONTINUE
         }
 
+        /** Hands on waiting frames whose RPU arrived (or that waited too long, or all at the end). */
+        private fun flushFrames(force: Boolean) {
+            val track = tracks[dvPicture] ?: return waiting.clear()
+            while (waiting.isNotEmpty()) {
+                val head = waiting.first()
+                val rpu = rpus.remove(head.timeUs)
+                if (rpu == null && !force && waiting.size <= MAX_RPU_WAIT) return
+                waiting.removeFirst()
+                val bytes = if (rpu != null) DolbyVision.append(head.bytes, head.size, rpu) else head.bytes
+                val size = if (rpu != null) bytes.size else head.size
+                track.sampleData(ParsableByteArray(bytes, size), size)
+                track.sampleMetadata(head.timeUs, head.flags, size, 0, null)
+            }
+        }
+
         override fun seek(position: Long, timeUs: Long) {
+            waiting.clear()
+            rpus.clear()
             pgs.values.forEach(PgsAssembler::reset)
             if (initialized) {
                 if (session.handle != 0L) BlurayNative.reset(session.handle)

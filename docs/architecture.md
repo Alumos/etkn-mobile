@@ -14,7 +14,7 @@ xyz.etkn.mobile
 │   ├── update     Releases（GitHub 发行解析、版本比较、ABI 选包）、UpdateManager（检查、镜像下载、SHA-256 校验、安装）
 │   └── settings   AppSettings（主题、配色来源、首页推荐、解码、片头片尾、倍速、自动下一集；缓存服务器主题色）；UiScale（页面大小，同步 SharedPreferences）
 ├── player         danmaku/（DanmakuTimeline/Layout 解析与分道、DanmakuFeed 120 s 窗口拉取、DanmakuView 位图缓存绘制）
-│                  PlayerActivity（横屏、沉浸、画中画）、VideoSession（ExoPlayer + 上报 + 下一集 + 跳过）、PlayerScreen（画面与浮层）、PlayerControls、PlayerGestures、PlayerSheets + PlayerPanel（右侧独立窗口面板）、PlayerFactory、PlaybackAddress
+│                  PlayerActivity（横屏、沉浸、画中画）、VideoSession（双内核选择与切换 + 上报 + 下一集 + 跳过）、mpv/MpvPlayer（libmpv 作为 Media3 Player）、PlaybackPrefetch、ResolvedRedirects、DolbyVision、PlayerScreen（画面与浮层）、PlayerControls、PlayerGestures、PlayerSheets + PlayerPanel（右侧独立窗口面板）、PlayerFactory、PlaybackAddress
 ├── music          MusicConnection（共享 ExoPlayer、ResolvingDataSource 按需解析、上报）、MusicService（MediaSession 后台播放）、Lyrics（LRC）
 └── ui
     ├── theme      MaterialExpressiveTheme + HCT 种子配色 + 8 档形状 + 语义 Tokens
@@ -28,7 +28,7 @@ xyz.etkn.mobile
 - **会话**：`SessionManager.state`（Restoring / SignedOut / SignedIn）驱动根界面；切换账号时 `MainShell` 以账号 key 重建，旧页面与请求一起销毁；任何 401 经 `EtknApi` 回调 `expire()`，仅当 generation 与当前会话一致才生效。
 - **列表分页**：`PagedViewModel` 以服务端实际返回条数推进 `StartIndex`，按 `TotalRecordCount` 或空页结束，失败停住等待重试（不自动循环）。
 - **首页 Hero**：`PersonalRecommendations?Stream=true&Limit=1` 逐条拉取并实时追加（首条到达即渲染），跳过无背景图项；推荐不可用时回退各库最新。
-- **视频播放**：PlaybackInfo → 服务端 `DirectStreamUrl`（同源校验）→ ExoPlayer。外挂字幕作为 SubtitleConfiguration 侧载；音轨/字幕名称优先使用服务端 MediaStreams 标题。上报 Playing / 10 s Progress / Stopped，Stopped 走应用级协程。
+- **视频播放**：点击播放即预取 PlaybackInfo（`PlaybackPrefetch`，同时在后台加载两个内核的原生库）→ 服务端 `DirectStreamUrl`（同源校验）→ 内核。不等完整详情：点击的条目先显示标题，详情回来再补章节。内核按片源选（设置「播放内核」可固定）：原盘与 HDR/杜比视界（`PlaybackAddress.isHdr`，看 VideoRange/ColorTransfer/ExtendedVideoType）走 ExoPlayer，其余走 mpv（`MpvPlayer` 是 `SimpleBasePlayer`，控制、手势、弹幕、画中画、上报两边共用；`hwdec=mediacodec-copy,no`、`vo=gpu-next`、ASS/PGS 由 mpv 渲染、CJK 字幕字体链接系统 Noto CJK）；一个内核报错就在同一位置换另一个。ExoPlayer 的数据源经 `ResolvedRedirects` 记住 302 目标（ETKN → 115/CDN），之后的 Range 请求不再回服务端解析，目标失效时回原地址。日志记 PlaybackInfo 与首帧耗时。外挂字幕作为 SubtitleConfiguration 侧载；音轨/字幕名称优先使用服务端 MediaStreams 标题。上报 Playing / 10 s Progress / Stopped，Stopped 走应用级协程。
 - **音乐**：队列项 URI 为 `etkn-music://track/<id>`，在 ExoPlayer 加载线程通过 PlaybackInfo 解析为带 `X-Emby-Token/UserId/PlaySessionId/MediaSourceId` 的直链并缓存；`MediaSessionService` 提供通知、锁屏与蓝牙控制；歌词 GET 为空才 POST 在线补取。
 
 - **弹幕**：PlaybackInfo / 上报回复里的 `Danmaku.Available` 决定是否显示入口；本机开关开启且服务可用时，`DanmakuFeed` 按播放位置拉 `I/Danmaku?local=true&session=&start=`（120 s 窗口、提前 40 s 预取、暂停不拉、busy/unavailable 15 s 重试、stale 1 s 重试），上报附 `DanmakuActive`。`DanmakuView` 跟随媒体时钟逐帧绘制，同一文本只排版一次。样式（行数/密度/字号/不透明度/速度/跟随主题色）存本机，「我的 → 弹幕」与播放器内面板共用。
@@ -43,7 +43,7 @@ xyz.etkn.mobile
 - **玻璃弹出菜单**：`ui/actions/ItemMenu` 的宿主同时绘制长按菜单和通用 `GlassPopup`（`rememberPopupAnchor()` + `PopupChoice`），首页账号、媒体库排序、歌曲「更多」都用它，与长按菜单同为窗口内 Haze 模糊；独立窗口（对话框、底部面板）仍用 `GlassDialog`/`GlassSheet` 的系统模糊。
 - **动效**：页面切换使用主题 `MotionScheme.expressive()` 的弹簧（`defaultSpatialSpec`/`defaultEffectsSpec`），预测性返回拖动可中断、带速度；网格项用 `animateItem()`。列表行用 Expressive `ListItem(onClick)`，滑块用 `SliderState`/`RangeSliderState`。
 - **诊断日志**：`data/diagnostics/Diagnostics`。启动时 `logcat -v threadtime,year -f` 只收本 UID 的 `*:E` 与 `ETKN*:I`（256 KB × 8 轮转，7 天前的文件在启动时删除），Java 崩溃同步追加到同格式的 `crash.log`。播放器挂精简的 `PlaybackLog`（解码器、格式、丢帧/欠载、编解码错误），播放错误带堆栈。「我的 → 导出日志」（`LogExportSheet`）选日期与小时段，导出附设备、HDR、相关硬件解码器与异常退出原因，并脱敏。
-- **蓝光原盘 ISO**：`player/bluray`（移植自 ETKN TV）。`BlurayMediaSourceFactory` 按 `BlurayTag` 走原盘（`PlaybackAddress.isDisc`：`Container`/`Path` 的 iso 标记或服务端原盘探测的 `BlurayPlaylist`/`TransportStreamId`；普通解析报容器不支持时再按原盘重试一次），`BlurayInput` 以 HTTP Range 读原文件，CI 构建的 `libetkn_bluray.so`（libbluray + libudfread + 仅解封装的 FFmpeg）选正片并拆出 MPEG-TS 流，`DiscExtractor` 用 FFmpeg `extract_extradata` 取回的 VPS/SPS/PPS 作为 csd，并按 SPS 填画面尺寸与色彩（服务端探测值兜底），只暴露主视频（PID 0x1011，丢弃杜比视界增强层与副视频）交给 Media3 硬件解码，轨道名称与默认音轨按 `TransportStreamId` 对应服务端；音频解码器无法启动时自动换音轨，其他解码失败在错误里写明格式与解码器；原盘关闭后播放线程不再调用原生句柄；杜比视界 profile 7 映射为 HEVC 基础层（普通文件同样适用）。
+- **蓝光原盘 ISO**：`player/bluray`（移植自 ETKN TV）。`BlurayMediaSourceFactory` 按 `BlurayTag` 走原盘（`PlaybackAddress.isDisc`：`Container`/`Path` 的 iso 标记或服务端原盘探测的 `BlurayPlaylist`/`TransportStreamId`；普通解析报容器不支持时再按原盘重试一次），`BlurayInput` 以 HTTP Range 读原文件，CI 构建的 `libetkn_bluray.so`（libbluray + libudfread + 仅解封装的 FFmpeg）选正片并拆出 MPEG-TS 流，`DiscExtractor` 用 FFmpeg `extract_extradata` 取回的 VPS/SPS/PPS 作为 csd，并按 SPS 填画面尺寸与色彩（服务端探测值兜底），只暴露主视频（PID 0x1011，丢弃杜比视界增强层与副视频）交给 Media3 硬件解码，轨道名称与默认音轨按 `TransportStreamId` 对应服务端；音频解码器无法启动时自动换音轨，其他解码失败在错误里写明格式与解码器；原盘关闭后播放线程不再调用原生句柄；杜比视界 profile 7：设备有 profile 8 解码器且屏幕支持杜比视界时转 8.1 播放（`DolbyVision`：原盘把增强层 0x1015 中同一时间戳的 RPU 用 `third_party/dovi` 转换后附到基础层帧，最多等 8 帧；MKV/MP4 单轨 P7 由 `DolbyVisionTrackOutput` 丢弃 NAL 63、转换 NAL 62），否则映射为 HEVC HDR10 基础层。
 - **条目菜单**：`ui/actions`。`ItemMenu` 在外壳最上层：海报卡片 / 继续观看卡片长按、详情页“更多”打开；毛玻璃菜单从卡片位置弹出（同窗口 Haze 模糊），刷新/删除/编辑元数据/编辑图片/提取缩略图按 Web 端规则与权限显示。变化经 `AppGraph.itemChanges` 广播，列表就地修补、首页静默重载、详情页重载或退出。
 - **毛玻璃**：同窗口浮层（顶栏、底栏、菜单、提示）用 Haze；对话框与底部面板是独立窗口，Android 12+ 用 `GlassDialog` / `GlassSheet`（`FLAG_BLUR_BEHIND` 模糊背后整屏 + 半透明容器）。人物、音乐列表、设置、账号页改为悬浮玻璃标题栏。
 - **导航**：`visibleTabs()` 决定底栏/侧栏项目（用户可选，首页固定；手机底栏最多 5 项；探索需权限）；宽屏可选侧边或底部。

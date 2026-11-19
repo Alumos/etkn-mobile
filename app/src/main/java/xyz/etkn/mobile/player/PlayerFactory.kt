@@ -30,6 +30,7 @@ object PlayerFactory {
         OkHttpDataSource.Factory(client).setUserAgent(userAgent)
 
     fun video(context: Context, client: OkHttpClient, userAgent: String, decoder: DecoderPreference): ExoPlayer {
+        DolbyVision.init(context)
         val renderers = NextRenderersFactory(context)
             .setExtensionRendererMode(
                 when (decoder) {
@@ -85,7 +86,8 @@ object PlayerFactory {
 
     /**
      * `.iso` sources go through libbluray (full-disc Blu-ray / UHD Blu-ray); everything else through
-     * the default extractors. Both present Dolby Vision profile 7 as its HEVC HDR10 base layer.
+     * the default extractors. Both play Dolby Vision profile 7 as 8.1 where the device can, else as
+     * its HEVC HDR10 base layer.
      */
     private fun videoSources(client: OkHttpClient, userAgent: String): BlurayMediaSourceFactory {
         val data = dataSource(client, userAgent)

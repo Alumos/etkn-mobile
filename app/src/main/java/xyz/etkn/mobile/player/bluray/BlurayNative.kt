@@ -39,5 +39,7 @@ internal object BlurayNative {
     @JvmStatic @Throws(IOException::class) external fun tracks(handle: Long, input: ExtractorInput, position: Long): Array<Track>
     @JvmStatic @Throws(IOException::class) external fun packet(handle: Long, input: ExtractorInput, bytes: ByteArray, metadata: LongArray): Int
     @JvmStatic external fun reset(handle: Long)
+    /** One Dolby Vision RPU NAL (`0x7C01` header) rewritten as profile 8.1 into [output]; its length, or < 0. */
+    @JvmStatic external fun dolbyVisionP81(input: ByteArray, offset: Int, length: Int, output: ByteArray): Int
     @JvmStatic external fun close(handle: Long)
 }

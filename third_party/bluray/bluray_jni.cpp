@@ -12,6 +12,8 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavutil/channel_layout.h"
 int64_t etkn_bd_seek_point(BLURAY *bd,uint64_t tick);
+// third_party/dovi (Rust, dovi_tool's RPU library): profile 7 RPU -> profile 8.1.
+int64_t etkn_dovi_to_p81(const uint8_t *input,size_t length,uint8_t *out,size_t capacity);
 }
 
 struct Disc {
@@ -193,3 +195,14 @@ JNI(packet) jint JNICALL METHOD(packet)(JNIEnv *env,jclass,jlong handle,jobject 
 }
 JNI(reset) void JNICALL METHOD(reset)(JNIEnv *,jclass,jlong handle){reset(disc(handle));}
 JNI(close) void JNICALL METHOD(close)(JNIEnv *env,jclass,jlong handle){close(env,disc(handle));}
+// One Dolby Vision RPU NAL (0x7C01 header) rewritten as profile 8.1 into output; returns its length or < 0.
+JNI(dolbyVisionP81) jint JNICALL METHOD(dolbyVisionP81)(JNIEnv *env,jclass,jbyteArray input,jint offset,jint length,jbyteArray output){
+    jsize inputSize=env->GetArrayLength(input),outputSize=env->GetArrayLength(output);
+    if(offset<0||length<=0||offset>inputSize-length)return -1;
+    jbyte *in=env->GetByteArrayElements(input,nullptr);
+    jbyte *out=in?env->GetByteArrayElements(output,nullptr):nullptr;
+    int64_t result=out?etkn_dovi_to_p81(reinterpret_cast<const uint8_t *>(in)+offset,static_cast<size_t>(length),reinterpret_cast<uint8_t *>(out),static_cast<size_t>(outputSize)):-1;
+    if(out)env->ReleaseByteArrayElements(output,out,result>0?0:JNI_ABORT);
+    if(in)env->ReleaseByteArrayElements(input,in,JNI_ABORT);
+    return static_cast<jint>(result);
+}
