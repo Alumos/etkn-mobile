@@ -238,8 +238,8 @@ fun LibraryCard(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier, 
 
 /** Grid entry for a library or folder: clean cover, name and size underneath (fills its cell). */
 @Composable
-fun LibraryTile(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth().clip(SmallCardShape).clickable(onClick = onClick)) {
+fun LibraryTile(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null) {
+    Column(modifier.fillMaxWidth().clip(SmallCardShape).combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
         Artwork(
             images().primary(item, 420.dp.px()),
             Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(LargeCardShape),

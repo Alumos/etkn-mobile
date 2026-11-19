@@ -273,6 +273,9 @@ data class Item(
     val isMusicGroup get() = !kind.isNullOrEmpty()
     val isPlayable get() = type in PLAYABLE_TYPES
 
+    /** A category card from `U/Facets` (name = value to browse by, [kind] = its field). */
+    val isFacet get() = type == "TvFacet"
+
     val runtimeMs: Long get() = runTimeTicks / TICKS_PER_MS
     val positionMs: Long get() = userData.playbackPositionTicks / TICKS_PER_MS
     val progress: Float

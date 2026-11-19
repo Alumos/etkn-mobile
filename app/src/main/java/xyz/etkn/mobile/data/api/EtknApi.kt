@@ -177,6 +177,42 @@ class EtknApi(
 
     suspend fun children(parentId: String): List<Item> = get(query("${u()}/Items", "ParentId" to parentId)).items()
 
+    /** TMDb collections with a member in this library; members list through [children]. */
+    suspend fun libraryCollections(libraryId: String): List<Item> =
+        get(query("${u()}/Libraries/${enc(libraryId)}/Collections", "Limit" to 200)).items()
+
+    /** Collections a movie belongs to (empty for anything else). */
+    suspend fun itemCollections(itemId: String): List<Item> =
+        get(query("${u()}/Items/${enc(itemId)}/Collections", "Limit" to 60)).items()
+
+    /** Category cards of a library: [kind] `Types` (genres and tags), `Networks` or `Companies`. */
+    suspend fun facets(libraryId: String, kind: String): List<Item> =
+        get(query("${u()}/Facets", "ParentId" to libraryId, "Kind" to kind)).items()
+
+    /** Titles of one category card ([kind] is the card's own `Kind`: Genres, Tags, Networks, Companies). */
+    suspend fun facetItems(libraryId: String, kind: String, value: String, sort: SortKey, descending: Boolean, start: Int, limit: Int): ItemsPage {
+        val result = get(
+            query(
+                "${u()}/Browse",
+                "ParentId" to libraryId, kind to value, "Limit" to limit, "StartIndex" to start,
+                "SortBy" to sort.wire, "SortOrder" to if (sort == SortKey.Random || !descending) "Ascending" else "Descending",
+                "Fields" to LIST_FIELDS,
+            ),
+        )
+        val items = result.items()
+        return ItemsPage(items, result.int("TotalRecordCount", start + items.size))
+    }
+
+    /** Generates (genres, tags) or fetches the logo of (networks, companies) one category card; admins and 刷新元数据 accounts. */
+    suspend fun generateFacetArtwork(libraryId: String, kind: String, value: String) {
+        post(query("${u()}/FacetArtwork", "ParentId" to libraryId, "Kind" to kind, "Value" to value, "Action" to if (kind == "Networks" || kind == "Companies") "icon" else null))
+    }
+
+    /** Re-scans a path / list library for new files (administrators). */
+    suspend fun scanLibrary(libraryId: String) {
+        post("/api/tv/Items/${enc(libraryId)}/Scan")
+    }
+
     suspend fun favorites(start: Int, limit: Int): ItemsPage {
         val path = query(
             "${u()}/Browse",

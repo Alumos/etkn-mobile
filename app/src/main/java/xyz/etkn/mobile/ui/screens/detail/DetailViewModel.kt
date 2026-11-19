@@ -23,6 +23,8 @@ data class DetailData(
     val seasons: List<Item> = emptyList(),
     val target: Item? = null,
     val similar: List<Item> = emptyList(),
+    /** TMDb collections a movie belongs to. */
+    val collections: List<Item> = emptyList(),
     val selectedSource: Int = 0,
 )
 
@@ -71,12 +73,14 @@ class DetailViewModel(private val graph: AppGraph, private val id: String) : Vie
                         async { runCatching { api.playbackTarget(sid, if (item.isSeason) item.id else null) }.getOrNull() }
                     }
                     val similar = if (item.isMovie || item.isSeries) async { runCatching { api.similar(item.id) }.getOrDefault(emptyList()) } else null
+                    val collections = if (item.isMovie) async { runCatching { api.itemCollections(item.id) }.getOrDefault(emptyList()) } else null
                     val full = detailed?.await()
                     DetailData(
                         item = if (full != null) base.copy(mediaSources = full.mediaSources, chapters = full.chapters.ifEmpty { base.chapters }) else base,
                         seasons = seasons?.await().orEmpty(),
                         target = target?.await(),
                         similar = similar?.await().orEmpty(),
+                        collections = collections?.await().orEmpty(),
                     )
                 }
                 _state.value = Load.Ready(data)

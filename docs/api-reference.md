@@ -109,8 +109,13 @@
 | GET | `U/Items?ParentId=` | 文件夹子项 |
 | GET | `U/Browse?Limit=&StartIndex=&SortBy=DateCreated&SortOrder=Descending&Filters=IsFavorite` | 收藏 |
 | GET | `U/Items?Recursive=true&IncludeItemTypes=Movie,Series&SearchTerm=&SortBy=SortName&Limit=&StartIndex=&Fields=…` | 库内搜索 |
-| GET | `U/Libraries/{libraryId}/Collections?Limit=200` | 库内合集 |
-| GET | `U/Items/{id}/Collections?Limit=60` | 条目所属合集 |
+| GET | `U/Libraries/{libraryId}/Collections?Limit=200` | 库内合集（库页「合集」，仅 path 来源的库有结果）；成员用 `U/Items?ParentId=<合集ID>` |
+| GET | `U/Items/{id}/Collections?Limit=60` | 电影所属合集（详情「所属合集」） |
+| GET | `U/Facets?ParentId=&Kind={Types\|Networks\|Companies}` | 分类卡片：`Items[]{Id, Name, Kind(Genres/Tags/Networks/Companies), Value, Type=TvFacet, ImageTags.Primary}` |
+| GET | `U/Browse?ParentId=&{Kind}={Value}&Limit=&StartIndex=&SortBy=&SortOrder=&Fields=LIST_FIELDS` | 一张分类卡片下的影视 |
+| GET | `U/FacetArtwork?ParentId=&Kind=&Value=&tag=&maxWidth=` | 分类封面（二进制图） |
+| POST | `U/FacetArtwork?ParentId=&Kind=&Value=[&Action=icon]` | 生成类型/标签封面，或为电视网/出品公司拉取标志（`Action=icon`）；管理员或可刷新元数据的账号，逐张提交 |
+| POST | `/api/tv/Items/{libraryId}/Scan` | 扫描媒体库，`{}`；仅管理员，且库 `SourceType` 为 `path` 或 `list` |
 | POST | `U/Items/{id}/HideFromResume` | 从继续观看中移除 |
 
 **`SortBy` 可选值**：

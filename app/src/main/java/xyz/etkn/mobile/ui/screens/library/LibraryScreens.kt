@@ -1,5 +1,7 @@
 package xyz.etkn.mobile.ui.screens.library
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,45 +34,64 @@ import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chrisbanes.haze.rememberHazeState
+import kotlinx.coroutines.launch
 import xyz.etkn.mobile.data.api.SortKey
 import xyz.etkn.mobile.data.model.Item
+import xyz.etkn.mobile.graph
+import xyz.etkn.mobile.ui.actions.LocalItemMenu
 import xyz.etkn.mobile.ui.actions.PopupChoice
 import xyz.etkn.mobile.ui.actions.rememberPopupAnchor
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.common.Paged
 import xyz.etkn.mobile.ui.common.graphViewModel
+import xyz.etkn.mobile.ui.common.userMessage
+import xyz.etkn.mobile.ui.components.Artwork
 import xyz.etkn.mobile.ui.components.ArtworkBackButton
+import xyz.etkn.mobile.ui.components.CardShape
 import xyz.etkn.mobile.ui.components.ErrorState
 import xyz.etkn.mobile.ui.components.InlineLoading
 import xyz.etkn.mobile.ui.components.LibraryTile
 import xyz.etkn.mobile.ui.components.LoadingState
 import xyz.etkn.mobile.ui.components.MessageState
 import xyz.etkn.mobile.ui.components.PosterCard
+import xyz.etkn.mobile.ui.components.SmallCardShape
 import xyz.etkn.mobile.ui.components.glass
 import xyz.etkn.mobile.ui.components.glassSource
+import xyz.etkn.mobile.ui.components.images
+import xyz.etkn.mobile.ui.components.px
+import xyz.etkn.mobile.ui.nav.FacetRoute
 import xyz.etkn.mobile.ui.nav.LibraryRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
@@ -78,6 +100,10 @@ import xyz.etkn.mobile.ui.theme.Etkn
 @Composable
 fun LibrariesScreen() {
     val vm = graphViewModel { LibrariesViewModel(it) }
+    val graph = LocalContext.current.graph
+    val admin = graph.sessions.current?.isAdmin == true
+    val scope = rememberCoroutineScope()
+    val menu = LocalItemMenu.current
     val state by vm.state.collectAsStateWithLifecycle()
     val nav = LocalNav.current
     when (val s = state) {
@@ -94,7 +120,27 @@ fun LibrariesScreen() {
                 LargeTitle("媒体库", horizontal = 0.dp)
             }
             items(s.value, key = { it.id }, contentType = { "library" }) { library ->
-                LibraryTile(library, onClick = { nav.openLibrary(library) })
+                val anchor = rememberPopupAnchor()
+                val scannable = admin && library.sourceType in SCANNABLE
+                LibraryTile(
+                    library,
+                    onClick = { nav.openLibrary(library) },
+                    onLongClick = if (scannable) {
+                        {
+                            anchor.open(
+                                listOf(
+                                    PopupChoice("扫描媒体库", Icons.Rounded.Sync) {
+                                        scope.launch {
+                                            menu?.notice = runCatching { graph.api.scanLibrary(library.id) }
+                                                .fold({ "已开始扫描「${library.name}」" }, { it.userMessage() })
+                                        }
+                                    },
+                                ),
+                            )
+                        }
+                    } else null,
+                    modifier = anchor.modifier,
+                )
             }
         }
     }
@@ -116,32 +162,128 @@ fun LibraryScreen(route: LibraryRoute) {
     val vm = graphViewModel(key = route.id) { LibraryViewModel(it, route.id, route.collectionType) }
     val paged by vm.paged.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
+    val view by vm.view.collectAsStateWithLifecycle()
     val nav = LocalNav.current
+    val facets = view.facet != null
     PosterGridScaffold(
         title = route.name,
         paged = paged,
         onBack = nav::back,
         onLoadMore = vm::loadMore,
         onRetry = vm::retry,
-        onOpen = nav::open,
+        onOpen = { item ->
+            if (item.isFacet) nav.to(FacetRoute(route.id, item.kind.orEmpty(), item.name)) else nav.open(item)
+        },
+        cell = if (facets) 156.dp else null,
+        card = if (facets) { item -> FacetCard(route.id, item, vm) } else null,
         header = if (vm.isFolderView) null else {
             {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SortMenu(query.sort, query.descending, vm::setSort)
-                    FilterChip(
-                        selected = query.favoritesOnly,
-                        onClick = vm::toggleFavorites,
-                        label = { Text("收藏") },
-                        leadingIcon = { Icon(if (query.favoritesOnly) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, null, Modifier.size(18.dp)) },
-                        shape = RoundedCornerShape(12.dp),
-                    )
-                    if (paged.total >= 0) {
-                        Text("${paged.total} 项", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (vm.views.size > 1) {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                        ) {
+                            vm.views.forEachIndexed { index, option ->
+                                ToggleButton(
+                                    checked = option == view,
+                                    onCheckedChange = { vm.setView(option) },
+                                    shapes = when (index) {
+                                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                        vm.views.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                    },
+                                    modifier = Modifier.height(36.dp),
+                                ) { Text(option.label, maxLines = 1) }
+                            }
+                        }
                     }
+                    if (view == LibraryView.All) {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SortMenu(query.sort, query.descending, vm::setSort)
+                            FilterChip(
+                                selected = query.favoritesOnly,
+                                onClick = vm::toggleFavorites,
+                                label = { Text("收藏") },
+                                leadingIcon = { Icon(if (query.favoritesOnly) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, null, Modifier.size(18.dp)) },
+                                shape = RoundedCornerShape(12.dp),
+                            )
+                            if (paged.total >= 0) {
+                                Text("${paged.total} 项", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    )
+}
+
+/**
+ * One category card (genre, tag, network, company): its cover when the server has one, else the
+ * name on a tonal tile. Long press offers 生成封面 to accounts allowed to make covers.
+ */
+@Composable
+private fun FacetCard(libraryId: String, card: Item, vm: LibraryViewModel) {
+    val nav = LocalNav.current
+    val scope = rememberCoroutineScope()
+    val menu = LocalItemMenu.current
+    val anchor = rememberPopupAnchor()
+    val url = images().facet(libraryId, card, 360.dp.px())
+    Column(
+        Modifier.fillMaxWidth().then(anchor.modifier).clip(SmallCardShape).combinedClickable(
+            onClick = { nav.to(FacetRoute(libraryId, card.kind.orEmpty(), card.name)) },
+            onLongClick = if (vm.canMakeCovers) {
+                {
+                    anchor.open(
+                        listOf(
+                            PopupChoice(if (url == null) "生成封面" else "重新生成封面", Icons.Rounded.Image) {
+                                scope.launch {
+                                    menu?.notice = vm.makeCover(card).fold({ "「${card.name}」封面已更新" }, { it.userMessage() })
+                                }
+                            },
+                        ),
+                    )
+                }
+            } else null,
+        ),
+    ) {
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(CardShape).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
+            if (url != null) {
+                Artwork(url, Modifier.fillMaxSize(), card.name, contentScale = if (card.kind == "Networks" || card.kind == "Companies") ContentScale.Fit else ContentScale.Crop, background = Color.Transparent)
+            } else {
+                Text(card.name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(12.dp))
+            }
+        }
+        if (url != null) {
+            Text(card.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp, start = 2.dp, end = 2.dp))
+        }
+    }
+}
+
+/** Titles of one category card. */
+@Composable
+fun FacetScreen(route: FacetRoute) {
+    val vm = graphViewModel(key = route.libraryId + route.kind + route.value) { FacetViewModel(it, route.libraryId, route.kind, route.value) }
+    val paged by vm.paged.collectAsStateWithLifecycle()
+    val sort by vm.sort.collectAsStateWithLifecycle()
+    val nav = LocalNav.current
+    PosterGridScaffold(
+        title = route.value,
+        paged = paged,
+        onBack = nav::back,
+        onLoadMore = vm::loadMore,
+        onRetry = vm::retry,
+        onOpen = nav::open,
+        header = {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                SortMenu(sort.first, sort.second, vm::setSort)
+                if (paged.total >= 0) {
+                    Text("${paged.total} 项", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         },
@@ -199,6 +341,8 @@ fun PosterGridScaffold(
     modifier: Modifier = Modifier,
     header: (@Composable () -> Unit)? = null,
     grid: LazyGridState = rememberLazyGridState(),
+    cell: Dp? = null,
+    card: (@Composable (Item) -> Unit)? = null,
 ) {
     val haze = rememberHazeState()
     val density = LocalDensity.current
@@ -211,7 +355,7 @@ fun PosterGridScaffold(
                 paged.items.isEmpty() && paged.loading -> LoadingState()
                 paged.items.isEmpty() && paged.error != null -> ErrorState(paged.error, onRetry)
                 paged.items.isEmpty() && paged.endReached -> MessageState("这里还没有内容")
-                else -> PosterGrid(paged, grid, onLoadMore, onRetry, top = top, onOpen = onOpen)
+                else -> PosterGrid(paged, grid, onLoadMore, onRetry, top = top, cell = cell, card = card, onOpen = onOpen)
             }
         }
         Column(
@@ -241,6 +385,8 @@ fun PosterGrid(
     onLoadMore: () -> Unit,
     onRetry: () -> Unit,
     top: Dp = 8.dp,
+    cell: Dp? = null,
+    card: (@Composable (Item) -> Unit)? = null,
     onOpen: (Item) -> Unit,
 ) {
     val shouldLoad by remember(paged) {
@@ -254,7 +400,7 @@ fun PosterGrid(
     }
     LazyVerticalGrid(
         state = grid,
-        columns = GridCells.Adaptive(if (LocalWindowLayout.current.wide) 140.dp else 108.dp),
+        columns = GridCells.Adaptive(cell ?: if (LocalWindowLayout.current.wide) 140.dp else 108.dp),
         contentPadding = PaddingValues(start = Etkn.space.screen, end = Etkn.space.screen, top = top, bottom = LocalBottomInset.current),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -263,7 +409,8 @@ fun PosterGrid(
         items(paged.items, key = { it.id }, contentType = { "poster" }) { item ->
             // Removals and in-place updates (favourite, delete) slide neighbours into place.
             Box(Modifier.animateItem()) {
-                if (item.type == "CollectionFolder" || item.collectionType != null && item.type != "BoxSet") {
+                if (card != null) card(item)
+                else if (item.type == "CollectionFolder" || item.collectionType != null && item.type != "BoxSet") {
                     LibraryTile(item, onClick = { onOpen(item) })
                 } else {
                     PosterCard(item, onClick = { onOpen(item) }, width = null)
@@ -280,3 +427,6 @@ fun PosterGrid(
         }
     }
 }
+
+/** Library sources the server can re-scan (TV shows 扫描 for the same ones). */
+private val SCANNABLE = setOf("path", "list")

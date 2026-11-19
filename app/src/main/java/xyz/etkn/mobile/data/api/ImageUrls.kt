@@ -91,6 +91,13 @@ class ImageUrls(private val server: String, private val userId: String) {
     fun tmdb(path: String?, size: String = "w342"): String? =
         path?.takeIf { it.isNotEmpty() }?.let { "https://image.tmdb.org/t/p/$size$it" }
 
+    /** A category card's cover, when the server has one ([Item.imageTags] Primary). */
+    fun facet(libraryId: String, item: Item, widthPx: Int): String? {
+        val tag = item.imageTags["Primary"] ?: return null
+        return "$server/api/tv/Users/${enc(userId)}/FacetArtwork?ParentId=${enc(libraryId)}&Kind=${enc(item.kind.orEmpty())}" +
+            "&Value=${enc(item.name)}&maxWidth=${bucket(widthPx)}&tag=${enc(tag)}"
+    }
+
     fun absolute(path: String): String = if (path.startsWith("http")) path else server + path
 
     private fun image(id: String, type: String, widthPx: Int, tag: String): String =

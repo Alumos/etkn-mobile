@@ -40,6 +40,7 @@ import xyz.etkn.mobile.ui.screens.discover.DiscoverDetailScreen
 import xyz.etkn.mobile.ui.screens.discover.DiscoverPersonScreen
 import xyz.etkn.mobile.ui.screens.discover.DiscoverScreen
 import xyz.etkn.mobile.ui.screens.home.HomeScreen
+import xyz.etkn.mobile.ui.screens.library.FacetScreen
 import xyz.etkn.mobile.ui.screens.library.FavoritesScreen
 import xyz.etkn.mobile.ui.screens.library.LibrariesScreen
 import xyz.etkn.mobile.ui.screens.library.LibraryScreen
@@ -89,6 +90,7 @@ internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pag
         page<SearchRoute> { SearchScreen() }
         page<MeRoute> { MeScreen() }
         page<LibraryRoute> { LibraryScreen(it.toRoute()) }
+        page<FacetRoute> { FacetScreen(it.toRoute()) }
         page<DetailRoute> { DetailScreen(it.toRoute<DetailRoute>().id) }
         page<EpisodesRoute> { EpisodesScreen(it.toRoute()) }
         page<PersonRoute> { PersonScreen(it.toRoute()) }

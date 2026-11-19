@@ -176,6 +176,7 @@ private fun DetailContent(data: DetailData, vm: DetailViewModel, nav: AppNav) {
                         }
                     }
                 }
+                shelf("collections", "所属合集", data.collections) { PosterCard(it, onClick = { nav.open(it) }) }
                 shelf("similar", "相似推荐", data.similar) { PosterCard(it, onClick = { nav.open(it) }) }
                 item(key = "bottom") { Spacer(Modifier.height(LocalBottomInset.current + 24.dp)) }
             }
