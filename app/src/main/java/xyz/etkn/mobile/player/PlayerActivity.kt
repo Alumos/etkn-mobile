@@ -135,6 +135,16 @@ class PlayerActivity : ComponentActivity() {
         if (wasPlaying) session?.player?.play()
     }
 
+    override fun onPause() {
+        super.onPause()
+        // Release now, not in onDestroy: that can run after the next player activity has already
+        // started its own core, and libmpv allows one instance per process.
+        if (isFinishing) {
+            session?.release()
+            session = null
+        }
+    }
+
     override fun onStop() {
         super.onStop()
         val player = session?.player ?: return

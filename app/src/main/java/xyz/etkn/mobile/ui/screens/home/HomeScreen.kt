@@ -1,5 +1,9 @@
 package xyz.etkn.mobile.ui.screens.home
 
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
@@ -126,7 +130,7 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
                 item(key = "top-space") { Spacer(Modifier.windowInsetsPadding(WindowInsets.statusBars).height(64.dp)) }
             }
             shelf("resume", "继续观看", data.resume) { item ->
-                WideCard(item, onClick = { nav.play(item) }, resume = true)
+                WideCard(item, onClick = { nav.openTitle(item) }, resume = true, onPlay = { nav.play(item) })
             }
             shelf("libraries", "媒体库", data.libraries, onMore = { nav.top(TopLevel.Libraries) }) { library ->
                 LibraryCard(library, onClick = { nav.openLibrary(library) })
@@ -149,27 +153,23 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
 }
 
 /**
- * Over the untouched hero only the title and icons float on the poster; the glass pill fades in
- * as soon as the page scrolls ([reveal] 0 → 1) and stays once the hero is gone.
+ * Three separate glass pieces — server name, search, avatar — instead of one full-width bar. Over
+ * the untouched hero they float bare on the poster; their glass fades in as the page scrolls
+ * ([reveal] 0 → 1) and stays once the hero is gone.
  */
 @Composable
 private fun HomeTopBar(reveal: () -> Float, haze: HazeState, onSearch: () -> Unit, onFavorites: () -> Unit, onMe: () -> Unit) {
     val graph = LocalContext.current.graph
     val session = (graph.sessions.state.collectAsStateWithLifecycle().value as? SessionState.SignedIn)?.session ?: return
     val urls = images()
-    val shape = RoundedCornerShape(26.dp)
     val fraction = reveal()
     val content = lerp(Color.White, MaterialTheme.colorScheme.onSurface, fraction)
-    Box(
+    Row(
         Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (fraction > 0f) {
-            Box(Modifier.matchParentSize().graphicsLayer { alpha = fraction }.glass(shape, elevation = 8.dp, state = haze))
-        }
-        Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp).height(52.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        GlassPiece(fraction, haze, RoundedCornerShape(50), Modifier.weight(1f, fill = false)) {
             Text(
                 session.serverName,
                 style = MaterialTheme.typography.titleLarge,
@@ -177,10 +177,15 @@ private fun HomeTopBar(reveal: () -> Float, haze: HazeState, onSearch: () -> Uni
                 color = content,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.padding(horizontal = 18.dp).heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically),
             )
+        }
+        Spacer(Modifier.weight(1f))
+        GlassPiece(fraction, haze, CircleShape) {
             IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "搜索", tint = content) }
-            val account = rememberPopupAnchor()
+        }
+        val account = rememberPopupAnchor()
+        GlassPiece(fraction, haze, CircleShape, account.modifier) {
             IconButton(
                 onClick = {
                     account.open(
@@ -190,7 +195,6 @@ private fun HomeTopBar(reveal: () -> Float, haze: HazeState, onSearch: () -> Uni
                         ),
                     )
                 },
-                modifier = account.modifier,
             ) {
                 Artwork(
                     urls.user(tag = session.imageTag),
@@ -200,5 +204,16 @@ private fun HomeTopBar(reveal: () -> Float, haze: HazeState, onSearch: () -> Uni
                 )
             }
         }
+    }
+}
+
+/** One floating control; its glass backing appears with [fraction]. */
+@Composable
+private fun GlassPiece(fraction: Float, haze: HazeState, shape: Shape, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (fraction > 0f) {
+            Box(Modifier.matchParentSize().graphicsLayer { alpha = fraction }.glass(shape, elevation = 8.dp, state = haze))
+        }
+        content()
     }
 }

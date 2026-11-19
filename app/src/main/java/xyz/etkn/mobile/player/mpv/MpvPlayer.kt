@@ -87,6 +87,9 @@ class MpvPlayer(
     @Volatile private var playing = false
 
     init {
+        // libmpv is one per process: a player still alive (activity not yet destroyed) goes first.
+        live?.takeIf { it !== this && !it.released }?.release()
+        live = this
         MpvAssets.prepare(app)
         view.options = ::configure
         view.observed = OBSERVED
@@ -298,6 +301,7 @@ class MpvPlayer(
 
     override fun handleRelease(): ListenableFuture<*> {
         released = true
+        if (live === this) live = null
         MPVLib.removeObserver(this)
         runCatching { view.destroy() }.onFailure { Log.e(TAG, "mpv destroy", it) }
         return Futures.immediateVoidFuture()
@@ -495,6 +499,9 @@ class MpvPlayer(
 
     companion object {
         private const val TAG = "ETKN-Mpv"
+
+        /** Main thread only. */
+        private var live: MpvPlayer? = null
 
         private val OBSERVED = listOf(
             "time-pos" to MPVLib.MpvFormat.MPV_FORMAT_DOUBLE,

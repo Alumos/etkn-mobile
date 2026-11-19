@@ -3,7 +3,7 @@ package xyz.etkn.mobile.ui.nav
 import android.content.Context
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.graph
@@ -17,15 +17,27 @@ class AppNav(private val controller: NavHostController, private val context: Con
         controller.popBackStack()
     }
 
+    /** Tabs in the pager and how to move it; set by MainShell. */
+    internal var tabs: List<TopLevel> = emptyList()
+    internal var selectTab: (TopLevel) -> Unit = {}
+
+    /** A tab in the pager is shown there (over pages are closed); any other opens as a page. */
     fun top(destination: TopLevel) {
-        controller.navigate(destination.route) {
-            popUpTo(controller.graph.findStartDestination().id) { saveState = true }
-            launchSingleTop = true
-            restoreState = true
+        if (destination !in tabs) {
+            to(destination.route)
+            return
         }
+        if (controller.currentDestination?.hasRoute<TabsRoute>() != true) controller.popBackStack<TabsRoute>(inclusive = false)
+        selectTab(destination)
     }
 
     fun to(route: Any) = controller.navigate(route) { launchSingleTop = true }
+
+    /** The title an item belongs to: an episode opens its series, anything else itself. */
+    fun openTitle(item: Item) {
+        val series = item.seriesId
+        if (item.isEpisode && series != null) to(DetailRoute(series)) else open(item)
+    }
 
     fun open(item: Item) {
         when {

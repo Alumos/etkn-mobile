@@ -1,5 +1,6 @@
 package xyz.etkn.mobile.data.net
 
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -39,6 +40,7 @@ data class Credentials(val origin: String, val token: String)
 class ApiClient(
     private val http: OkHttpClient,
     private val identity: ClientIdentity,
+    private val cache: ResponseCache,
 ) {
     suspend fun call(
         credentials: Credentials,
@@ -47,6 +49,11 @@ class ApiClient(
         body: JsonElement? = null,
         raw: RequestBody? = null,
     ): JsonObject {
+        val mode = if (method == "GET") currentCoroutineContext()[ResponseCache.Use]?.mode else null
+        if (mode == ResponseCache.Mode.Read) {
+            val text = cache.read(credentials, path) ?: throw EtknException.Network(IOException("not cached"))
+            return decode(text, 200, path)
+        }
         val builder = Request.Builder()
             .url(credentials.origin + path)
             .header("Accept", "application/json")
@@ -63,10 +70,12 @@ class ApiClient(
             else -> builder.method(method, payload ?: EMPTY_OBJECT.toRequestBody(JSON_TYPE))
         }
         val call = http.newCall(builder.build())
-        return call.await { response -> parse(response, path) }
+        return call.await { response ->
+            parse(response, path) { text -> if (mode == ResponseCache.Mode.Store) cache.write(credentials, path, text) }
+        }
     }
 
-    private fun parse(response: Response, path: String): JsonObject {
+    private fun parse(response: Response, path: String, onSuccess: (String) -> Unit): JsonObject {
         val status = response.code
         if (status in 300..399) throw EtknException.Redirected()
         val text = response.body.use { body ->
@@ -75,6 +84,10 @@ class ApiClient(
             if (source.buffer.size > MAX_BYTES) throw EtknException.BadResponse(status)
             source.readUtf8()
         }
+        return decode(text, status, path).also { onSuccess(text) }
+    }
+
+    private fun decode(text: String, status: Int, path: String): JsonObject {
         val json: JsonObject = try {
             val trimmed = text.trim()
             when {

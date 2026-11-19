@@ -18,6 +18,8 @@ import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import kotlinx.serialization.Serializable
 
+/** Start destination: the top-level tabs in one swipeable pager. */
+@Serializable data object TabsRoute
 @Serializable data object HomeRoute
 @Serializable data object LibrariesRoute
 @Serializable data object MusicRoute

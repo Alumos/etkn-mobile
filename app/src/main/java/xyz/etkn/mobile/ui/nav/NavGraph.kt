@@ -9,7 +9,12 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,7 +52,7 @@ import xyz.etkn.mobile.ui.screens.search.SearchScreen
 
 /** Every destination inside the shell. */
 @Composable
-internal fun AppNavHost(controller: NavHostController, modifier: Modifier = Modifier) {
+internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pager: PagerState, modifier: Modifier = Modifier) {
     // Theme motion (Material 3 Expressive springs) instead of fixed tweens: interrupted or
     // scrubbed transitions keep their velocity and settle naturally.
     val motion = MaterialTheme.motionScheme
@@ -56,7 +61,7 @@ internal fun AppNavHost(controller: NavHostController, modifier: Modifier = Modi
     val fade = motion.defaultEffectsSpec<Float>()
     NavHost(
         navController = controller,
-        startDestination = HomeRoute,
+        startDestination = TabsRoute,
         modifier = modifier,
         // Pop transitions are what the predictive back gesture scrubs: the page being
         // left shrinks into a rounded card and drifts with the finger while the page
@@ -66,6 +71,8 @@ internal fun AppNavHost(controller: NavHostController, modifier: Modifier = Modi
         popEnterTransition = { fadeIn(fade) + scaleIn(zoom, initialScale = 0.96f) },
         popExitTransition = { scaleOut(zoom, targetScale = 0.88f) + slideOutHorizontally(move) { it / 8 } },
     ) {
+        page<TabsRoute> { TabPager(tabs, pager) }
+        // Tabs left out of the dock still open as ordinary pages.
         page<HomeRoute> { HomeScreen() }
         page<LibrariesRoute> { LibrariesScreen() }
         page<MusicRoute> { MusicHomeScreen() }
@@ -85,6 +92,36 @@ internal fun AppNavHost(controller: NavHostController, modifier: Modifier = Modi
         page<SettingsRoute> { entry ->
             val page = entry.toRoute<SettingsRoute>().page
             SettingsScreen(SettingsPage.entries.firstOrNull { it.name == page } ?: SettingsPage.Appearance)
+        }
+    }
+}
+
+/**
+ * The dock's tabs side by side: switching is a pager scroll, not a navigation, so the screens
+ * stay composed (scroll position, loaded data), the neighbour is laid out in advance and a
+ * horizontal swipe moves between tabs. Back returns to 首页 first.
+ */
+@Composable
+private fun TabPager(tabs: List<TopLevel>, pager: PagerState) {
+    val scope = rememberCoroutineScope()
+    val spring = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    BackHandler(enabled = pager.currentPage != 0) { scope.launch { pager.animateScrollToPage(0, animationSpec = spring) } }
+    HorizontalPager(
+        state = pager,
+        modifier = Modifier.fillMaxSize(),
+        beyondViewportPageCount = 1,
+        key = { tabs.getOrNull(it)?.name ?: it },
+    ) { page ->
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+            when (tabs.getOrNull(page)) {
+                TopLevel.Home -> HomeScreen()
+                TopLevel.Libraries -> LibrariesScreen()
+                TopLevel.Music -> MusicHomeScreen()
+                TopLevel.Discover -> DiscoverScreen()
+                TopLevel.Search -> SearchScreen()
+                TopLevel.Me -> MeScreen()
+                null -> Unit
+            }
         }
     }
 }

@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import xyz.etkn.mobile.data.net.ResponseCache
 import xyz.etkn.mobile.AppGraph
 import xyz.etkn.mobile.data.api.EtknApi
 import xyz.etkn.mobile.data.api.LibraryQuery
@@ -18,17 +20,26 @@ import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.Paged
 import xyz.etkn.mobile.ui.common.userMessage
 
-class LibrariesViewModel(graph: AppGraph) : ViewModel() {
+class LibrariesViewModel(private val graph: AppGraph) : ViewModel() {
     private val api = graph.api
     private val _state = MutableStateFlow<Load<List<Item>>>(Load.Loading)
     val state: StateFlow<Load<List<Item>>> = _state.asStateFlow()
 
-    init { load() }
+    init {
+        // Last session's list first; the network answer replaces it quietly.
+        viewModelScope.launch {
+            val cached = runCatching { withContext(graph.cacheUse(ResponseCache.Mode.Read)) { api.views() } }.getOrNull()
+            if (!cached.isNullOrEmpty() && _state.value !is Load.Ready) _state.value = Load.Ready(cached)
+        }
+        load()
+    }
 
     fun load() {
-        _state.value = Load.Loading
+        if (_state.value !is Load.Ready) _state.value = Load.Loading
         viewModelScope.launch {
-            _state.value = runCatching { api.views() }.fold({ Load.Ready(it) }, { Load.Failed(it.userMessage()) })
+            val result = runCatching { withContext(graph.cacheUse(ResponseCache.Mode.Store)) { api.views() } }
+            result.onSuccess { _state.value = Load.Ready(it) }
+                .onFailure { if (_state.value !is Load.Ready) _state.value = Load.Failed(it.userMessage()) }
         }
     }
 }

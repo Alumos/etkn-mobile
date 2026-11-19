@@ -58,6 +58,8 @@ object Diagnostics {
             previous?.uncaughtException(thread, error)
         }
         Log.i(TAG, "start ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) ${Build.MANUFACTURER} ${Build.MODEL} API ${Build.VERSION.SDK_INT}")
+        // Native crashes / ANRs of earlier runs (no Java handler sees them): from Android's exit records.
+        Thread({ ExitRecords.record(context.applicationContext, File(dir, CRASH)) }, "etkn-exit-records").start()
     }
 
     /** Days that have log lines, newest first. */

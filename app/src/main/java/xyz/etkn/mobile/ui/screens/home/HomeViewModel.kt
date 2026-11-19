@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import xyz.etkn.mobile.data.net.ResponseCache
 import xyz.etkn.mobile.AppGraph
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.ui.common.Load
@@ -40,6 +42,7 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
     private var lastLoad = 0L
 
     init {
+        showCached()
         load()
         // Changes from the item menu: reload the shelves quietly (the hero is kept).
         viewModelScope.launch { graph.itemChanges.collect { load() } }
@@ -52,50 +55,65 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
         if (System.currentTimeMillis() - lastLoad > 60_000) refreshResume()
     }
 
+    /**
+     * Last session's shelves from disk, painted while the network load runs; the hero starts
+     * from cached titles with artwork until the recommendation stream answers.
+     */
+    private fun showCached() {
+        viewModelScope.launch {
+            val cached = runCatching { withContext(graph.cacheUse(ResponseCache.Mode.Read)) { fetch() } }.getOrNull() ?: return@launch
+            if (_state.value is Load.Ready || cached.libraries.isEmpty()) return@launch
+            _state.value = Load.Ready(cached.copy(hero = fallbackHero(cached)))
+        }
+    }
+
     private fun load(manual: Boolean = false) {
         if (manual) _refreshing.value = true
         viewModelScope.launch {
             try {
-                val data = coroutineScope {
-                    val viewsJob = async { api.views() }
-                    val resumeJob = async { runCatching { api.resume(20) }.getOrDefault(emptyList()) }
-                    val views = viewsJob.await()
-                    val videoLibraries = views.filter { it.collectionType !in NON_LATEST }
-                    val shelves = videoLibraries.map { library ->
-                        async {
-                            val types = when (library.collectionType) {
-                                "movies" -> "Movie"
-                                "tvshows" -> "Series"
-                                else -> null
-                            }
-                            LatestShelf(library, runCatching { api.latest(library.id, types, 20) }.getOrDefault(emptyList()))
-                        }
-                    }
-                    val music = views.firstOrNull { it.collectionType == "music" }?.let { library ->
-                        async {
-                            runCatching {
-                                library to api.musicList(library.id, "albums", "", 0, 20, newest = true).items
-                            }.getOrNull()
-                        }
-                    }
-                    val previous = (_state.value as? Load.Ready)?.value
-                    HomeData(
-                        hero = previous?.hero.orEmpty(),
-                        resume = resumeJob.await(),
-                        libraries = views,
-                        latest = shelves.awaitAll().filter { it.items.isNotEmpty() },
-                        musicLatest = music?.await()?.takeIf { it.second.isNotEmpty() },
-                    )
-                }
+                val data = withContext(graph.cacheUse(ResponseCache.Mode.Store)) { fetch() }
+                    .let { fresh -> fresh.copy(hero = (_state.value as? Load.Ready)?.value?.hero.orEmpty()) }
+                val fromCache = (_state.value as? Load.Ready) != null && lastLoad == 0L
                 lastLoad = System.currentTimeMillis()
                 _state.value = Load.Ready(data)
-                if (data.hero.isEmpty() || manual) loadHero(data)
+                // A shown hero (cached or previous) is swapped in one step, never shrunk to one card.
+                if (data.hero.isEmpty()) loadHero(data) else if (manual || fromCache) loadHero(data, quiet = true)
             } catch (error: Exception) {
                 if (_state.value !is Load.Ready) _state.value = Load.Failed(error.userMessage())
             } finally {
                 _refreshing.value = false
             }
         }
+    }
+
+    private suspend fun fetch(): HomeData = coroutineScope {
+        val viewsJob = async { api.views() }
+        val resumeJob = async { runCatching { api.resume(20) }.getOrDefault(emptyList()) }
+        val views = viewsJob.await()
+        val videoLibraries = views.filter { it.collectionType !in NON_LATEST }
+        val shelves = videoLibraries.map { library ->
+            async {
+                val types = when (library.collectionType) {
+                    "movies" -> "Movie"
+                    "tvshows" -> "Series"
+                    else -> null
+                }
+                LatestShelf(library, runCatching { api.latest(library.id, types, 20) }.getOrDefault(emptyList()))
+            }
+        }
+        val music = views.firstOrNull { it.collectionType == "music" }?.let { library ->
+            async {
+                runCatching {
+                    library to api.musicList(library.id, "albums", "", 0, 20, newest = true).items
+                }.getOrNull()
+            }
+        }
+        HomeData(
+            resume = resumeJob.await(),
+            libraries = views,
+            latest = shelves.awaitAll().filter { it.items.isNotEmpty() },
+            musicLatest = music?.await()?.takeIf { it.second.isNotEmpty() },
+        )
     }
 
     private fun refreshResume() {
@@ -111,7 +129,7 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
      * appended as they arrive so the hero paints after the first response; entries without
      * backdrop artwork are skipped.
      */
-    private fun loadHero(data: HomeData) {
+    private fun loadHero(data: HomeData, quiet: Boolean = false) {
         heroJob?.cancel()
         heroJob = viewModelScope.launch {
             val seed = UUID.randomUUID().toString()
@@ -125,7 +143,7 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
                     page.items.firstOrNull()?.let { item ->
                         if (hasBackdrop(item) && collected.none { it.id == item.id }) {
                             collected += item
-                            publishHero(collected.toList())
+                            if (!quiet) publishHero(collected.toList())
                         }
                     }
                     cursor = page.nextCursor ?: break
@@ -133,8 +151,9 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
             } catch (_: Exception) {
                 // Recommendation stream unavailable: fall back to latest titles with backdrops.
             }
-            if (collected.isEmpty()) {
-                val fallback = data.latest.flatMap { it.items }.filter(::hasBackdrop).distinctBy { it.id }.take(HERO_SIZE)
+            if (quiet && collected.isNotEmpty()) publishHero(collected.toList())
+            if (collected.isEmpty() && !quiet) {
+                val fallback = fallbackHero(data)
                 if (fallback.isNotEmpty()) {
                     val detailed = runCatching { coroutineScope { fallback.map { async { api.item(it.id, "Overview") } }.awaitAll() } }.getOrDefault(fallback)
                     publishHero(detailed)
@@ -146,6 +165,9 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
     private fun publishHero(items: List<Item>) {
         _state.update { current -> if (current is Load.Ready) Load.Ready(current.value.copy(hero = items)) else current }
     }
+
+    private fun fallbackHero(data: HomeData) =
+        data.latest.flatMap { it.items }.filter(::hasBackdrop).distinctBy { it.id }.take(HERO_SIZE)
 
     private fun hasBackdrop(item: Item) = item.backdropTags.isNotEmpty() || item.parentBackdropTags.isNotEmpty()
 

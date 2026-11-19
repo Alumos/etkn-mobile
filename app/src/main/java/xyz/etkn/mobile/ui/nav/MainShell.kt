@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.WideNavigationRail
 import androidx.compose.material3.WideNavigationRailItem
@@ -65,7 +67,6 @@ fun MainShell(session: ActiveSession) {
     val hazeState = rememberHazeState()
     val backStack by controller.currentBackStackEntryAsState()
     val destination = backStack?.destination
-    val current = TopLevel.entries.firstOrNull { tab -> destination?.hierarchy?.any { tab.matches(it) } == true }
     val isNowPlaying = destination?.hasRoute<NowPlayingRoute>() == true
     val music = context.graph.music
     val nowPlaying by music.state.collectAsStateWithLifecycle()
@@ -77,6 +78,18 @@ fun MainShell(session: ActiveSession) {
     // Phones always use the dock; wide windows use the rail unless the user prefers the dock.
     val side = wide && settings.navPosition == NavPosition.Side
     val tabs = visibleTabs(settings.tabs, canDiscover, side)
+    val pager = rememberPagerState { tabs.size }
+    val pagerScope = rememberCoroutineScope()
+    val spring = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    nav.tabs = tabs
+    nav.selectTab = { tab ->
+        val index = tabs.indexOf(tab)
+        if (index >= 0) pagerScope.launch { pager.animateScrollToPage(index, animationSpec = spring) }
+    }
+    val onTabs = destination == null || destination.hasRoute<TabsRoute>()
+    // On the pager the highlight follows the page being swiped to; over pages, a pushed tab route.
+    val current = if (onTabs) tabs.getOrNull(pager.targetPage)
+    else TopLevel.entries.firstOrNull { tab -> destination?.hierarchy?.any { tab.matches(it) } == true }
 
     LaunchedEffect(session.key) {
         val discover = context.graph.discover
@@ -85,7 +98,7 @@ fun MainShell(session: ActiveSession) {
         context.graph.syncServerAppearance()
     }
 
-    val dockVisible = current != null && !side
+    val dockVisible = onTabs && !side
     val bottomInset: Dp = (if (dockVisible) Etkn.space.dockBottomInset else 24.dp) +
         (if (showMini) Etkn.space.miniPlayer + 8.dp else 0.dp)
 
@@ -119,7 +132,7 @@ fun MainShell(session: ActiveSession) {
                     }
                 }
                 Box(Modifier.weight(1f).fillMaxSize()) {
-                    AppNavHost(controller, Modifier.fillMaxSize().glassSource(hazeState))
+                    AppNavHost(controller, tabs, pager, Modifier.fillMaxSize().glassSource(hazeState))
                     Column(
                         Modifier.align(if (side) Alignment.BottomEnd else Alignment.BottomCenter)
                             .then(if (wide) Modifier.widthIn(max = if (side) 520.dp else 640.dp) else Modifier).fillMaxWidth()
@@ -131,7 +144,7 @@ fun MainShell(session: ActiveSession) {
                             MiniPlayer(onOpen = { nav.to(NowPlayingRoute) }, modifier = Modifier.padding(bottom = 8.dp))
                         }
                         AnimatedVisibility(dockVisible, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
-                            Dock(tabs, current, nav)
+                            Dock(tabs, current, nav, position = { pager.currentPage + pager.currentPageOffsetFraction })
                         }
                     }
                 }

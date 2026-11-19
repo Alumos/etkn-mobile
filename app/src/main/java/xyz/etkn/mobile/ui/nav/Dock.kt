@@ -1,7 +1,6 @@
 package xyz.etkn.mobile.ui.nav
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,13 +34,12 @@ import androidx.compose.runtime.getValue
 
 /**
  * Floating glass dock. The selected tab sits in one tonal pill that wraps both icon and label and
- * slides between tabs with the expressive spatial spring (the stock bar only rings the icon).
+ * follows the tab pager's [position] (a swipe drags it along; a tap rides the pager's spring).
  */
 @Composable
-internal fun Dock(tabs: List<TopLevel>, current: TopLevel?, nav: AppNav) {
+internal fun Dock(tabs: List<TopLevel>, current: TopLevel?, nav: AppNav, position: () -> Float) {
     val colors = MaterialTheme.colorScheme
     val selected = tabs.indexOf(current)
-    val slide by animateFloatAsState(selected.coerceAtLeast(0).toFloat(), MaterialTheme.motionScheme.fastSpatialSpec(), label = "dockPill")
     val pillShape = RoundedCornerShape(20.dp)
     BoxWithConstraints(
         Modifier.fillMaxWidth().glass(RoundedCornerShape(28.dp), elevation = 14.dp)
@@ -50,7 +48,8 @@ internal fun Dock(tabs: List<TopLevel>, current: TopLevel?, nav: AppNav) {
         val slot = maxWidth / tabs.size
         if (selected >= 0) {
             Box(
-                Modifier.offset { IntOffset((slot.toPx() * slide).roundToInt(), 0) }
+                // Read in layout only: the pill tracks the pager's scroll (finger or spring) frame by frame.
+                Modifier.offset { IntOffset((slot.toPx() * position().coerceIn(0f, (tabs.size - 1).toFloat())).roundToInt(), 0) }
                     .width(slot).fillMaxHeight().padding(horizontal = 3.dp)
                     .background(colors.secondaryContainer, pillShape),
             )

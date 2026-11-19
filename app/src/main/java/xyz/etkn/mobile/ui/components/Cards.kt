@@ -1,5 +1,6 @@
 package xyz.etkn.mobile.ui.components
 
+import androidx.compose.ui.semantics.Role
 import xyz.etkn.mobile.ui.actions.rememberItemPress
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -150,6 +151,8 @@ fun WideCard(
     width: Dp = if (LocalWindowLayout.current.wide) Etkn.space.wideCardWide else Etkn.space.wideCard,
     /** Continue-watching cards add 从继续观看移除 to the long-press menu. */
     resume: Boolean = false,
+    /** Set: the centre button plays and the rest of the card does [onClick]; else the whole card plays. */
+    onPlay: (() -> Unit)? = null,
 ) {
     val url = images().landscape(item, width.px())
     val tokens = Etkn.tokens
@@ -161,12 +164,17 @@ fun WideCard(
         ) {
             Artwork(url, Modifier.fillMaxSize(), item.name, placeholder = Icons.Rounded.Movie)
             Box(Modifier.fillMaxSize().background(tokens.wideScrim))
-            Icon(
-                Icons.Rounded.PlayArrow, null,
-                Modifier.align(Alignment.Center).size(40.dp)
-                    .background(Color.Black.copy(alpha = 0.35f), CircleShape).padding(8.dp),
-                tint = Color.White,
-            )
+            Box(
+                Modifier.align(Alignment.Center).size(48.dp).clip(CircleShape)
+                    .then(if (onPlay != null) Modifier.clickable(onClickLabel = "播放", role = Role.Button, onClick = onPlay) else Modifier),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Rounded.PlayArrow, if (onPlay != null) "播放" else null,
+                    Modifier.size(40.dp).background(Color.Black.copy(alpha = 0.35f), CircleShape).padding(8.dp),
+                    tint = Color.White,
+                )
+            }
             item.episodeCode?.let {
                 Text(
                     it, style = MaterialTheme.typography.labelMedium, color = tokens.onImage,

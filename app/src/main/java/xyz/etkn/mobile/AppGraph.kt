@@ -1,5 +1,9 @@
 package xyz.etkn.mobile
 
+import xyz.etkn.mobile.data.session.SessionState
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import xyz.etkn.mobile.data.net.ResponseCache
 import android.app.Application
 import android.content.Context
 import android.os.Build
@@ -48,8 +52,11 @@ class AppGraph(val app: Application) {
 
     val sessions: SessionManager = SessionManager(sessionStore, ServerProbe(http.probe, identity.userAgent), scope)
 
+    /** Last good responses for instant start-up screens ([xyz.etkn.mobile.data.net.ResponseCache]). */
+    val responses = ResponseCache(java.io.File(app.cacheDir, "api"))
+
     val api = EtknApi(
-        client = ApiClient(http.api, identity),
+        client = ApiClient(http.api, identity, responses),
         session = { sessions.require() },
         onExpired = { stale -> if (sessions.current?.generation == stale.generation) sessions.expire() },
     )
@@ -68,7 +75,17 @@ class AppGraph(val app: Application) {
 
     init {
         sessions.api = api
+        scope.launch(Dispatchers.IO) { responses.prune() }
+        // Nothing of a signed-out account stays on disk.
+        scope.launch { sessions.state.collect { if (it is SessionState.SignedOut) withContext(Dispatchers.IO) { responses.clear() } } }
     }
+
+    /**
+     * Cache mode for start-up screens: stored only for accounts that may persist data
+     * (private accounts live in memory only).
+     */
+    fun cacheUse(mode: ResponseCache.Mode): kotlin.coroutines.CoroutineContext =
+        if (sessions.current?.privateAccount == false) ResponseCache.Use(mode) else kotlin.coroutines.EmptyCoroutineContext
 
     fun images(session: ActiveSession): ImageUrls = ImageUrls(session.server, session.userId)
 
