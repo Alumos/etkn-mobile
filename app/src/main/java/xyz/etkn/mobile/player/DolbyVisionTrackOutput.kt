@@ -58,7 +58,7 @@ internal class DolbyVisionTrackOutput(output: TrackOutput, private val convert: 
             written = size
             bytes = pending.copyOfRange(start, start + size)
         }
-        super.sampleData(ParsableByteArray(bytes, written), written, C.SAMPLE_DATA_PART_MAIN)
+        super.sampleData(ParsableByteArray(bytes, written), written, TrackOutput.SAMPLE_DATA_PART_MAIN)
         super.sampleMetadata(timeUs, flags, written, 0, cryptoData)
         // Bytes after the sample belong to the next one.
         pending.copyInto(pending, 0, this.size - offset, this.size)

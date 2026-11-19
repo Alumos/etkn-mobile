@@ -63,6 +63,8 @@ class MpvPlayer(
     private var ended = false
     private var cacheWait = false
     private var playWhenReady = false
+    /** Last pause state we asked mpv for, until its echo arrives; null = mpv may pause on its own. */
+    private var requestedPause: Boolean? = null
     private var error: PlaybackException? = null
     private var durationMs = C.TIME_UNSET
     private var positionMs = 0L
@@ -230,7 +232,7 @@ class MpvPlayer(
             return
         }
         MPVLib.setPropertyString("start", if (startMs > 0) seconds(startMs) else "none")
-        MPVLib.setPropertyBoolean("pause", !playWhenReady)
+        requestPause(!playWhenReady)
         MPVLib.command("loadfile", uri.toString(), "replace")
         Log.i(TAG, "load host=${uri.host} start=${startMs / 1000}s hwdec=${decoder.name}")
     }
@@ -239,7 +241,7 @@ class MpvPlayer(
         this.playWhenReady = playWhenReady
         positionMs = positionNow()
         positionAt = SystemClock.elapsedRealtime()
-        if (prepared) MPVLib.setPropertyBoolean("pause", !playWhenReady)
+        if (prepared) requestPause(!playWhenReady)
         return Futures.immediateVoidFuture()
     }
 
@@ -255,6 +257,12 @@ class MpvPlayer(
             MPVLib.command("seek", seconds(target), "absolute")
         }
         return Futures.immediateVoidFuture()
+    }
+
+    private fun requestPause(pause: Boolean) {
+        // No echo comes when the value does not change.
+        requestedPause = if (MPVLib.getPropertyBoolean("pause") == pause) null else pause
+        MPVLib.setPropertyBoolean("pause", pause)
     }
 
     override fun handleSetPlaybackParameters(playbackParameters: PlaybackParameters): ListenableFuture<*> {
@@ -330,10 +338,16 @@ class MpvPlayer(
     override fun eventProperty(property: String, value: Boolean) {
         when (property) {
             "pause" -> onMain {
-                if (prepared && playWhenReady == value) {
-                    positionMs = positionNow()
-                    positionAt = SystemClock.elapsedRealtime()
-                    playWhenReady = !value
+                val requested = requestedPause
+                when {
+                    // Echo of our own request (older echoes may still be in flight).
+                    requested != null -> if (requested == value) requestedPause = null
+                    // mpv paused or resumed by itself (end of file with keep-open).
+                    prepared && playWhenReady == value -> {
+                        positionMs = positionNow()
+                        positionAt = SystemClock.elapsedRealtime()
+                        playWhenReady = !value
+                    }
                 }
             }
             "paused-for-cache" -> onMain { cacheWait = value }

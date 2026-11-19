@@ -364,6 +364,8 @@ class VideoSession(
         player.playWhenReady = true
         _ui.update { it.copy(segments = segments(chosen.chapters.ifEmpty { current.chapters }, chosen.runTimeTicks / TICKS_PER_MS)) }
         startProgressLoop()
+        // A core switch closed the feed bound to the previous player.
+        applyDanmaku()
     }
 
     fun selectSource(index: Int) {
