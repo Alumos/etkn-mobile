@@ -20,7 +20,7 @@ import xyz.etkn.mobile.data.discover.DiscoverKind
 import xyz.etkn.mobile.data.discover.DiscoverOption
 import xyz.etkn.mobile.data.discover.DiscoverPerson
 import xyz.etkn.mobile.data.discover.DiscoverSeason
-import xyz.etkn.mobile.data.discover.options
+import xyz.etkn.mobile.data.discover.DiscoverOptions
 import xyz.etkn.mobile.data.discover.withValues
 import xyz.etkn.mobile.data.net.objects
 import xyz.etkn.mobile.data.net.str
@@ -37,8 +37,8 @@ class DiscoverViewModel(private val graph: AppGraph) : ViewModel() {
     val filter: StateFlow<DiscoverFilter> = _filter.asStateFlow()
     private val _paged = MutableStateFlow(Paged<DiscoverItem>())
     val paged: StateFlow<Paged<DiscoverItem>> = _paged.asStateFlow()
-    private val _genres = MutableStateFlow<List<DiscoverOption>>(emptyList())
-    val genres: StateFlow<List<DiscoverOption>> = _genres.asStateFlow()
+    private val _options = MutableStateFlow(DiscoverOptions())
+    val options: StateFlow<DiscoverOptions> = _options.asStateFlow()
     private var page = 0
     private var loadJob: Job? = null
 
@@ -96,17 +96,21 @@ class DiscoverViewModel(private val graph: AppGraph) : ViewModel() {
     private fun loadOptions() {
         val kind = _kind.value
         graph.discover.options[kind]?.let {
-            _genres.value = options(it, "genres")
+            _options.value = DiscoverOptions.from(it)
             return
         }
-        _genres.value = emptyList()
+        _options.value = DiscoverOptions()
         viewModelScope.launch {
             runCatching { api.discoverOptions(kind) }.onSuccess { raw ->
                 graph.discover.options[kind] = raw
-                if (_kind.value == kind) _genres.value = options(raw, "genres")
+                if (_kind.value == kind) _options.value = DiscoverOptions.from(raw)
             }
         }
     }
+
+    /** People matching [name] for the actor / director pickers; empty on failure. */
+    suspend fun findPeople(name: String): List<DiscoverOption> =
+        if (name.isBlank()) emptyList() else runCatching { api.discoverPeople(name.trim()) }.getOrDefault(emptyList())
 }
 
 data class DetailExtras(

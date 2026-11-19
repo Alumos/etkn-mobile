@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.putJsonArray
 import xyz.etkn.mobile.data.net.bool
 import xyz.etkn.mobile.data.net.double
@@ -106,11 +107,12 @@ data class CastMember(val id: String, val name: String, val character: String, v
 data class DiscoverPerson(val name: String, val biography: String, val profilePath: String, val works: List<DiscoverItem>)
 
 enum class DiscoverSort(val label: String, val key: String) {
-    PopularDesc("热度", "popularity.desc"),
-    DateDesc("最新上映", "date.desc"),
-    VoteDesc("评分最高", "vote_average.desc"),
+    PopularDesc("热度降序", "popularity.desc"),
     PopularAsc("热度升序", "popularity.asc"),
-    DateAsc("最早上映", "date.asc");
+    DateDesc("上映日期降序", "date.desc"),
+    DateAsc("上映日期升序", "date.asc"),
+    VoteDesc("评分降序", "vote_average.desc"),
+    VoteAsc("评分升序", "vote_average.asc");
 
     fun wire(kind: DiscoverKind): String = when (key) {
         "date.desc" -> if (kind == DiscoverKind.Movie) "primary_release_date.desc" else "first_air_date.desc"
@@ -119,38 +121,76 @@ enum class DiscoverSort(val label: String, val key: String) {
     }
 }
 
-enum class DiscoverEra(val label: String, val from: Int?, val to: Int?) {
-    All("全部年代", null, null),
-    Now("2020 年代", 2020, null),
-    Tens("2010 年代", 2010, 2019),
-    Noughts("2000 年代", 2000, 2009),
-    Nineties("90 年代", 1990, 1999),
-    Older("更早", null, 1989),
+/** `GET D/options?media_type=` vocabularies: each a label/value list (ratings carry an index). */
+@Immutable
+data class DiscoverOptions(
+    val genres: List<DiscoverOption> = emptyList(),
+    val countries: List<DiscoverOption> = emptyList(),
+    val languages: List<DiscoverOption> = emptyList(),
+    val keywords: List<DiscoverOption> = emptyList(),
+    val studios: List<DiscoverOption> = emptyList(),
+    val ratings: List<DiscoverOption> = emptyList(),
+) {
+    companion object {
+        fun from(raw: JsonObject) = DiscoverOptions(
+            genres = options(raw, "genres"),
+            countries = options(raw, "countries"),
+            languages = options(raw, "languages"),
+            keywords = options(raw, "keywords"),
+            studios = options(raw, "studios"),
+            ratings = options(raw, "ratings"),
+        )
+    }
 }
 
-/** Browse filters → `POST D/query/{kind}` body (TV field names and encodings). */
+/**
+ * Browse filters → `POST D/query/{kind}` body, field for field what the Web 影视探索 panel sends:
+ * genres included or excluded, countries joined by `|`, one original language, a free year
+ * range, minimum score, keywords / studios by label, actors / directors by TMDb person id,
+ * content rating by index, hide titles already in the library.
+ */
 @Immutable
 data class DiscoverFilter(
     val query: String = "",
     val sort: DiscoverSort = DiscoverSort.PopularDesc,
     val genres: Set<String> = emptySet(),
-    val era: DiscoverEra = DiscoverEra.All,
-    val minVote: Int? = null,
+    val excludeGenres: Boolean = false,
+    val rating: String? = null,
+    val countries: Set<String> = emptySet(),
+    val language: String? = null,
+    val yearFrom: Int? = null,
+    val yearTo: Int? = null,
+    val studios: Set<String> = emptySet(),
+    val keywords: Set<String> = emptySet(),
+    /** label = name, value = TMDb person id. */
+    val actors: List<DiscoverOption> = emptyList(),
+    val directors: List<DiscoverOption> = emptyList(),
+    val minVote: Float? = null,
     val hideInLibrary: Boolean = false,
 ) {
-    val active: Int get() = listOf(sort != DiscoverSort.PopularDesc, genres.isNotEmpty(), era != DiscoverEra.All, minVote != null, hideInLibrary).count { it }
+    val active: Int
+        get() = listOf(
+            sort != DiscoverSort.PopularDesc, genres.isNotEmpty(), rating != null, countries.isNotEmpty(), language != null,
+            yearFrom != null || yearTo != null, studios.isNotEmpty(), keywords.isNotEmpty(), actors.isNotEmpty(),
+            directors.isNotEmpty(), minVote != null, hideInLibrary,
+        ).count { it }
 
     fun body(kind: DiscoverKind, page: Int): JsonObject = buildJsonObject {
         put("page", page)
         put("query", query.trim())
         put("sort_by", sort.wire(kind))
         put("hide_in_library", hideInLibrary)
-        if (genres.isNotEmpty()) put("with_genres", genres.joinToString(","))
-        era.from?.let { put("release_date_gte", "$it-01-01") }
-        era.to?.let { put("release_date_lte", "$it-12-31") }
+        if (genres.isNotEmpty()) put(if (excludeGenres) "without_genres" else "with_genres", genres.joinToString(","))
+        if (countries.isNotEmpty()) put("with_origin_country", countries.joinToString("|"))
+        language?.let { put("with_original_language", it) }
+        yearFrom?.let { put("release_date_gte", "$it-01-01") }
+        yearTo?.let { put("release_date_lte", "$it-12-31") }
         minVote?.let { put("vote_average_gte", it.toDouble()) }
-        putJsonArray("keywords") {}
-        putJsonArray("studios") {}
+        rating?.toIntOrNull()?.let { put("rating", it) }
+        putJsonArray("keywords") { keywords.forEach { add(it) } }
+        putJsonArray("studios") { studios.forEach { add(it) } }
+        putJsonArray("actors") { actors.forEach { add(it.value) } }
+        putJsonArray("directors") { directors.forEach { add(it.value) } }
     }
 }
 

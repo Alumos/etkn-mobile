@@ -1,5 +1,18 @@
 package xyz.etkn.mobile.ui.screens.discover
 
+import kotlinx.coroutines.delay
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.SliderState
+import androidx.compose.material3.Slider
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import xyz.etkn.mobile.ui.components.GlassSheet
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -74,7 +87,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chrisbanes.haze.rememberHazeState
-import xyz.etkn.mobile.data.discover.DiscoverEra
+import xyz.etkn.mobile.data.discover.DiscoverOptions
 import xyz.etkn.mobile.data.discover.DiscoverFilter
 import xyz.etkn.mobile.data.discover.DiscoverItem
 import xyz.etkn.mobile.data.discover.DiscoverKind
@@ -108,7 +121,7 @@ fun DiscoverScreen() {
     val kind by vm.kind.collectAsStateWithLifecycle()
     val filter by vm.filter.collectAsStateWithLifecycle()
     val paged by vm.paged.collectAsStateWithLifecycle()
-    val genres by vm.genres.collectAsStateWithLifecycle()
+    val options by vm.options.collectAsStateWithLifecycle()
     val nav = LocalNav.current
     val haze = rememberHazeState()
     val grid = rememberLazyGridState()
@@ -180,7 +193,7 @@ fun DiscoverScreen() {
     }
 
     if (filtering) {
-        FilterSheet(filter, genres, onDismiss = { filtering = false }) { next ->
+        FilterSheet(filter, options, vm::findPeople, onDismiss = { filtering = false }) { next ->
             filtering = false
             vm.setFilter(next.copy(query = filter.query))
         }
@@ -271,21 +284,36 @@ fun StatusPill(status: DiscoverStatus, modifier: Modifier = Modifier) {
     }
 }
 
+private enum class Picker(val title: String) { Countries("地区"), Language("语言"), Studios("工作室"), Keywords("关键词"), Actors("演员"), Directors("导演") }
+
+/**
+ * Every filter the Web 影视探索 panel has. Short vocabularies are chips; long ones (地区, 语言,
+ * 工作室, 关键词) open a searchable picker; 演员 / 导演 search TMDb people by name.
+ */
 @Composable
-private fun FilterSheet(initial: DiscoverFilter, genres: List<DiscoverOption>, onDismiss: () -> Unit, onApply: (DiscoverFilter) -> Unit) {
+private fun FilterSheet(
+    initial: DiscoverFilter,
+    options: DiscoverOptions,
+    findPeople: suspend (String) -> List<DiscoverOption>,
+    onDismiss: () -> Unit,
+    onApply: (DiscoverFilter) -> Unit,
+) {
     var draft by remember { mutableStateOf(initial) }
-    GlassSheet(
-        onDismissRequest = onDismiss,
-    ) {
+    var picker by remember { mutableStateOf<Picker?>(null) }
+    GlassSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
             FilterGroup("排序") {
                 DiscoverSort.entries.forEach { sort ->
                     FilterChip(selected = draft.sort == sort, onClick = { draft = draft.copy(sort = sort) }, label = { Text(sort.label) })
                 }
             }
-            if (genres.isNotEmpty()) {
-                FilterGroup("类型") {
-                    genres.forEach { genre ->
+            if (options.genres.isNotEmpty()) {
+                FilterGroup("风格", trailing = {
+                    listOf(false to "包含", true to "排除").forEach { (exclude, label) ->
+                        FilterChip(selected = draft.excludeGenres == exclude, onClick = { draft = draft.copy(excludeGenres = exclude) }, label = { Text(label) })
+                    }
+                }) {
+                    options.genres.forEach { genre ->
                         val selected = genre.value in draft.genres
                         FilterChip(
                             selected = selected,
@@ -295,20 +323,35 @@ private fun FilterSheet(initial: DiscoverFilter, genres: List<DiscoverOption>, o
                     }
                 }
             }
-            FilterGroup("年代") {
-                DiscoverEra.entries.forEach { era ->
-                    FilterChip(selected = draft.era == era, onClick = { draft = draft.copy(era = era) }, label = { Text(era.label) })
+            if (options.ratings.isNotEmpty()) {
+                FilterGroup("分级") {
+                    options.ratings.forEach { rating ->
+                        val selected = draft.rating == rating.value
+                        FilterChip(
+                            selected = selected,
+                            onClick = { draft = draft.copy(rating = if (selected) null else rating.value) },
+                            label = { Text(rating.label.substringAfter(". ")) },
+                        )
+                    }
                 }
             }
-            FilterGroup("评分") {
-                listOf(null, 6, 7, 8).forEach { vote ->
-                    FilterChip(
-                        selected = draft.minVote == vote,
-                        onClick = { draft = draft.copy(minVote = vote) },
-                        label = { Text(vote?.let { "$it 分以上" } ?: "不限") },
-                    )
-                }
+            Spacer(Modifier.height(8.dp))
+            PickerRow(Picker.Countries.title, labels(options.countries, draft.countries)) { picker = Picker.Countries }
+            PickerRow(Picker.Language.title, labels(options.languages, setOfNotNull(draft.language))) { picker = Picker.Language }
+            PickerRow(Picker.Studios.title, draft.studios.toList()) { picker = Picker.Studios }
+            PickerRow(Picker.Keywords.title, draft.keywords.toList()) { picker = Picker.Keywords }
+            PickerRow(Picker.Actors.title, draft.actors.map { it.label.substringBefore(" · ") }) { picker = Picker.Actors }
+            PickerRow(Picker.Directors.title, draft.directors.map { it.label.substringBefore(" · ") }) { picker = Picker.Directors }
+            FilterGroup("发行年份") {}
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                YearField("从", draft.yearFrom, Modifier.weight(1f)) { draft = draft.copy(yearFrom = it) }
+                YearField("到", draft.yearTo, Modifier.weight(1f)) { draft = draft.copy(yearTo = it) }
             }
+            val vote = draft.minVote ?: 0f
+            FilterGroup("最低评分 · ${if (vote > 0f) "%.1f".format(vote) else "不限"}") {}
+            val voteState = remember { SliderState(vote, 19, 0f..9.5f) }
+            voteState.value = vote
+            Slider(state = voteState, onValueChange = { draft = draft.copy(minVote = it.takeIf { v -> v > 0f }) })
             Row(
                 Modifier.fillMaxWidth().clickable { draft = draft.copy(hideInLibrary = !draft.hideInLibrary) }.padding(vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -323,10 +366,180 @@ private fun FilterSheet(initial: DiscoverFilter, genres: List<DiscoverOption>, o
             Spacer(Modifier.height(16.dp))
         }
     }
+    when (val open = picker) {
+        Picker.Countries -> OptionPickerSheet(open.title, options.countries, draft.countries, multiple = true, onDismiss = { picker = null }) { draft = draft.copy(countries = it) }
+        Picker.Language -> OptionPickerSheet(open.title, options.languages, setOfNotNull(draft.language), multiple = false, onDismiss = { picker = null }) { draft = draft.copy(language = it.firstOrNull()) }
+        Picker.Studios -> OptionPickerSheet(open.title, options.studios, draft.studios, multiple = true, onDismiss = { picker = null }) { draft = draft.copy(studios = it) }
+        Picker.Keywords -> OptionPickerSheet(open.title, options.keywords, draft.keywords, multiple = true, onDismiss = { picker = null }) { draft = draft.copy(keywords = it) }
+        Picker.Actors -> PeoplePickerSheet(open.title, draft.actors, findPeople, onDismiss = { picker = null }) { draft = draft.copy(actors = it) }
+        Picker.Directors -> PeoplePickerSheet(open.title, draft.directors, findPeople, onDismiss = { picker = null }) { draft = draft.copy(directors = it) }
+        null -> Unit
+    }
+}
+
+private fun labels(options: List<DiscoverOption>, values: Set<String>): List<String> =
+    values.map { value -> options.firstOrNull { it.value == value }?.label ?: value }
+
+@Composable
+private fun FilterGroup(title: String, trailing: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+        if (trailing != null) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { trailing() }
+    }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+}
+
+/** One line per long vocabulary: its name, what is chosen, and a tap to change it. */
+@Composable
+private fun PickerRow(title: String, chosen: List<String>, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(vertical = 12.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.width(72.dp))
+        Text(
+            chosen.joinToString("、").ifEmpty { "不限" },
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (chosen.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
 
 @Composable
-private fun FilterGroup(title: String, content: @Composable () -> Unit) {
-    Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+private fun YearField(label: String, value: Int?, modifier: Modifier, onChange: (Int?) -> Unit) {
+    var text by remember(value) { mutableStateOf(value?.toString().orEmpty()) }
+    OutlinedTextField(
+        value = text,
+        onValueChange = { input ->
+            val digits = input.filter(Char::isDigit).take(4)
+            text = digits
+            onChange(digits.toIntOrNull()?.takeIf { digits.length == 4 && it in 1874..2100 })
+        },
+        label = { Text(label) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = modifier,
+    )
+}
+
+/** Searchable list of one vocabulary; [multiple] = checkboxes, else picking one closes it. */
+@Composable
+private fun OptionPickerSheet(
+    title: String,
+    options: List<DiscoverOption>,
+    selected: Set<String>,
+    multiple: Boolean,
+    onDismiss: () -> Unit,
+    onChange: (Set<String>) -> Unit,
+) {
+    var chosen by remember { mutableStateOf(selected) }
+    var search by remember { mutableStateOf("") }
+    val shown = remember(options, search) { options.filter { search.isBlank() || it.label.contains(search.trim(), ignoreCase = true) } }
+    GlassSheet(onDismissRequest = { onChange(chosen); onDismiss() }) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                if (chosen.isNotEmpty()) TextButton(onClick = { chosen = emptySet() }) { Text("清除") }
+            }
+            OutlinedTextField(
+                value = search, onValueChange = { search = it }, singleLine = true,
+                placeholder = { Text("搜索") }, leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            )
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                items(shown, key = { it.value }) { option ->
+                    val on = option.value in chosen
+                    OptionRow(option.label, on) {
+                        if (multiple) {
+                            chosen = if (on) chosen - option.value else chosen + option.value
+                        } else {
+                            chosen = if (on) emptySet() else setOf(option.value)
+                            onChange(chosen)
+                            onDismiss()
+                        }
+                    }
+                }
+            }
+            if (multiple) {
+                Button(onClick = { onChange(chosen); onDismiss() }, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) { Text("完成") }
+            } else {
+                Spacer(Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+/** Actors / directors: search TMDb people by name, pick several, remove with a tap. */
+@Composable
+private fun PeoplePickerSheet(
+    title: String,
+    selected: List<DiscoverOption>,
+    findPeople: suspend (String) -> List<DiscoverOption>,
+    onDismiss: () -> Unit,
+    onChange: (List<DiscoverOption>) -> Unit,
+) {
+    var chosen by remember { mutableStateOf(selected) }
+    var search by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<DiscoverOption>>(emptyList()) }
+    var searching by remember { mutableStateOf(false) }
+    LaunchedEffect(search) {
+        if (search.isBlank()) {
+            results = emptyList()
+            return@LaunchedEffect
+        }
+        delay(350)
+        searching = true
+        results = findPeople(search)
+        searching = false
+    }
+    GlassSheet(onDismissRequest = { onChange(chosen); onDismiss() }) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            if (chosen.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                    chosen.forEach { person ->
+                        InputChip(
+                            selected = true,
+                            onClick = { chosen = chosen - person },
+                            label = { Text(person.label.substringBefore(" · ")) },
+                            trailingIcon = { Icon(Icons.Rounded.Close, "移除", Modifier.size(16.dp)) },
+                        )
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = search, onValueChange = { search = it }, singleLine = true,
+                placeholder = { Text("输入姓名") }, leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                trailingIcon = { if (searching) LoadingIndicator(Modifier.size(24.dp)) },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            )
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
+                items(results, key = { it.value }) { person ->
+                    val on = chosen.any { it.value == person.value }
+                    OptionRow(person.label, on) {
+                        chosen = if (on) chosen.filterNot { it.value == person.value } else chosen + person
+                    }
+                }
+            }
+            Button(onClick = { onChange(chosen); onDismiss() }, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) { Text("完成") }
+        }
+    }
+}
+
+@Composable
+private fun OptionRow(label: String, checked: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f),
+            color = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        )
+        if (checked) Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+    }
 }

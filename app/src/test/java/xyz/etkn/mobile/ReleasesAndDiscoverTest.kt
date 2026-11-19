@@ -11,6 +11,7 @@ import xyz.etkn.mobile.data.discover.CloudResource
 import xyz.etkn.mobile.data.discover.CloudResources
 import xyz.etkn.mobile.data.discover.DiscoverFilter
 import xyz.etkn.mobile.data.discover.DiscoverKind
+import xyz.etkn.mobile.data.discover.DiscoverOption
 import xyz.etkn.mobile.data.discover.DiscoverSort
 import xyz.etkn.mobile.data.net.EtknJson
 import xyz.etkn.mobile.data.net.int
@@ -60,13 +61,33 @@ class ReleasesAndDiscoverTest {
 
     @Test
     fun filterBodyUsesTvEncodings() {
-        val body = DiscoverFilter(sort = DiscoverSort.DateDesc, genres = setOf("16", "35"), minVote = 7, hideInLibrary = true)
+        val body = DiscoverFilter(sort = DiscoverSort.DateDesc, genres = setOf("16", "35"), minVote = 7f, hideInLibrary = true)
             .body(DiscoverKind.Series, 3)
         assertEquals(3, body.int("page"))
         assertEquals("first_air_date.desc", body.str("sort_by"))
         assertEquals("16,35", body.str("with_genres"))
         assertEquals("true", body.str("hide_in_library"))
         assertTrue(body.containsKey("keywords") && body.containsKey("studios"))
+    }
+
+    @Test
+    fun everyWebFilterIsSentTheWebWay() {
+        val body = DiscoverFilter(
+            genres = setOf("18"), excludeGenres = true, rating = "3", countries = linkedSetOf("CN", "HK"), language = "zh",
+            yearFrom = 2010, yearTo = 2019, studios = setOf("HBO"), keywords = setOf("武侠"),
+            actors = listOf(DiscoverOption("某演员", "123")), directors = listOf(DiscoverOption("某导演", "456")),
+        ).body(DiscoverKind.Movie, 1)
+        assertEquals("18", body.str("without_genres"))
+        assertTrue(!body.containsKey("with_genres"))
+        assertEquals("CN|HK", body.str("with_origin_country"))
+        assertEquals("zh", body.str("with_original_language"))
+        assertEquals("2010-01-01", body.str("release_date_gte"))
+        assertEquals("2019-12-31", body.str("release_date_lte"))
+        assertEquals(3, body.int("rating"))
+        assertEquals("[\"HBO\"]", body["studios"].toString())
+        assertEquals("[\"武侠\"]", body["keywords"].toString())
+        assertEquals("[\"123\"]", body["actors"].toString())
+        assertEquals("[\"456\"]", body["directors"].toString())
     }
 
     @Test

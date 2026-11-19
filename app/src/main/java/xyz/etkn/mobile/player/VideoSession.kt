@@ -683,9 +683,12 @@ class VideoSession(
         closeDanmaku()
         released = true
         stopReporting()
-        player?.removeListener(listener)
-        player?.release()
+        val core = player
         _player.value = null
+        core?.removeListener(listener)
+        // Stop before release: playback must end with the screen even if a core's release fails.
+        runCatching { core?.stop() }.onFailure { Log.e(TAG, "stop on release", it) }
+        runCatching { core?.release() }.onFailure { Log.e(TAG, "release", it) }
     }
 
     /**

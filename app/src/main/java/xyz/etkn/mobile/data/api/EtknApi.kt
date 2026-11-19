@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import xyz.etkn.mobile.data.discover.DiscoverOption
 import xyz.etkn.mobile.data.discover.CloudProvider
 import xyz.etkn.mobile.data.discover.CloudResource
 import xyz.etkn.mobile.data.discover.CloudResources
@@ -349,6 +350,14 @@ class EtknApi(
         val result = post("$D/query/${kind.wire}", body)
         return DiscoverPage(result.rows().map { DiscoverItem(it, kind) }, result.int("total_pages", 1).coerceIn(1, 500))
     }
+
+    /** TMDb people by name for the actor / director filters: label = name, value = person id. */
+    suspend fun discoverPeople(name: String): List<DiscoverOption> =
+        get(query("$D/people", "q" to name)).objects("items").mapNotNull { o ->
+            val id = o.str("id").ifEmpty { return@mapNotNull null }
+            val department = o.str("known_for_department")
+            DiscoverOption(o.str("name").ifEmpty { id } + if (department.isNotEmpty()) " · $department" else "", id)
+        }
 
     suspend fun discoverSeries(tmdbId: String): JsonObject = get("$D/series/${enc(tmdbId)}")
 

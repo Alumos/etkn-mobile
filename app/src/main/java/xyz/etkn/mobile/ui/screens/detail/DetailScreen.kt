@@ -258,12 +258,6 @@ private fun ActionRow(data: DetailData, vm: DetailViewModel, nav: AppNav) {
                 Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                 Text(label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (resumable) {
-                FilledTonalIconButton(
-                    onClick = { nav.play(target, resume = false, sourceId = if (target.id == item.id) source else null) },
-                    modifier = Modifier.size(ButtonDefaults.MediumContainerHeight),
-                ) { Icon(Icons.Rounded.Replay, "从头播放") }
-            }
         }
         if (resumable && target.progress > 0f) {
             LinearProgressIndicator(
@@ -272,7 +266,19 @@ private fun ActionRow(data: DetailData, vm: DetailViewModel, nav: AppNav) {
                 drawStopIndicator = {},
             )
         }
-        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            // 继续播放 resumes at the saved position; this one starts the same title at 00:00.
+            if (resumable) {
+                FilledTonalButton(
+                    onClick = { nav.play(target, resume = false, sourceId = if (target.id == item.id) source else null) },
+                    modifier = Modifier.height(SmallAction),
+                    contentPadding = PaddingValues(horizontal = 14.dp),
+                ) {
+                    Icon(Icons.Rounded.Replay, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("从头播放", style = MaterialTheme.typography.labelLarge)
+                }
+            }
             FilledTonalIconToggleButton(
                 checked = item.userData.isFavorite,
                 onCheckedChange = { vm.toggleFavorite() },

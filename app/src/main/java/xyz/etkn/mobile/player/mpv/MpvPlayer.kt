@@ -302,8 +302,17 @@ class MpvPlayer(
     override fun handleRelease(): ListenableFuture<*> {
         released = true
         if (live === this) live = null
+        // Silence first, so nothing can keep playing even if the teardown below fails.
+        runCatching {
+            MPVLib.setPropertyBoolean("pause", true)
+            MPVLib.command("stop")
+        }.onFailure { Log.e(TAG, "mpv stop", it) }
         MPVLib.removeObserver(this)
-        runCatching { view.destroy() }.onFailure { Log.e(TAG, "mpv destroy", it) }
+        // The view must stop touching mpv before the core goes; then the core itself is
+        // destroyed directly (the view's own destroy() was what failed to stop playback).
+        runCatching { view.holder.removeCallback(view) }
+        runCatching { MPVLib.destroy() }.onFailure { Log.e(TAG, "mpv destroy", it) }
+        Log.i(TAG, "released")
         return Futures.immediateVoidFuture()
     }
 
