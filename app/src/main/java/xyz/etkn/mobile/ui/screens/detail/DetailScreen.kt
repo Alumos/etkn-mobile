@@ -37,9 +37,11 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Theaters
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -61,6 +63,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,7 +76,9 @@ import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.model.MediaSource
 import xyz.etkn.mobile.data.model.resolutionLabel
 import xyz.etkn.mobile.data.update.formatBytes
+import xyz.etkn.mobile.ui.actions.PopupChoice
 import xyz.etkn.mobile.ui.actions.rememberItemPress
+import xyz.etkn.mobile.ui.actions.rememberPopupAnchor
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.common.WhileStarted
@@ -344,11 +349,27 @@ private fun ActionRow(data: DetailData, centered: Boolean, vm: DetailViewModel, 
             FilledTonalIconToggleButton(checked = item.userData.played, onCheckedChange = { vm.togglePlayed() }, modifier = Modifier.size(SmallAction)) {
                 Icon(Icons.Rounded.Done, "已观看", Modifier.size(20.dp))
             }
+            if (item.trailers.isNotEmpty()) TrailerButton(item.trailers)
         }
     }
 }
 
 private val SmallAction = 40.dp
+
+/** Opens the trailer in the app that handles its link (YouTube, a browser); several → pick one. */
+@Composable
+private fun TrailerButton(trailers: List<String>) {
+    val uri = LocalUriHandler.current
+    val anchor = rememberPopupAnchor()
+    fun open(url: String) = runCatching { uri.openUri(url) }
+    FilledTonalIconButton(
+        onClick = {
+            if (trailers.size == 1) open(trailers.first())
+            else anchor.open(trailers.mapIndexed { index, url -> PopupChoice("预告片 ${index + 1}", Icons.Rounded.Theaters) { open(url) } })
+        },
+        modifier = Modifier.size(SmallAction).then(anchor.modifier),
+    ) { Icon(Icons.Rounded.Theaters, "预告片", Modifier.size(20.dp)) }
+}
 
 /**
  * Full-width play button whose fill is the watch progress: the watched part in the primary

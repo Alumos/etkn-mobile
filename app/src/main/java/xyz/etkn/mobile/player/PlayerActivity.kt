@@ -20,6 +20,10 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.VideoSize
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import xyz.etkn.mobile.data.settings.Settings
 import xyz.etkn.mobile.data.settings.UiScale
 import xyz.etkn.mobile.graph
@@ -35,6 +39,7 @@ class PlayerActivity : ComponentActivity() {
     private var session: VideoSession? = null
     private var inPip by mutableStateOf(false)
     private var wasPlaying = false
+    private var backgroundPlay = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -67,6 +72,14 @@ class PlayerActivity : ComponentActivity() {
             resume = intent.getBooleanExtra(PlayerLauncher.EXTRA_RESUME, true),
             sourceId = intent.getStringExtra(PlayerLauncher.EXTRA_SOURCE),
         )
+        // 后台播放: a media session around whichever core is playing, while the setting is on.
+        lifecycleScope.launch {
+            combine(graph.settings.flow.map { it.backgroundPlay }.distinctUntilChanged(), video.players) { on, player -> on to player }
+                .collect { (on, player) ->
+                    backgroundPlay = on
+                    if (on && player != null) VideoPlaybackService.attach(this@PlayerActivity, player) else VideoPlaybackService.detach(this@PlayerActivity)
+                }
+        }
         val urls = graph.images(active)
         updatePipParams()
         setContent {
@@ -140,6 +153,7 @@ class PlayerActivity : ComponentActivity() {
         // Release now, not in onDestroy: that can run after the next player activity has already
         // started its own core, and libmpv allows one instance per process.
         if (isFinishing) {
+            VideoPlaybackService.detach(this)
             session?.release()
             session = null
         }
@@ -148,12 +162,19 @@ class PlayerActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         val player = session?.player ?: return
+        // With 后台播放 the sound goes on (the media notification controls it, so coming back
+        // leaves it as it is); closing PiP or leaving the app otherwise pauses, and the progress
+        // report goes out on pause.
+        if (backgroundPlay && !inPip && !isFinishing) {
+            wasPlaying = false
+            return
+        }
         wasPlaying = player.isPlaying
-        // Leaving PiP (or the app) stops playback; the progress report goes out on pause.
         player.pause()
     }
 
     override fun onDestroy() {
+        VideoPlaybackService.detach(this)
         session?.release()
         session = null
         super.onDestroy()

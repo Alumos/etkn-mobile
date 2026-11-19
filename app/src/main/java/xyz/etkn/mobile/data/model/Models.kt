@@ -262,6 +262,8 @@ data class Item(
     val locationType: String?,
     val isMissing: Boolean,
     val status: String?,
+    /** Trailer links from the metadata (`RemoteTrailers[].Url`, usually YouTube); detail only. */
+    val trailers: List<String> = emptyList(),
     val artists: List<String>,
     val album: String?,
     val albumKey: String?,
@@ -385,6 +387,7 @@ data class Item(
             locationType = o.strOrNull("LocationType"),
             isMissing = o.bool("IsMissing") || o.str("LocationType") == "Virtual",
             status = o.strOrNull("Status"),
+            trailers = o.objects("RemoteTrailers").map { it.str("Url") }.filter { it.startsWith("http") }.distinct(),
             artists = o.strList("Artists").ifEmpty { listOfNotNull(o.strOrNull("Artist")) },
             album = o.strOrNull("Album"),
             albumKey = o.strOrNull("AlbumKey"),

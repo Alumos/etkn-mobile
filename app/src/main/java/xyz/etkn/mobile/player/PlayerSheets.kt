@@ -68,6 +68,10 @@ internal fun PlayerSheet(sheet: Sheet, ui: VideoUi, session: VideoSession, onDis
             Sheet.Versions -> OptionList("版本", ui.sources.mapIndexed { i, s -> s.name.ifEmpty { s.slotLabel } to (i == ui.sourceIndex) }) { i ->
                 session.selectSource(i); onDismiss()
             }
+            Sheet.Sleep -> OptionList("定时关闭", listOf("关闭" to (ui.sleep == null)) + SleepTimer.entries.map { it.label to (it == ui.sleep) }) { i ->
+                session.setSleepTimer(SleepTimer.entries.getOrNull(i - 1))
+                onDismiss()
+            }
             Sheet.Episodes -> EpisodeSheet(ui, session, onDismiss)
             Sheet.Danmaku -> DanmakuSheet(session)
             Sheet.None -> Unit

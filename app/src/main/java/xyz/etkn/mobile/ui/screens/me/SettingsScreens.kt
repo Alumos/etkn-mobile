@@ -112,6 +112,7 @@ fun SettingsScreen(page: SettingsPage) {
                         ChoiceRow("片头片尾", SkipMode.entries, settings.skipMode, { it.label }) { scope.launch { graph.settings.setSkipMode(it) } }
                         ChoiceRow("默认倍速", listOf(1f, 1.25f, 1.5f, 2f), settings.defaultSpeed, { "${it}×" }) { scope.launch { graph.settings.setDefaultSpeed(it) } }
                         SwitchRow("自动播放下一集", settings.autoPlayNext) { scope.launch { graph.settings.setAutoPlayNext(it) } }
+                        SwitchRow("后台播放", settings.backgroundPlay) { scope.launch { graph.settings.setBackgroundPlay(it) } }
                         ServerPlaybackPreferences()
                         SwitchRow("入库与获取通知", settings.ingestNotices) { scope.launch { graph.settings.setIngestNotices(it) } }
                     }

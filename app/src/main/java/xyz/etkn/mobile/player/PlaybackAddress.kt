@@ -62,6 +62,18 @@ object PlaybackAddress {
 
     private val HDR_LABEL = Regex("(?i)hdr|hlg|dovi|dolby|smpte2084|arib-std-b67|\\bpq\\b")
 
+    /**
+     * The stream for another app (external player, cast receiver, download): it cannot send our
+     * headers, so token and user ride in the query like music streams. Only ever handed to an app
+     * or device the user picked.
+     */
+    fun portable(source: MediaSource, server: String, token: String, userId: String): String =
+        resolve(source, server, token, userId).toHttpUrlOrNull()!!.newBuilder()
+            .setQueryParameter("X-Emby-Token", token)
+            .setQueryParameter("UserId", userId)
+            .setQueryParameter("MediaSourceId", source.id)
+            .build().toString()
+
     /** Music streams additionally carry token / user / session as query parameters. */
     fun music(source: MediaSource, server: String, token: String, userId: String, playSession: String): String {
         val base: HttpUrl = resolve(source, server, token, userId).toHttpUrlOrNull()!!

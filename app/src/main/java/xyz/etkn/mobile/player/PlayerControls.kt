@@ -23,9 +23,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Audiotrack
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.ClosedCaption
@@ -82,6 +85,7 @@ internal fun Controls(
     resizeLabel: String,
     onLock: () -> Unit,
     onNext: () -> Unit,
+    onExternal: () -> Unit,
 ) {
     var scrubbing by remember { mutableStateOf(false) }
     var scrub by remember { mutableFloatStateOf(0f) }
@@ -104,6 +108,8 @@ internal fun Controls(
                 }
             }
             if (ui.sources.size > 1) PlayerAction(Icons.Rounded.VideoSettings, "版本") { onSheet(Sheet.Versions) }
+            PlayerAction(if (ui.sleep != null) Icons.Rounded.Bedtime else Icons.Outlined.Bedtime, "定时关闭") { onSheet(Sheet.Sleep) }
+            PlayerAction(Icons.AutoMirrored.Rounded.OpenInNew, "用其他播放器打开", onExternal)
             PlayerAction(Icons.Rounded.PictureInPictureAlt, "画中画", onPip)
         }
         // Center transport

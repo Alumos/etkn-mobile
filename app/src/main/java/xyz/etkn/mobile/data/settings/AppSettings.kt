@@ -107,6 +107,8 @@ data class Settings(
     val navPosition: NavPosition = NavPosition.Side,
     /** System notifications for new / replaced titles and cloud acquisitions. */
     val ingestNotices: Boolean = true,
+    /** Keep the sound of a video going when the app goes to the background. */
+    val backgroundPlay: Boolean = false,
 )
 
 class AppSettings(private val context: Context) {
@@ -134,6 +136,7 @@ class AppSettings(private val context: Context) {
         val tabs = stringSetPreferencesKey("nav_tabs")
         val navPosition = stringPreferencesKey("nav_position")
         val ingestNotices = booleanPreferencesKey("ingest_notices")
+        val backgroundPlay = booleanPreferencesKey("background_play")
     }
 
     val flow: Flow<Settings> = context.settingsDataStore.data.map { it.toSettings() }
@@ -166,6 +169,7 @@ class AppSettings(private val context: Context) {
         tabs = this[Keys.tabs],
         navPosition = enumOr(this[Keys.navPosition], NavPosition.Side),
         ingestNotices = this[Keys.ingestNotices] ?: true,
+        backgroundPlay = this[Keys.backgroundPlay] ?: false,
     )
 
     suspend fun setTheme(mode: ThemeMode) = context.settingsDataStore.edit { it[Keys.theme] = mode.name }
@@ -179,6 +183,7 @@ class AppSettings(private val context: Context) {
 
     suspend fun setTabs(value: Set<String>?) = context.settingsDataStore.edit { if (value == null) it.remove(Keys.tabs) else it[Keys.tabs] = value }
     suspend fun setNavPosition(value: NavPosition) = context.settingsDataStore.edit { it[Keys.navPosition] = value.name }
+    suspend fun setBackgroundPlay(value: Boolean) = context.settingsDataStore.edit { it[Keys.backgroundPlay] = value }
     suspend fun setIngestNotices(value: Boolean) = context.settingsDataStore.edit { it[Keys.ingestNotices] = value }
     suspend fun setHeroMode(value: HeroMode) = context.settingsDataStore.edit { it[Keys.heroMode] = value.name }
 

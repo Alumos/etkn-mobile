@@ -58,6 +58,11 @@ import java.util.Locale
 @Immutable
 data class TrackOption(val groupIndex: Int, val trackIndex: Int, val label: String, val selected: Boolean, val stream: MediaStream? = null)
 
+/** 定时关闭: after [minutes], or at the end of the current title (minutes = 0). */
+enum class SleepTimer(val label: String, val minutes: Int) {
+    EndOfItem("本集播完", 0), M15("15 分钟", 15), M30("30 分钟", 30), M45("45 分钟", 45), M60("60 分钟", 60), M90("90 分钟", 90),
+}
+
 /** Calibration of the shown subtitle: [ms] in effect, [saved] on the server; only the mpv core can shift. */
 @Immutable
 data class SubtitleOffset(val key: String, val ms: Int, val saved: Int)
@@ -93,6 +98,7 @@ data class VideoUi(
     val previews: SeekPreviews? = null,
     /** Offset controls for the selected subtitle; null when it cannot be shifted. */
     val subtitleOffset: SubtitleOffset? = null,
+    val sleep: SleepTimer? = null,
 )
 
 private const val TAG = "ETKN-Play"
@@ -440,7 +446,9 @@ class VideoSession(
 
     private fun onEnded() {
         completedBySkip = true
-        if (settings.autoPlayNext && _ui.value.next != null) playNext(completed = true)
+        val sleeping = _ui.value.sleep == SleepTimer.EndOfItem
+        if (sleeping) setSleepTimer(null)
+        if (!sleeping && settings.autoPlayNext && _ui.value.next != null) playNext(completed = true)
         else {
             stopReporting()
             _ui.update { it.copy(finished = true) }
@@ -631,6 +639,32 @@ class VideoSession(
             .build()
     }
 
+    // ---------- Hand-off ----------
+
+    /** The playing version as a self-contained URL with its title, for another player or device. */
+    fun portableStream(): Pair<String, String>? {
+        val chosen = source ?: return null
+        val url = runCatching { PlaybackAddress.portable(chosen, session.server, session.token, session.userId) }.getOrNull() ?: return null
+        return url to listOf(_ui.value.title, _ui.value.subtitle).filter { it.isNotEmpty() }.joinToString(" · ")
+    }
+
+    // ---------- Sleep timer ----------
+
+    private var sleepJob: Job? = null
+
+    /** Pauses after the chosen time, or lets the current title end without moving on; null cancels. */
+    fun setSleepTimer(timer: SleepTimer?) {
+        sleepJob?.cancel()
+        _ui.update { it.copy(sleep = timer) }
+        if (timer == null || timer.minutes == 0) return
+        sleepJob = scope.launch {
+            delay(timer.minutes * 60_000L)
+            player?.pause()
+            _ui.update { it.copy(sleep = null) }
+            showNotice("定时已到，已暂停")
+        }
+    }
+
     // ---------- Subtitle offset ----------
 
     /** Offsets chosen this session, by key: re-selecting a subtitle keeps its calibration. */
@@ -780,6 +814,7 @@ class VideoSession(
 
     fun release() {
         loadJob?.cancel()
+        sleepJob?.cancel()
         closeDanmaku()
         released = true
         stopReporting()
