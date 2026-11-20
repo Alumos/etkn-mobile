@@ -104,7 +104,7 @@ private fun EpisodesContent(route: EpisodesRoute) {
                 }
             }
             items(state.items, key = { it.id }, contentType = { "episode" }) { episode ->
-                EpisodeCard(episode, current = false, onPlay = { nav.play(episode) }, onOpen = { nav.open(episode) })
+                EpisodeCard(episode, current = false, onOpen = { nav.open(episode) })
             }
             when {
                 state.loading -> item(key = "loading", span = { GridItemSpan(maxLineSpan) }) { InlineLoading() }

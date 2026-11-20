@@ -135,8 +135,8 @@ internal fun EpisodeShelf(
                 EpisodeCard(
                     episode,
                     current = episode.id == currentId,
-                    onPlay = { nav.play(episode) },
-                    onOpen = { nav.open(episode) },
+                    // The page's own episode is already open.
+                    onOpen = { if (episode.id != currentId) nav.open(episode) },
                     modifier = Modifier.width(cardWidth),
                 )
             }
@@ -174,12 +174,12 @@ private fun SeasonTitle(seasons: List<Item>, selected: String?, onSelect: (Strin
 }
 
 /**
- * 16:9 still (tap plays, long press opens the item menu) with progress and a watched mark,
- * outlined when it is the page's own episode; code, title and two lines of overview below
- * (tap opens the episode).
+ * 16:9 still with progress and a watched mark, outlined when it is the page's own episode;
+ * code, title and two lines of overview below. A tap anywhere opens the episode (playing is
+ * that page's button); a long press on the still opens the item menu.
  */
 @Composable
-internal fun EpisodeCard(episode: Item, current: Boolean, onPlay: () -> Unit, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+internal fun EpisodeCard(episode: Item, current: Boolean, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val press = rememberItemPress(episode, resume = true)
     val url = images().primary(episode, 360.dp.px()) ?: images().landscape(episode, 360.dp.px())
     val scheme = MaterialTheme.colorScheme
@@ -189,7 +189,7 @@ internal fun EpisodeCard(episode: Item, current: Boolean, onPlay: () -> Unit, on
                 .then(if (current) Modifier.border(2.dp, scheme.onSurface, CardShape) else Modifier)
                 .padding(if (current) 3.dp else 0.dp)
                 .clip(CardShape)
-                .combinedClickable(onClick = onPlay, onLongClick = if (press.enabled) press::open else null),
+                .combinedClickable(onClick = onOpen, onLongClick = if (press.enabled) press::open else null),
         ) {
             Artwork(url, Modifier.fillMaxSize(), episode.name, placeholder = Icons.Rounded.Movie)
             if (episode.userData.played) {

@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -37,6 +38,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import kotlin.math.acos
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.ui.screens.detail.DetailScreen
 import xyz.etkn.mobile.ui.screens.detail.EpisodesScreen
@@ -79,14 +81,14 @@ internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pag
             navController = controller,
             startDestination = TabsRoute,
             modifier = modifier,
-            enterTransition = { turn.back = false; EnterTransition.None },
-            exitTransition = { turn.back = false; ExitTransition.KeepUntilTransitionsFinished },
-            popEnterTransition = { turn.back = true; EnterTransition.None },
-            popExitTransition = { turn.back = true; ExitTransition.KeepUntilTransitionsFinished },
+            enterTransition = { turn.set(Turn.Open); EnterTransition.None },
+            exitTransition = { turn.set(Turn.Open); ExitTransition.KeepUntilTransitionsFinished },
+            popEnterTransition = { turn.set(Turn.Back); EnterTransition.None },
+            popExitTransition = { turn.set(Turn.Back); ExitTransition.KeepUntilTransitionsFinished },
             // The back gesture has its own pair, defaulting to a 70 % shrink of the leaving page;
-            // it must be the same turn as any other back.
-            predictivePopEnterTransition = { turn.back = true; EnterTransition.None },
-            predictivePopExitTransition = { turn.back = true; ExitTransition.KeepUntilTransitionsFinished },
+            // it is the same turn, scrubbed by the finger and hinged away from the edge it came from.
+            predictivePopEnterTransition = { turn.set(Turn.Gesture, fromRight = it == EDGE_RIGHT); EnterTransition.None },
+            predictivePopExitTransition = { turn.set(Turn.Gesture, fromRight = it == EDGE_RIGHT); ExitTransition.KeepUntilTransitionsFinished },
         ) {
             page<TabsRoute> { TabPager(tabs, pager, verticalTabs) }
             // Tabs left out of the dock still open as ordinary pages.
@@ -165,38 +167,56 @@ private inline fun <reified T : Any> NavGraphBuilder.page(
     noinline content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
 ) = composable<T> { entry -> PageFrame { content(entry) } }
 
-/** Which way the running page transition goes: set where NavHost picks a transition, read while drawing. */
+/** The running page transition: set where NavHost picks a transition, read while drawing. */
 private class PageTurn {
-    var back = false
+    var kind = Turn.Open
+    /** A back swipe from the right edge: the leaf hinges on its left edge so its free edge stays under the finger. */
+    var fromRight = false
+
+    fun set(kind: Turn, fromRight: Boolean = false) {
+        this.kind = kind
+        this.fromRight = fromRight
+    }
 }
+
+private enum class Turn { Open, Back, Gesture }
+
+/** The swipe edge NavHost passes for a back swipe from the right (BackEvent / NavigationEvent EDGE_RIGHT). */
+private const val EDGE_RIGHT = 1
 
 private val LocalPageTurn = staticCompositionLocalOf { PageTurn() }
 
 /**
  * The page turn, the same for every page and both directions. The page on top is a leaf hinged
- * on its right edge: opening lays it down over the current page, going back lifts it off to
- * reveal the page underneath, which brightens as it is uncovered. Back is what the predictive
- * back gesture scrubs, so it runs on a fixed linear timeline the gesture's progress maps onto and
- * the leaf's free edge follows the finger. Only layer properties change (rotation, alpha, one
- * dim rect), so a turn costs no relayout or recomposition per frame.
+ * on one edge: opening lays it down over the current page, going back lifts it off to reveal the
+ * page underneath, which brightens as it is uncovered.
+ *
+ * The leaf's angle is arccos(1 - t), so its free edge (seen flat-on) has travelled exactly t of
+ * the page width: a linear angle would leave the edge almost still for the first third and then
+ * rush. During the back gesture t is the gesture's progress (NavHost seeks the transition with
+ * it), so the edge stays under the finger; that timeline is linear for the same reason, and a
+ * swipe from the right edge hinges the leaf on the left. Only layer properties change (rotation,
+ * alpha, one dim rect), so a turn costs no relayout or recomposition per frame.
  */
 @Composable
 private fun AnimatedContentScope.PageFrame(content: @Composable () -> Unit) {
     val turn = LocalPageTurn.current
     // 1 = lying flat on the stack; 0 = turned off it (where an opening leaf starts, a leaving one ends).
-    val flat = transition.animateFloat(transitionSpec = { if (turn.back) BackTurn else OpenTurn }, label = "pageTurn") {
-        if (it == EnterExitState.Visible) 1f else 0f
-    }
+    val flat = transition.animateFloat(
+        transitionSpec = { when (turn.kind) { Turn.Open -> OpenTurn; Turn.Back -> BackTurn; Turn.Gesture -> GestureTurn } },
+        label = "pageTurn",
+    ) { if (it == EnterExitState.Visible) 1f else 0f }
     // The leaf is the page entering when opening and the page leaving when going back.
-    fun onTop() = (transition.targetState == EnterExitState.Visible) != turn.back
+    fun onTop() = (transition.targetState == EnterExitState.Visible) == (turn.kind == Turn.Open)
     Box(
         Modifier.fillMaxSize()
             .graphicsLayer {
                 val lifted = 1f - flat.value
                 if (lifted > 0f && onTop()) {
-                    transformOrigin = TransformOrigin(1f, 0.5f)
-                    cameraDistance = 14f * density
-                    rotationY = MAX_TURN_DEGREES * lifted
+                    val degrees = Math.toDegrees(acos(1.0 - lifted)).toFloat()
+                    transformOrigin = TransformOrigin(if (turn.fromRight) 0f else 1f, 0.5f)
+                    cameraDistance = CAMERA_DISTANCE * density
+                    rotationY = if (turn.fromRight) -degrees else degrees
                     alpha = ((1f - lifted) / FADE_SPAN).coerceIn(0f, 1f)
                 } else {
                     rotationY = 0f
@@ -212,10 +232,12 @@ private fun AnimatedContentScope.PageFrame(content: @Composable () -> Unit) {
     ) { content() }
 }
 
-private val OpenTurn = tween<Float>(380, easing = FastOutSlowInEasing)
-private val BackTurn = tween<Float>(320, easing = LinearEasing)
-private const val MAX_TURN_DEGREES = 80f
-/** The leaf stays opaque until the last part of its turn, then fades out edge-on. */
-private const val FADE_SPAN = 0.35f
+private val OpenTurn = tween<Float>(480, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f))
+private val BackTurn = tween<Float>(420, easing = FastOutSlowInEasing)
+private val GestureTurn = tween<Float>(420, easing = LinearEasing)
+/** Far enough that the leaf's near edge barely swells, so the edge the eye follows is the one the finger holds. */
+private const val CAMERA_DISTANCE = 24f
+/** The leaf is nearly edge-on by then; fading it hides the last sliver. */
+private const val FADE_SPAN = 0.12f
 /** How dark the page underneath is while fully covered. */
 private const val UNDER_DIM = 0.3f
