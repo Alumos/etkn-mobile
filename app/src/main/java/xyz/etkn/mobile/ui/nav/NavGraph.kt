@@ -71,7 +71,8 @@ val LocalTabActive = compositionLocalOf { true }
 @Composable
 internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pager: PagerState, verticalTabs: Boolean, modifier: Modifier = Modifier) {
     // Pages turn like the leaves of a book (see PageFrame): NavHost itself only keeps both pages
-    // composed for the length of the turn and records which way it goes.
+    // composed for the length of the turn and records which way it goes. All six transitions are
+    // set, so none of NavHost's defaults (fades, the back gesture's shrink) ever runs.
     val turn = remember { PageTurn() }
     CompositionLocalProvider(LocalPageTurn provides turn) {
         NavHost(
@@ -82,6 +83,10 @@ internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pag
             exitTransition = { turn.back = false; ExitTransition.KeepUntilTransitionsFinished },
             popEnterTransition = { turn.back = true; EnterTransition.None },
             popExitTransition = { turn.back = true; ExitTransition.KeepUntilTransitionsFinished },
+            // The back gesture has its own pair, defaulting to a 70 % shrink of the leaving page;
+            // it must be the same turn as any other back.
+            predictivePopEnterTransition = { turn.back = true; EnterTransition.None },
+            predictivePopExitTransition = { turn.back = true; ExitTransition.KeepUntilTransitionsFinished },
         ) {
             page<TabsRoute> { TabPager(tabs, pager, verticalTabs) }
             // Tabs left out of the dock still open as ordinary pages.
