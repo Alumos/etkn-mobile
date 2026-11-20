@@ -51,7 +51,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -87,6 +86,8 @@ import xyz.etkn.mobile.ui.components.GlassDialog
 import xyz.etkn.mobile.ui.components.InlineLoading
 import xyz.etkn.mobile.ui.components.LoadingState
 import xyz.etkn.mobile.ui.components.MessageState
+import xyz.etkn.mobile.ui.components.PillGap
+import xyz.etkn.mobile.ui.components.PillToggle
 import xyz.etkn.mobile.ui.components.SectionHeader
 import xyz.etkn.mobile.ui.components.SquareCard
 import xyz.etkn.mobile.ui.components.formatClock
@@ -128,10 +129,10 @@ fun MusicHomeScreen() {
                 }
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = Etkn.space.screen, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(PillGap),
                 ) {
                     items(MusicTab.entries.toList()) { t ->
-                        ToggleButton(checked = t == tab, onCheckedChange = { tab = t }) { Text(t.label) }
+                        PillToggle(checked = t == tab, onClick = { tab = t }) { Text(t.label) }
                     }
                 }
                 val parent = selected ?: return@Column

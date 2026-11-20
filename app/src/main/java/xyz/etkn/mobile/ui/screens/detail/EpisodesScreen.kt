@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -40,6 +39,8 @@ import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.common.graphViewModel
 import xyz.etkn.mobile.ui.components.GlassBackBar
 import xyz.etkn.mobile.ui.components.InlineLoading
+import xyz.etkn.mobile.ui.components.PillGap
+import xyz.etkn.mobile.ui.components.PillToggle
 import xyz.etkn.mobile.ui.components.glassBarClearance
 import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.nav.EpisodesRoute
@@ -93,9 +94,9 @@ private fun EpisodesContent(route: EpisodesRoute) {
         ) {
             if (seasons.size > 1) {
                 item(key = "seasons", span = { GridItemSpan(maxLineSpan) }) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(PillGap), modifier = Modifier.padding(bottom = 8.dp)) {
                         items(seasons, key = { it.id }) { season ->
-                            ToggleButton(checked = season.id == state.seasonId, onCheckedChange = { vm.selectSeason(season.id) }) {
+                            PillToggle(checked = season.id == state.seasonId, onClick = { vm.selectSeason(season.id) }) {
                                 Text(season.name, maxLines = 1)
                             }
                         }

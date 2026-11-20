@@ -3,6 +3,7 @@ package xyz.etkn.mobile.ui.screens.home
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import java.util.UUID
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -16,11 +17,11 @@ import kotlinx.coroutines.withContext
 import xyz.etkn.mobile.AppGraph
 import xyz.etkn.mobile.data.events.ServerEvent
 import xyz.etkn.mobile.data.model.Item
+import xyz.etkn.mobile.data.model.LibraryCounts
 import xyz.etkn.mobile.data.net.ResponseCache
 import xyz.etkn.mobile.launcher.LauncherEntries
 import xyz.etkn.mobile.ui.common.Load
 import xyz.etkn.mobile.ui.common.userMessage
-import java.util.UUID
 
 @Immutable
 data class LatestShelf(val library: Item, val items: List<Item>)
@@ -32,6 +33,7 @@ data class HomeData(
     val libraries: List<Item> = emptyList(),
     val latest: List<LatestShelf> = emptyList(),
     val musicLatest: Pair<Item, List<Item>>? = null,
+    val counts: LibraryCounts? = null,
 )
 
 class HomeViewModel(private val graph: AppGraph) : ViewModel() {
@@ -102,6 +104,7 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
     private suspend fun fetch(): HomeData = coroutineScope {
         val viewsJob = async { api.views() }
         val resumeJob = async { runCatching { api.resume(20) }.getOrDefault(emptyList()) }
+        val countsJob = async { runCatching { api.libraryCounts() }.getOrNull() }
         val views = viewsJob.await()
         val videoLibraries = views.filter { it.collectionType !in NON_LATEST }
         val shelves = videoLibraries.map { library ->
@@ -126,6 +129,7 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
             libraries = views,
             latest = shelves.awaitAll().filter { it.items.isNotEmpty() },
             musicLatest = music?.await()?.takeIf { it.second.isNotEmpty() },
+            counts = countsJob.await(),
         )
     }
 

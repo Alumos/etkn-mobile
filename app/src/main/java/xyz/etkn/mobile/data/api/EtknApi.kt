@@ -1,5 +1,7 @@
 package xyz.etkn.mobile.data.api
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -23,6 +25,7 @@ import xyz.etkn.mobile.data.events.IngestPage
 import xyz.etkn.mobile.data.model.EpisodePage
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.data.model.ItemsPage
+import xyz.etkn.mobile.data.model.LibraryCounts
 import xyz.etkn.mobile.data.model.MediaSource
 import xyz.etkn.mobile.data.model.MusicHome
 import xyz.etkn.mobile.data.model.MusicPage
@@ -232,6 +235,20 @@ class EtknApi(
     suspend fun favoriteCollections(): List<Item> =
         get(query("${u()}/Items", "Recursive" to true, "IncludeItemTypes" to "BoxSet", "SortBy" to "SortName", "Limit" to 1000))
             .items().filter { it.userData.isFavorite }
+
+    /**
+     * What the account's libraries hold, by kind. Counts only: with `Limit=0` and no sort the
+     * server answers from its count path without loading any item.
+     */
+    suspend fun libraryCounts(): LibraryCounts = coroutineScope {
+        fun count(type: String) = async {
+            get(query("${u()}/Items", "Recursive" to true, "IncludeItemTypes" to type, "Limit" to 0)).int("TotalRecordCount", 0)
+        }
+        val movies = count("Movie")
+        val series = count("Series")
+        val episodes = count("Episode")
+        LibraryCounts(movies.await(), series.await(), episodes.await())
+    }
 
     suspend fun search(term: String, start: Int, limit: Int): ItemsPage {
         val path = query(

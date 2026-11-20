@@ -38,7 +38,6 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,7 +45,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -83,6 +81,8 @@ import xyz.etkn.mobile.ui.components.GlassPiece
 import xyz.etkn.mobile.ui.components.InlineLoading
 import xyz.etkn.mobile.ui.components.LoadingState
 import xyz.etkn.mobile.ui.components.MessageState
+import xyz.etkn.mobile.ui.components.PillGap
+import xyz.etkn.mobile.ui.components.PillToggle
 import xyz.etkn.mobile.ui.components.SmallCardShape
 import xyz.etkn.mobile.ui.components.formatRating
 import xyz.etkn.mobile.ui.components.glassSource
@@ -173,13 +173,9 @@ private fun DiscoverTopBar(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 GlassPiece(haze, RoundedCornerShape(50)) {
-                    Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
-                        DiscoverKind.entries.forEachIndexed { index, option ->
-                            ToggleButton(
-                                checked = option == kind,
-                                onCheckedChange = { onKind(option) },
-                                shapes = if (index == 0) ButtonGroupDefaults.connectedLeadingButtonShapes() else ButtonGroupDefaults.connectedTrailingButtonShapes(),
-                            ) { Text(option.label) }
+                    Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(PillGap)) {
+                        DiscoverKind.entries.forEach { option ->
+                            PillToggle(checked = option == kind, onClick = { onKind(option) }) { Text(option.label) }
                         }
                     }
                 }

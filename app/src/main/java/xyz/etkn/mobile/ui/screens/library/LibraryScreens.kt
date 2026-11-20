@@ -38,13 +38,11 @@ import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Slideshow
 import androidx.compose.material.icons.rounded.Sync
-import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -88,6 +86,8 @@ import xyz.etkn.mobile.ui.components.InlineLoading
 import xyz.etkn.mobile.ui.components.LibraryTile
 import xyz.etkn.mobile.ui.components.LoadingState
 import xyz.etkn.mobile.ui.components.MessageState
+import xyz.etkn.mobile.ui.components.PillGap
+import xyz.etkn.mobile.ui.components.PillToggle
 import xyz.etkn.mobile.ui.components.PosterCard
 import xyz.etkn.mobile.ui.components.SmallCardShape
 import xyz.etkn.mobile.ui.components.glass
@@ -206,19 +206,12 @@ fun LibraryScreen(route: LibraryRoute) {
                     if (vm.views.size > 1) {
                         Row(
                             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                            horizontalArrangement = Arrangement.spacedBy(PillGap),
                         ) {
-                            vm.views.forEachIndexed { index, option ->
-                                ToggleButton(
-                                    checked = option == view,
-                                    onCheckedChange = { vm.setView(option) },
-                                    shapes = when (index) {
-                                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                        vm.views.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                                    },
-                                    modifier = Modifier.height(36.dp),
-                                ) { Text(option.label, maxLines = 1) }
+                            vm.views.forEach { option ->
+                                PillToggle(checked = option == view, onClick = { vm.setView(option) }, modifier = Modifier.height(36.dp)) {
+                                    Text(option.label, maxLines = 1)
+                                }
                             }
                         }
                     }

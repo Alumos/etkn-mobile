@@ -33,7 +33,6 @@ import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
@@ -46,7 +45,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,6 +62,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -86,9 +85,10 @@ import xyz.etkn.mobile.ui.common.userMessage
 import xyz.etkn.mobile.ui.components.Artwork
 import xyz.etkn.mobile.ui.components.GlassDialog
 import xyz.etkn.mobile.ui.components.GlassSheet
+import xyz.etkn.mobile.ui.components.PillGap
+import xyz.etkn.mobile.ui.components.PillToggle
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.screens.me.SwitchRow
-import java.util.Locale
 
 // ---------- Refresh ----------
 
@@ -425,17 +425,9 @@ internal fun ImageSheet(item: Item, menu: ItemMenu) {
                 }
             }
             Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Row(horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween), modifier = Modifier.weight(1f)) {
-                    ImageKind.entries.forEachIndexed { index, value ->
-                        ToggleButton(
-                            checked = kind == value,
-                            onCheckedChange = { kind = value },
-                            shapes = when (index) {
-                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                ImageKind.entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                            },
-                        ) { Text(value.label) }
+                Row(horizontalArrangement = Arrangement.spacedBy(PillGap), modifier = Modifier.weight(1f)) {
+                    ImageKind.entries.forEach { value ->
+                        PillToggle(checked = kind == value, onClick = { kind = value }) { Text(value.label) }
                     }
                 }
                 Text("全部语言", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 8.dp))

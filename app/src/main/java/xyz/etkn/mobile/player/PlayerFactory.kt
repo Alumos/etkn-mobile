@@ -22,7 +22,9 @@ import java.util.Locale
  * - Hardware MediaCodec first; NextLib's bundled FFmpeg covers formats the device cannot decode
  *   (TrueHD, DTS, …) unless the user pins hardware-only or software-first.
  * - Media is fetched through the shared OkHttp pool (HTTP/2, keep-alive) with the app UA.
- * - Buffering is tuned for LAN/remote direct streams: fast start, generous forward buffer.
+ * - Buffering is tuned for LAN/remote direct streams: fast start, generous forward buffer, but
+ *   capped by size as well as time (a 90 s buffer of an 80 Mbit/s remux would be ~900 MB of heap).
+ * - CPU and Wi-Fi stay awake only while playing, so 后台播放 with the screen off does not stall.
  */
 object PlayerFactory {
 
@@ -50,7 +52,7 @@ object PlayerFactory {
         }
         val load = DefaultLoadControl.Builder()
             .setBufferDurationsMs(20_000, 90_000, 800, 2_500)
-            .setPrioritizeTimeOverSizeThresholds(true)
+            .setPrioritizeTimeOverSizeThresholds(false)
             .build()
         return ExoPlayer.Builder(context, renderers)
             .setTrackSelector(selector)
@@ -63,6 +65,7 @@ object PlayerFactory {
                 true,
             )
             .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
             // Decoders, formats and failures land in the exportable log.
             .apply { addAnalyticsListener(PlaybackLog()) }

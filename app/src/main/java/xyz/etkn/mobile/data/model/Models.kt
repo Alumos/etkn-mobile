@@ -477,3 +477,7 @@ data class Rating(val source: RatingSource, val score: Double) {
     /** Tomatometer 60 % and up is "fresh". */
     val fresh: Boolean get() = score >= 60
 }
+
+/** Titles in the account's libraries: films, series and their episodes. */
+@Immutable
+data class LibraryCounts(val movies: Int, val series: Int, val episodes: Int)

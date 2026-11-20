@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -93,14 +94,15 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
         onDispose { current?.removeListener(listener) }
     }
     LaunchedEffect(ui.finished) { if (ui.finished) onBack() }
-    // Poll the clock only as fast as the UI needs it (4 Hz).
+    // Poll the clock only as fast as the UI needs it: 4 Hz while the controls show it, else 1 Hz
+    // (enough for the skip-intro / credits segments).
     LaunchedEffect(player) {
         val current = player ?: return@LaunchedEffect
         while (true) {
             position = current.currentPosition.coerceAtLeast(0)
             duration = current.duration.takeIf { it > 0 } ?: 0
             buffered = current.bufferedPosition
-            delay(250)
+            delay(if (controls || gesture != null) 250 else 1_000)
         }
     }
     // Auto-hide controls after 4 s of inactivity while playing.
@@ -201,7 +203,13 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
                 FilledTonalButton(onClick = onBack) { Text("返回") }
             }
         }
-        gesture?.let { feedback -> GestureBadge(feedback, Modifier.align(Alignment.Center)) }
+        gesture?.let { feedback ->
+            // Notices sit high, clear of faces and subtitles; seek and level readouts stay central.
+            val place = if (feedback is GestureFeedback.Text) {
+                Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.statusBars).padding(top = 48.dp)
+            } else Modifier.align(Alignment.Center)
+            GestureBadge(feedback, place)
+        }
         ui.notice?.let { message ->
             LaunchedEffect(message) {
                 delay(3_500)

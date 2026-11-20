@@ -52,6 +52,7 @@ class MpvPlayer(
 ) : SimpleBasePlayer(Looper.getMainLooper()), MPVLib.EventObserver {
 
     private val app = context.applicationContext
+    private val locks = PlaybackLocks(app)
     private val main = Handler(Looper.getMainLooper())
     val view: MpvView = LayoutInflater.from(context).inflate(R.layout.mpv_view, null, false) as MpvView
 
@@ -163,6 +164,7 @@ class MpvPlayer(
             else -> Player.STATE_READY
         }
         playing = playWhenReady && state == Player.STATE_READY
+        locks.hold(playing)
         val builder = State.Builder()
             .setAvailableCommands(COMMANDS)
             .setPlayWhenReady(playWhenReady, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
@@ -301,6 +303,7 @@ class MpvPlayer(
 
     override fun handleRelease(): ListenableFuture<*> {
         released = true
+        locks.hold(false)
         if (live === this) live = null
         // Silence first, so nothing can keep playing even if the teardown below fails.
         runCatching {

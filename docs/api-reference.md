@@ -109,6 +109,7 @@
 | GET | `U/Items?ParentId=` | 文件夹子项 |
 | GET | `U/Browse?Limit=&StartIndex=&SortBy=DateCreated&SortOrder=Descending&Filters=IsFavorite` | 收藏 |
 | GET | `U/Items?Recursive=true&IncludeItemTypes=BoxSet&SortBy=SortName&Limit=1000` | 收藏的合集：`Filters=IsFavorite` 不会返回 BoxSet，所以读合集列表，只保留 `UserData.IsFavorite` 为真的条目，排在「我的收藏」最前面 |
+| GET | `U/Items?Recursive=true&IncludeItemTypes=Movie&Limit=0`（`Series`、`Episode` 同） | 首页底部的电影 / 剧集 / 总集数：三个类型并发，只读 `TotalRecordCount`（不带排序时服务端走计数快速路径，不加载条目；受限账号按其可见范围计数）。Emby 的 `Items/Counts` 不在 `/api/tv` 下，不用 |
 | GET | `U/Items?Recursive=true&IncludeItemTypes=Movie,Series&SearchTerm=&SortBy=SortName&Limit=&StartIndex=&Fields=…` | 库内搜索 |
 | GET | `U/Libraries/{libraryId}/Collections?Limit=200` | 库内合集（库页「合集」，仅 path 来源的库有结果）；成员用 `U/Items?ParentId=<合集ID>` |
 | GET | `U/Items/{id}/Collections?Limit=60` | 电影所属合集（详情「所属合集」） |

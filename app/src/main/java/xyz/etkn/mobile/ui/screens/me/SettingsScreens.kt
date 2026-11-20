@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,7 +27,6 @@ import androidx.compose.material3.SliderState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -45,6 +43,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chrisbanes.haze.rememberHazeState
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.data.settings.ColorSource
 import xyz.etkn.mobile.data.settings.DanmakuStyle
@@ -59,6 +58,8 @@ import xyz.etkn.mobile.data.settings.UiScale
 import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.components.GlassBackBar
+import xyz.etkn.mobile.ui.components.PillGap
+import xyz.etkn.mobile.ui.components.PillToggle
 import xyz.etkn.mobile.ui.components.glassBarClearance
 import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.nav.DOCK_MAX
@@ -68,7 +69,6 @@ import xyz.etkn.mobile.ui.nav.TopLevel
 import xyz.etkn.mobile.ui.nav.visibleTabs
 import xyz.etkn.mobile.ui.theme.Etkn
 import xyz.etkn.mobile.ui.theme.LocalSettings
-import kotlin.math.roundToInt
 
 enum class SettingsPage(val title: String) { Appearance("外观"), Playback("播放"), Danmaku("弹幕"), Update("检查更新") }
 
@@ -194,19 +194,12 @@ internal fun <T> ChoiceRow(label: String, options: List<T>, selected: T, name: (
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
         Row(
             Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+            horizontalArrangement = Arrangement.spacedBy(PillGap),
         ) {
-            options.forEachIndexed { index, option ->
-                ToggleButton(
-                    checked = option == selected,
-                    onCheckedChange = { onSelect(option) },
-                    shapes = when (index) {
-                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                        options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                    },
-                    modifier = Modifier.semantics { role = Role.RadioButton },
-                ) { Text(name(option), maxLines = 1) }
+            options.forEach { option ->
+                PillToggle(checked = option == selected, onClick = { onSelect(option) }, modifier = Modifier.semantics { role = Role.RadioButton }) {
+                    Text(name(option), maxLines = 1)
+                }
             }
         }
     }

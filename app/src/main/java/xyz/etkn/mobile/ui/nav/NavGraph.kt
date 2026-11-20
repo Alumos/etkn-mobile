@@ -2,15 +2,13 @@ package xyz.etkn.mobile.ui.nav
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentScope
-import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateDp
-import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,7 +17,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerScope
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.VerticalPager
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -27,7 +24,8 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavBackStackEntry
@@ -69,24 +67,21 @@ val LocalTabActive = compositionLocalOf { true }
 /** Every destination inside the shell. */
 @Composable
 internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pager: PagerState, verticalTabs: Boolean, modifier: Modifier = Modifier) {
-    // Opening a page: theme motion (Material 3 Expressive springs), which keeps its velocity when interrupted.
-    val motion = MaterialTheme.motionScheme
-    val move = motion.defaultSpatialSpec<IntOffset>()
-    val zoom = motion.defaultSpatialSpec<Float>()
-    val fade = motion.defaultEffectsSpec<Float>()
+    // Pages move on one horizontal axis and only move (no scaling, fading or clipping, so a
+    // transition costs a translation per frame). A page comes in from the end edge over the one it
+    // covers, which drifts a quarter back; back reverses it. Opening rides a critically damped
+    // spring (an overshoot would bare the window edge). Going back is what the predictive back
+    // gesture scrubs, so it runs on a fixed linear timeline the gesture's progress maps onto:
+    // the page follows the finger off to the side and the one underneath slides back in.
+    val open = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow, visibilityThreshold = IntOffset.VisibilityThreshold)
     NavHost(
         navController = controller,
         startDestination = TabsRoute,
         modifier = modifier,
-        enterTransition = { fadeIn(fade) + slideInHorizontally(move) { it / 12 } },
-        exitTransition = { fadeOut(fade) + scaleOut(zoom, targetScale = 0.96f) },
-        // Going back is what the predictive back gesture scrubs, so it runs on a fixed timeline
-        // the gesture's progress maps onto (springs front-load their motion and jump ahead of the
-        // finger). Material's in-app back: the page leaving shrinks to at most 90 % with rounded
-        // corners and stays opaque while the finger moves; the page underneath comes back from
-        // a slight offset. Letting go plays the rest, and the page leaving fades at the very end.
-        popEnterTransition = { slideInHorizontally(backSpec()) { -it / 12 } },
-        popExitTransition = { scaleOut(backSpec(), targetScale = 0.9f) + fadeOut(backFade) },
+        enterTransition = { slideInHorizontally(open) { it } },
+        exitTransition = { slideOutHorizontally(open) { -it / 4 } },
+        popEnterTransition = { slideInHorizontally(back) { -it / 4 } },
+        popExitTransition = { slideOutHorizontally(back) { it } },
     ) {
         page<TabsRoute> { TabPager(tabs, pager, verticalTabs) }
         // Tabs left out of the dock still open as ordinary pages.
@@ -158,37 +153,17 @@ private fun TabPage(tab: TopLevel?, active: Boolean) {
 }
 
 /**
- * Every destination draws its own opaque, clipped page. Without it the predictive back gesture
- * shrinks a transparent page over the one underneath and both bleed into each other; the corner
- * radius follows the gesture so the page reads as a card while it is being dragged away.
+ * Every destination draws its own opaque page, so a page moving over another never shows through.
+ * Its shadow lies outside the screen at rest and only shows along the edge of a page in motion.
  */
 private inline fun <reified T : Any> NavGraphBuilder.page(
     noinline content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
 ) = composable<T> { entry -> PageFrame { content(entry) } }
 
 @Composable
-private fun AnimatedContentScope.PageFrame(content: @Composable () -> Unit) {
-    val corner = transition.animateDp(transitionSpec = { backSpec() }, label = "pageCorner") { if (it == EnterExitState.Visible) 0.dp else 28.dp }
-    val background = MaterialTheme.colorScheme.surface
-    Box(
-        Modifier.fillMaxSize()
-            .graphicsLayer {
-                val radius = corner.value.toPx()
-                clip = radius > 0f
-                shape = RoundedCornerShape(radius)
-            }
-            .background(background),
-    ) { content() }
+private fun PageFrame(content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize().shadow(12.dp, RectangleShape, clip = false).background(MaterialTheme.colorScheme.surface)) { content() }
 }
 
 /** The back timeline (see [AppNavHost]): linear, so the page tracks the gesture's progress. */
-private fun <T> backSpec() = tween<T>(BACK_MS, easing = LinearEasing)
-
-/** Opaque while the gesture can still be cancelled; gone by the end of the commit. */
-private val backFade = keyframes<Float> {
-    durationMillis = BACK_MS
-    1f at (BACK_MS * 0.75f).toInt()
-    0f at BACK_MS
-}
-
-private const val BACK_MS = 320
+private val back = tween<IntOffset>(300, easing = LinearEasing)

@@ -93,6 +93,8 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // The media notification only brings the player back to the front; a title replaces it.
+        if (intent.getStringExtra(PlayerLauncher.EXTRA_ITEM) == null) return
         setIntent(intent)
         close()
         if (!open(intent)) finish()

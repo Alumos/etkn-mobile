@@ -30,16 +30,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
+import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.ui.components.formatClock
-import kotlin.math.abs
 
 internal sealed interface GestureFeedback {
     data class Seek(val targetMs: Long, val deltaMs: Long) : GestureFeedback
@@ -165,6 +166,14 @@ internal fun GestureLayer(
 
 @Composable
 internal fun GestureBadge(feedback: GestureFeedback, modifier: Modifier) {
+    // A plain notice (2× 倍速) is bare text with a soft shadow: no box over the picture.
+    if (feedback is GestureFeedback.Text) {
+        Text(
+            feedback.text, modifier = modifier, color = Color.White, fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.titleMedium.copy(shadow = Shadow(Color.Black.copy(alpha = 0.7f), blurRadius = 10f)),
+        )
+        return
+    }
     Box(
         modifier.clip(RoundedCornerShape(20.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 20.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
@@ -180,7 +189,7 @@ internal fun GestureBadge(feedback: GestureFeedback, modifier: Modifier) {
                 Spacer(Modifier.width(12.dp))
                 LinearProgressIndicator(progress = { feedback.fraction }, modifier = Modifier.width(140.dp).height(6.dp), drawStopIndicator = {})
             }
-            is GestureFeedback.Text -> Text(feedback.text, color = Color.White, style = MaterialTheme.typography.titleMedium)
+            is GestureFeedback.Text -> Unit
         }
     }
 }

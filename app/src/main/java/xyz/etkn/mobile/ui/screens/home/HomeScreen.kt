@@ -2,6 +2,7 @@ package xyz.etkn.mobile.ui.screens.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -48,6 +49,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
+import java.text.NumberFormat
+import xyz.etkn.mobile.data.model.LibraryCounts
 import xyz.etkn.mobile.data.session.SessionState
 import xyz.etkn.mobile.data.settings.HeroMode
 import xyz.etkn.mobile.graph
@@ -75,7 +78,9 @@ import xyz.etkn.mobile.ui.nav.FavoritesRoute
 import xyz.etkn.mobile.ui.nav.LibraryRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
+import xyz.etkn.mobile.ui.nav.LocalStartInset
 import xyz.etkn.mobile.ui.nav.TopLevel
+import xyz.etkn.mobile.ui.theme.Etkn
 import xyz.etkn.mobile.ui.theme.LocalSettings
 
 @Composable
@@ -147,9 +152,27 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
                     SquareCard(album, onClick = { nav.open(album) })
                 }
             }
+            data.counts?.let { counts -> item(key = "counts", contentType = "counts") { LibraryTotals(counts) } }
             item(key = "bottom") { Spacer(Modifier.height(LocalBottomInset.current + 16.dp)) }
         }
         HomeTopBar(reveal = { reveal }, haze = haze, onSearch = { nav.top(TopLevel.Search) }, onFavorites = { nav.to(FavoritesRoute) }, onMe = { nav.top(TopLevel.Me) })
+    }
+}
+
+/** What the libraries hold, closing the page: films, series, episodes. */
+@Composable
+private fun LibraryTotals(counts: LibraryCounts) {
+    val number = remember { NumberFormat.getIntegerInstance() }
+    Row(
+        Modifier.fillMaxWidth().padding(start = LocalStartInset.current).padding(top = Etkn.space.section * 2, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(40.dp, Alignment.CenterHorizontally),
+    ) {
+        listOf("电影" to counts.movies, "剧集" to counts.series, "总集数" to counts.episodes).forEach { (label, value) ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(number.format(value), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }
 
