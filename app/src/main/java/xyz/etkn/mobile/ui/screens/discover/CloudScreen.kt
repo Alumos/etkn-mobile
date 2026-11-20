@@ -15,9 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -57,6 +55,9 @@ import xyz.etkn.mobile.ui.nav.CloudRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.theme.Etkn
+import xyz.etkn.mobile.ui.theme.Corner
+import xyz.etkn.mobile.ui.components.PillGap
+import xyz.etkn.mobile.ui.components.PillToggle
 
 @Composable
 fun CloudScreen(route: CloudRoute) {
@@ -91,17 +92,15 @@ fun CloudScreen(route: CloudRoute) {
             item(key = "sources") {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = Etkn.space.screen, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(PillGap),
                 ) {
                     val total = results.values.sumOf { (it as? Load.Ready)?.value?.size ?: 0 }
-                    FilterChip(selected = source == null, onClick = { source = null }, label = { Text("全部 $total") })
+                    PillToggle(checked = source == null, onClick = { source = null }) { Text("全部 $total") }
                     CloudProvider.entries.forEach { provider ->
                         val count = (results[provider] as? Load.Ready)?.value?.size
-                        FilterChip(
-                            selected = source == provider,
-                            onClick = { source = provider },
-                            label = { Text(provider.label + (count?.let { " $it" } ?: "")) },
-                        )
+                        PillToggle(checked = source == provider, onClick = { source = provider }) {
+                            Text(provider.label + (count?.let { " $it" } ?: ""))
+                        }
                     }
                 }
             }
@@ -222,7 +221,7 @@ private fun TonePill(text: String, tone: ChipTone) {
         ChipTone.Info -> scheme.secondaryContainer to scheme.onSecondaryContainer
         ChipTone.Default -> scheme.surfaceContainerHighest to scheme.onSurfaceVariant
     }
-    Surface(shape = RoundedCornerShape(8.dp), color = container, contentColor = content) {
+    Surface(shape = Corner.small, color = container, contentColor = content) {
         Text(text, style = MaterialTheme.typography.labelMedium, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
     }
 }

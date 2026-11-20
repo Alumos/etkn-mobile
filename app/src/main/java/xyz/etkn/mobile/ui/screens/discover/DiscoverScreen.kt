@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
@@ -83,7 +82,7 @@ import xyz.etkn.mobile.ui.components.LoadingState
 import xyz.etkn.mobile.ui.components.MessageState
 import xyz.etkn.mobile.ui.components.PillGap
 import xyz.etkn.mobile.ui.components.PillToggle
-import xyz.etkn.mobile.ui.components.SmallCardShape
+import xyz.etkn.mobile.ui.components.CardShape
 import xyz.etkn.mobile.ui.components.formatRating
 import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.components.images
@@ -91,6 +90,7 @@ import xyz.etkn.mobile.ui.nav.DiscoverDetailRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.theme.Etkn
+import xyz.etkn.mobile.ui.theme.Corner
 
 @Composable
 fun DiscoverScreen() {
@@ -167,12 +167,12 @@ private fun DiscoverTopBar(
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     Column(
-        modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp, vertical = 6.dp),
+        modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = Etkn.space.screen, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                GlassPiece(haze, RoundedCornerShape(50)) {
+                GlassPiece(haze, Corner.pill) {
                     Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(PillGap)) {
                         DiscoverKind.entries.forEach { option ->
                             PillToggle(checked = option == kind, onClick = { onKind(option) }) { Text(option.label) }
@@ -192,7 +192,7 @@ private fun DiscoverTopBar(
             }
         }
         if (searching) {
-            GlassPiece(haze, RoundedCornerShape(50), Modifier.fillMaxWidth()) {
+            GlassPiece(haze, Corner.pill, Modifier.fillMaxWidth()) {
                 SearchBarDefaults.InputField(
                     textFieldState = text,
                     searchBarState = rememberSearchBarState(),
@@ -249,7 +249,7 @@ private fun DiscoverGrid(
 fun DiscoverCard(item: DiscoverItem, onClick: () -> Unit, modifier: Modifier = Modifier, width: Dp? = null) {
     val url = images().tmdb(item.posterPath, "w342")
     Column(
-        modifier.then(if (width != null) Modifier.width(width) else Modifier.fillMaxWidth()).clip(SmallCardShape).clickable(onClick = onClick),
+        modifier.then(if (width != null) Modifier.width(width) else Modifier.fillMaxWidth()).clip(CardShape).clickable(onClick = onClick),
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(CardShape)) {
             Artwork(url, Modifier.fillMaxSize(), item.title, placeholder = Icons.Rounded.Movie)
@@ -257,7 +257,7 @@ fun DiscoverCard(item: DiscoverItem, onClick: () -> Unit, modifier: Modifier = M
             formatRating(item.vote)?.let { rating ->
                 Row(
                     Modifier.align(Alignment.TopEnd).padding(6.dp)
-                        .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.55f), Corner.small)
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -285,7 +285,7 @@ fun StatusPill(status: DiscoverStatus, modifier: Modifier = Modifier) {
         DiscoverStatus.Subscribed, DiscoverStatus.Wanted -> scheme.tertiary to scheme.onTertiary
         else -> scheme.surfaceContainerHighest to scheme.onSurface
     }
-    Surface(modifier, shape = RoundedCornerShape(8.dp), color = container, contentColor = content) {
+    Surface(modifier, shape = Corner.small, color = container, contentColor = content) {
         Text(status.label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
     }
 }

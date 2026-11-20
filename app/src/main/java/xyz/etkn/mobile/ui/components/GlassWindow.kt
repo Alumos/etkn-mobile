@@ -48,7 +48,7 @@ fun rememberWindowBlur(): Boolean {
 
 /** Call from inside a dialog / sheet: blurs the app behind its window. */
 @Composable
-fun BlurBehindWindow(radius: Dp = 28.dp) {
+fun BlurBehindWindow(radius: Dp = GlassBlur) {
     val view = LocalView.current
     val px = with(LocalDensity.current) { radius.roundToPx() }
     DisposableEffect(view, px) {
@@ -68,7 +68,7 @@ fun BlurBehindWindow(radius: Dp = 28.dp) {
 /** Container colour for windows that may sit on a blurred backdrop. */
 @Composable
 fun glassContainer(base: Color = MaterialTheme.colorScheme.surfaceContainerHigh): Color =
-    if (rememberWindowBlur()) base.copy(alpha = 0.82f) else base
+    if (rememberWindowBlur()) base.copy(alpha = 0.76f) else base
 
 /** [ModalBottomSheet] with the backdrop blurred and a translucent sheet. */
 @Composable

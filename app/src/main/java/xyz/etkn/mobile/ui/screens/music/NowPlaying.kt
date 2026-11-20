@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Close
@@ -81,6 +80,7 @@ import xyz.etkn.mobile.ui.components.glass
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.components.px
 import xyz.etkn.mobile.ui.nav.LocalNav
+import xyz.etkn.mobile.ui.theme.Corner
 
 /** Polls the shared player position at [intervalMs] while composed. */
 @Composable
@@ -104,10 +104,10 @@ fun MiniPlayer(onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val state by music.state.collectAsStateWithLifecycle()
     val track = state.current ?: return
     val (position, duration) = rememberPlayerClock(500)
-    val shape = RoundedCornerShape(22.dp)
+    val shape = Corner.panel
     Column(modifier.fillMaxWidth().glass(shape, elevation = 10.dp).clickable(onClick = onOpen)) {
         Row(Modifier.padding(start = 8.dp, end = 4.dp, top = 8.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(images().music(track, 96), Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)), track.name, placeholder = Icons.Rounded.MusicNote)
+            Artwork(images().music(track, 96), Modifier.size(44.dp).clip(Corner.inPanel(8.dp)), track.name, placeholder = Icons.Rounded.MusicNote)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(track.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(track.artistLine, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -158,7 +158,7 @@ fun NowPlayingScreen() {
                         } else {
                             Column(Modifier.fillMaxSize()) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
-                                    Artwork(urls.music(track, 96), Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)), null, placeholder = Icons.Rounded.MusicNote)
+                                    Artwork(urls.music(track, 96), Modifier.size(48.dp).clip(Corner.small), null, placeholder = Icons.Rounded.MusicNote)
                                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                                         Text(track.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text(track.artistLine, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
@@ -204,7 +204,7 @@ private fun PlayerColumn(
         Box(Modifier.fillMaxWidth(if (compact) 0.62f else 1f).widthIn(max = 420.dp).aspectRatio(1f).padding(coverScale)) {
             Artwork(
                 images().music(track, 900.dp.px().coerceAtMost(1080)),
-                Modifier.fillMaxSize().clip(RoundedCornerShape(28.dp)),
+                Modifier.fillMaxSize().clip(Corner.panel),
                 track.name,
                 placeholder = Icons.Rounded.MusicNote,
             )
@@ -243,7 +243,7 @@ private fun PlayerColumn(
             FilledIconButton(
                 onClick = music::toggle,
                 modifier = Modifier.size(84.dp),
-                shape = if (playing) RoundedCornerShape(28.dp) else CircleShape,
+                shape = if (playing) Corner.panel else CircleShape,
                 colors = IconButtonDefaults.filledIconButtonColors(),
             ) {
                 Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "暂停" else "播放", Modifier.size(44.dp))
@@ -312,7 +312,7 @@ private fun LyricsPane(track: Item, sourceId: String?) {
                 fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
                 color = color,
                 textAlign = TextAlign.Start,
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                modifier = Modifier.fillMaxWidth().clip(Corner.card)
                     .clickable(enabled = current.synced) { graph.music.seekTo(line.timeMs) }.padding(vertical = 2.dp),
             )
         }

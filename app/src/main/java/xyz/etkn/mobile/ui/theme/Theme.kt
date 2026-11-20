@@ -2,7 +2,6 @@ package xyz.etkn.mobile.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
@@ -136,16 +135,16 @@ private fun ColorScheme.toAmoled(): ColorScheme = copy(
     surfaceContainerHighest = Color(0xFF232328),
 )
 
-/** M3E 8-step shape scale. */
+/** Material's shape roles folded onto [Corner]'s scale, so stock components round like the rest. */
 val EtknShapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),
-    small = RoundedCornerShape(8.dp),
-    medium = RoundedCornerShape(12.dp),
-    large = RoundedCornerShape(16.dp),
-    largeIncreased = RoundedCornerShape(20.dp),
-    extraLarge = RoundedCornerShape(28.dp),
-    extraLargeIncreased = RoundedCornerShape(32.dp),
-    extraExtraLarge = RoundedCornerShape(48.dp),
+    extraSmall = Corner.small,
+    small = Corner.small,
+    medium = Corner.card,
+    large = Corner.card,
+    largeIncreased = Corner.card,
+    extraLarge = Corner.panel,
+    extraLargeIncreased = Corner.panel,
+    extraExtraLarge = Corner.panel,
 )
 
 private val Base = Typography()

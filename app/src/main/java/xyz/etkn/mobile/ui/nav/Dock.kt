@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -48,6 +47,7 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import xyz.etkn.mobile.ui.theme.Corner
 
 /**
  * Floating glass dock of the tab pager: a bar along the bottom, or a slim column at the side of
@@ -61,13 +61,13 @@ import kotlin.math.sin
 internal fun Dock(tabs: List<TopLevel>, current: TopLevel?, nav: AppNav, pager: PagerState, vertical: Boolean, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     val spring = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
-    val pillShape = RoundedCornerShape(20.dp)
+    val pillShape = Corner.inPanel(6.dp)
     val last = (tabs.size - 1).coerceAtLeast(0).toFloat()
     val position = { (pager.currentPage + pager.currentPageOffsetFraction).coerceIn(0f, last) }
     var held by remember { mutableStateOf(false) }
     val lift by animateFloatAsState(if (held) 1.06f else 1f, MaterialTheme.motionScheme.fastSpatialSpec(), label = "dockLift")
     val frame = if (vertical) Modifier.width(Etkn.space.sideDock) else Modifier.fillMaxWidth().height(68.dp)
-    BoxWithConstraints(modifier.then(frame).glass(RoundedCornerShape(28.dp), elevation = 14.dp).padding(6.dp)) {
+    BoxWithConstraints(modifier.then(frame).glass(Corner.panel, elevation = 14.dp).padding(6.dp)) {
         val slot: Dp = if (vertical) SIDE_SLOT else maxWidth / tabs.size.coerceAtLeast(1)
         val slotPx = with(LocalDensity.current) { slot.toPx() }
         val drag = rememberDraggableState { delta ->

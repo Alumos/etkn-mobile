@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Brightness6
@@ -41,6 +40,7 @@ import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.ui.components.formatClock
+import xyz.etkn.mobile.ui.theme.Corner
 
 internal sealed interface GestureFeedback {
     data class Seek(val targetMs: Long, val deltaMs: Long) : GestureFeedback
@@ -175,7 +175,7 @@ internal fun GestureBadge(feedback: GestureFeedback, modifier: Modifier) {
         return
     }
     Box(
-        modifier.clip(RoundedCornerShape(20.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 20.dp, vertical = 14.dp),
+        modifier.clip(Corner.card).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 20.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
         when (feedback) {

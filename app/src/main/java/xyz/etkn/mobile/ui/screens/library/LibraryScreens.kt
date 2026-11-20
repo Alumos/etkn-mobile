@@ -27,7 +27,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.ArrowDownward
@@ -39,7 +38,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Slideshow
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -89,7 +88,7 @@ import xyz.etkn.mobile.ui.components.MessageState
 import xyz.etkn.mobile.ui.components.PillGap
 import xyz.etkn.mobile.ui.components.PillToggle
 import xyz.etkn.mobile.ui.components.PosterCard
-import xyz.etkn.mobile.ui.components.SmallCardShape
+import xyz.etkn.mobile.ui.components.CardShape
 import xyz.etkn.mobile.ui.components.glass
 import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.components.images
@@ -99,6 +98,7 @@ import xyz.etkn.mobile.ui.nav.LibraryRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.theme.Etkn
+import xyz.etkn.mobile.ui.theme.Corner
 
 @Composable
 fun LibrariesScreen() {
@@ -205,11 +205,11 @@ fun LibraryScreen(route: LibraryRoute) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (vm.views.size > 1) {
                         Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = HEADER_GAP),
                             horizontalArrangement = Arrangement.spacedBy(PillGap),
                         ) {
                             vm.views.forEach { option ->
-                                PillToggle(checked = option == view, onClick = { vm.setView(option) }, modifier = Modifier.height(36.dp)) {
+                                PillToggle(checked = option == view, onClick = { vm.setView(option) }) {
                                     Text(option.label, maxLines = 1)
                                 }
                             }
@@ -217,18 +217,16 @@ fun LibraryScreen(route: LibraryRoute) {
                     }
                     if (view == LibraryView.All) {
                         Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = HEADER_GAP),
+                            horizontalArrangement = Arrangement.spacedBy(PillGap),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             SortMenu(query.sort, query.descending, vm::setSort)
-                            FilterChip(
-                                selected = query.favoritesOnly,
+                            PillToggle(
+                                checked = query.favoritesOnly,
                                 onClick = vm::toggleFavorites,
-                                label = { Text("收藏") },
-                                leadingIcon = { Icon(if (query.favoritesOnly) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, null, Modifier.size(18.dp)) },
-                                shape = RoundedCornerShape(12.dp),
-                            )
+                                icon = if (query.favoritesOnly) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            ) { Text("收藏") }
                             if (paged.total >= 0) {
                                 Text("${paged.total} 项", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -252,7 +250,7 @@ private fun FacetCard(libraryId: String, card: Item, vm: LibraryViewModel) {
     val anchor = rememberPopupAnchor()
     val url = images().facet(libraryId, card, 360.dp.px())
     Column(
-        Modifier.fillMaxWidth().then(anchor.modifier).clip(SmallCardShape).combinedClickable(
+        Modifier.fillMaxWidth().then(anchor.modifier).clip(CardShape).combinedClickable(
             onClick = { nav.to(FacetRoute(libraryId, card.kind.orEmpty(), card.name)) },
             onLongClick = if (vm.canMakeCovers) {
                 {
@@ -325,11 +323,10 @@ private fun SortMenu(sort: SortKey, descending: Boolean, onSelect: (SortKey) -> 
                     },
                 )
             },
-            contentPadding = PaddingValues(horizontal = 14.dp),
-            modifier = anchor.modifier.height(32.dp),
+            modifier = anchor.modifier,
         ) {
-            Icon(Icons.AutoMirrored.Rounded.Sort, null, Modifier.size(18.dp))
-            Spacer(Modifier.size(6.dp))
+            Icon(Icons.AutoMirrored.Rounded.Sort, null, Modifier.size(ButtonDefaults.IconSize))
+            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
             Text(sort.label, style = MaterialTheme.typography.labelLarge)
             if (sort != SortKey.Random) {
                 Icon(if (descending) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward, null, Modifier.padding(start = 4.dp).size(16.dp))
@@ -377,8 +374,9 @@ fun PosterGridScaffold(
         }
         Column(
             Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-                .glass(RoundedCornerShape(26.dp), elevation = 8.dp, state = haze)
+                .padding(horizontal = Etkn.space.screen, vertical = 6.dp)
+                // A bare bar is a pill like every other; with filter rows it grows into a panel.
+                .glass(if (header != null) Corner.panel else Corner.pill, elevation = 8.dp, state = haze)
                 .onSizeChanged { barHeight = with(density) { it.height.toDp() } },
         ) {
             Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -390,10 +388,13 @@ fun PosterGridScaffold(
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 )
             }
-            if (header != null) Box(Modifier.padding(bottom = 10.dp)) { header() }
+            if (header != null) Box(Modifier.padding(bottom = HEADER_GAP)) { header() }
         }
     }
 }
+
+/** The filter rows' inset inside the bar: pills this far from the panel's edge are concentric with it. */
+private val HEADER_GAP = 8.dp
 
 @Composable
 fun PosterGrid(

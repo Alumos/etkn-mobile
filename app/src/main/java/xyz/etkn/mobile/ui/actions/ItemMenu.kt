@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
@@ -78,6 +77,7 @@ import xyz.etkn.mobile.data.net.long
 import xyz.etkn.mobile.data.net.str
 import xyz.etkn.mobile.ui.common.userMessage
 import xyz.etkn.mobile.ui.components.glass
+import xyz.etkn.mobile.ui.theme.Corner
 
 /** Long-press / overflow menu of the current shell; null outside it (previews, player). */
 val LocalItemMenu = staticCompositionLocalOf<ItemMenu?> { null }
@@ -371,7 +371,7 @@ fun ItemMenuHost(menu: ItemMenu, haze: HazeState?) {
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.statusBars)
                     .padding(top = 12.dp, start = 24.dp, end = 24.dp)
-                    .glass(RoundedCornerShape(50), elevation = 10.dp, state = haze)
+                    .glass(Corner.pill, elevation = 10.dp, state = haze)
                     .padding(horizontal = 18.dp, vertical = 10.dp),
             )
         }
@@ -419,8 +419,8 @@ private fun MenuPlacement(anchor: Rect, below: Boolean = false, content: @Compos
 @Composable
 private fun MenuCard(target: MenuTarget, menu: ItemMenu, haze: HazeState?) {
     val entries = menu.entriesFor(target)
-    val rowShape = RoundedCornerShape(14.dp)
-    Column(Modifier.width(MenuWidth).glass(RoundedCornerShape(20.dp), elevation = 16.dp, state = haze).padding(vertical = 6.dp)) {
+    val rowShape = Corner.inPanel(6.dp)
+    Column(Modifier.width(MenuWidth).glass(Corner.panel, elevation = 16.dp, state = haze).padding(vertical = 6.dp)) {
         Text(
             target.item.seriesName?.takeIf { target.item.isEpisode }?.let { "$it · ${target.item.name}" } ?: target.item.name,
             style = MaterialTheme.typography.labelMedium,
@@ -446,14 +446,14 @@ private fun MenuCard(target: MenuTarget, menu: ItemMenu, haze: HazeState?) {
 
 @Composable
 private fun PopupCard(popup: GlassPopup, menu: ItemMenu, haze: HazeState?) {
-    val rowShape = RoundedCornerShape(14.dp)
+    val rowShape = Corner.inPanel(6.dp)
     // Long pickers (dozens of seasons) scroll inside the card, opening at the selected row.
     val scroll = rememberScrollState()
     var selectedTop by remember { mutableIntStateOf(-1) }
     LaunchedEffect(selectedTop) { if (selectedTop > 0) scroll.scrollTo(selectedTop) }
     Column(
         Modifier.widthIn(min = 148.dp, max = 240.dp).width(IntrinsicSize.Max)
-            .glass(RoundedCornerShape(20.dp), elevation = 16.dp, state = haze)
+            .glass(Corner.panel, elevation = 16.dp, state = haze)
             .verticalScroll(scroll).padding(vertical = 6.dp),
     ) {
         popup.choices.forEach { choice ->

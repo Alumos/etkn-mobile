@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.FilledTonalIconButton
@@ -41,6 +40,7 @@ import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import xyz.etkn.mobile.ui.theme.Etkn
+import xyz.etkn.mobile.ui.theme.Corner
 
 /**
  * Blur source behind the app chrome (dock, mini player); null means "no blur, paint flat".
@@ -52,6 +52,9 @@ val LocalHaze = staticCompositionLocalOf<HazeState?> { null }
 
 fun Modifier.glassSource(state: HazeState?): Modifier = if (state == null) this else hazeSource(state)
 
+/** How far every glass layer blurs what is behind it: in-app (Haze) and behind dialog windows alike. */
+val GlassBlur = 40.dp
+
 /**
  * Glass surface: real backdrop blur (Android 12+ via Haze, translucent fallback below), a soft
  * drop shadow and a faint top highlight.
@@ -60,7 +63,7 @@ fun Modifier.glassSource(state: HazeState?): Modifier = if (state == null) this 
 fun Modifier.glass(
     shape: Shape,
     elevation: Dp = 12.dp,
-    blur: Dp = 24.dp,
+    blur: Dp = GlassBlur,
     border: Boolean = true,
     tint: Color? = null,
     state: HazeState? = LocalHaze.current,
@@ -84,7 +87,7 @@ fun Modifier.glass(
                     HazeTint(Brush.verticalGradient(0f to tokens.glassHighlight, 0.2f to Color.Transparent)),
                 ),
                 blurRadius = blur,
-                noiseFactor = 0.03f,
+                noiseFactor = 0.06f,
                 fallbackTint = HazeTint(tint ?: tokens.glassFlat),
             ),
         )
@@ -120,9 +123,9 @@ fun GlassBackBar(
     onBack: () -> Unit,
     actions: @Composable RowScope.(onGlass: Boolean) -> Unit = {},
 ) {
-    val shape = RoundedCornerShape(26.dp)
+    val shape = Corner.pill
     Row(
-        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp, vertical = 6.dp)
+        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = Etkn.space.screen, vertical = 6.dp)
             .then(if (collapsed) Modifier.glass(shape, elevation = 8.dp, state = haze) else Modifier)
             .height(52.dp)
             .padding(horizontal = 2.dp),

@@ -8,6 +8,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.AppGraph
@@ -28,7 +29,14 @@ data class DetailData(
     val selectedSource: Int = 0,
 )
 
-class DetailViewModel(private val graph: AppGraph, private val id: String) : ViewModel() {
+/**
+ * One detail page. On an episode's page the shelf switches between the series' episodes in place
+ * ([show]): the page keeps what it shows until the next episode is loaded instead of opening a
+ * new page per episode, so back still leads straight out of the series.
+ */
+class DetailViewModel(private val graph: AppGraph, routeId: String) : ViewModel() {
+    private val shown = MutableStateFlow(routeId)
+    private val id get() = shown.value
     private val api = graph.api
     private val _state = MutableStateFlow<Load<DetailData>>(Load.Loading)
     val state: StateFlow<Load<DetailData>> = _state.asStateFlow()
@@ -52,15 +60,23 @@ class DetailViewModel(private val graph: AppGraph, private val id: String) : Vie
         }
     }
 
+    /** Shows another episode of the same series on this page. */
+    fun show(episodeId: String) {
+        if (episodeId == id) return
+        shown.value = episodeId
+        load()
+    }
+
     fun load() {
         if (_state.value !is Load.Ready) _state.value = Load.Loading
+        val requested = id
         viewModelScope.launch {
             try {
                 val data = coroutineScope {
-                    val base = api.item(id)
+                    val base = api.item(requested)
                     // Everything below depends only on the base item, so it all runs at once.
                     val detailed = if (base.isPlayable && base.mediaSources.isEmpty()) {
-                        async { runCatching { api.item(id, EtknApi.DETAIL_FIELDS) }.getOrNull() }
+                        async { runCatching { api.item(requested, EtknApi.DETAIL_FIELDS) }.getOrNull() }
                     } else null
                     val seriesId = when {
                         base.isSeries -> base.id
@@ -83,6 +99,8 @@ class DetailViewModel(private val graph: AppGraph, private val id: String) : Vie
                         collections = collections?.await().orEmpty(),
                     )
                 }
+                // A newer episode was picked while this one loaded.
+                if (requested != id) return@launch
                 _state.value = Load.Ready(data)
                 val seasonForEpisodes = when {
                     data.item.isSeason -> data.item.id
@@ -104,7 +122,9 @@ class DetailViewModel(private val graph: AppGraph, private val id: String) : Vie
     }
 
     /** Re-reads the page when the server reports changes to its rows (metadata, images, versions). */
-    suspend fun followServer() = graph.events.stream(id).collect { if (it is ServerEvent.Items && !it.initial) load() }
+    suspend fun followServer() = shown.collectLatest { id ->
+        graph.events.stream(id).collect { if (it is ServerEvent.Items && !it.initial) load() }
+    }
 
     fun selectSeason(seriesId: String, seasonId: String) = episodes.select(seriesId, seasonId)
 

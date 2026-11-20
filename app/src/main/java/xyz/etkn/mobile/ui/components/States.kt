@@ -1,5 +1,9 @@
 package xyz.etkn.mobile.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,16 +21,36 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import xyz.etkn.mobile.ui.theme.Motion
 
+/**
+ * A page still loading: blank at first, the indicator fading in only if the wait is long enough
+ * to notice, so a quick load goes straight from blank to the page fading in.
+ */
 @Composable
 fun LoadingState(modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() }
+    var slow by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(SLOW_LOAD_MILLIS)
+        slow = true
+    }
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        AnimatedVisibility(slow, enter = fadeIn(tween(Motion.FADE_IN)), exit = fadeOut()) { LoadingIndicator() }
+    }
 }
+
+private const val SLOW_LOAD_MILLIS = 700L
 
 @Composable
 fun InlineLoading(modifier: Modifier = Modifier) {

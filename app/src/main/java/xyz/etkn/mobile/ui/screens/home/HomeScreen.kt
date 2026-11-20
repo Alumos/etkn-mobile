@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Person
@@ -82,6 +81,7 @@ import xyz.etkn.mobile.ui.nav.LocalStartInset
 import xyz.etkn.mobile.ui.nav.TopLevel
 import xyz.etkn.mobile.ui.theme.Etkn
 import xyz.etkn.mobile.ui.theme.LocalSettings
+import xyz.etkn.mobile.ui.theme.Corner
 
 @Composable
 fun HomeScreen() {
@@ -189,13 +189,13 @@ private fun HomeTopBar(reveal: () -> Float, haze: HazeState, onSearch: () -> Uni
     val fraction = reveal()
     val content = lerp(Color.White, MaterialTheme.colorScheme.onSurface, fraction)
     Row(
-        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 12.dp, vertical = 6.dp),
+        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = Etkn.space.screen, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // The name takes the free width (ellipsized when long); search and avatar stay flush right.
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            GlassPiece(haze, RoundedCornerShape(50), fraction = fraction) {
+            GlassPiece(haze, Corner.pill, fraction = fraction) {
                 Text(
                     session.serverName,
                     style = MaterialTheme.typography.titleLarge,

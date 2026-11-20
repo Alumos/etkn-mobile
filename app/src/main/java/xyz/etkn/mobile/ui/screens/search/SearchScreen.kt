@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
@@ -65,6 +64,7 @@ import xyz.etkn.mobile.ui.nav.LocalTabActive
 import xyz.etkn.mobile.ui.screens.discover.DiscoverCard
 import xyz.etkn.mobile.ui.screens.library.PosterGrid
 import xyz.etkn.mobile.ui.theme.Etkn
+import xyz.etkn.mobile.ui.theme.Corner
 
 @Composable
 fun SearchScreen() {
@@ -80,7 +80,7 @@ fun SearchScreen() {
     val focus = remember { FocusRequester() }
     val grid = rememberLazyGridState()
     val haze = rememberHazeState()
-    val shape = RoundedCornerShape(28.dp)
+    val shape = Corner.pill
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp
 
     LaunchedEffect(text) {

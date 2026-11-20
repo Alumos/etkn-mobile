@@ -17,10 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderState
@@ -69,6 +66,7 @@ import xyz.etkn.mobile.ui.nav.TopLevel
 import xyz.etkn.mobile.ui.nav.visibleTabs
 import xyz.etkn.mobile.ui.theme.Etkn
 import xyz.etkn.mobile.ui.theme.LocalSettings
+import xyz.etkn.mobile.ui.theme.Corner
 
 enum class SettingsPage(val title: String) { Appearance("外观"), Playback("播放"), Danmaku("弹幕"), Update("检查更新") }
 
@@ -136,21 +134,24 @@ private fun TabPicker(settings: Settings, side: Boolean, onChange: (Set<String>)
     val canDiscover by LocalContext.current.graph.discover.allowed.collectAsStateWithLifecycle()
     val shown = visibleTabs(settings.tabs, canDiscover, side)
     val limit = if (side) Int.MAX_VALUE else DOCK_MAX
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(if (side) "侧栏" else "底栏", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = ROW_INSET, vertical = 8.dp)) {
+        Text(if (side) "侧栏" else "底栏", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(bottom = 8.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(PillGap), verticalArrangement = Arrangement.spacedBy(PillGap)) {
             TopLevel.entries.filter { it != TopLevel.Discover || canDiscover }.forEach { tab ->
                 val on = tab in shown
-                FilterChip(
-                    selected = on,
-                    enabled = tab != TopLevel.Home && (on || shown.size < limit),
+                // 首页 is always there: shown on, but nothing to toggle.
+                val fixed = tab == TopLevel.Home
+                PillToggle(
+                    checked = on,
+                    enabled = fixed || on || shown.size < limit,
                     onClick = {
-                        val next = if (on) shown - tab else shown + tab
-                        onChange(next.filter { it != TopLevel.Home }.mapTo(HashSet()) { it.name })
+                        if (!fixed) {
+                            val next = if (on) shown - tab else shown + tab
+                            onChange(next.filter { it != TopLevel.Home }.mapTo(HashSet()) { it.name })
+                        }
                     },
-                    label = { Text(tab.label) },
-                    leadingIcon = { Icon(if (on) tab.selectedIcon else tab.icon, null, Modifier.size(18.dp)) },
-                )
+                    icon = if (on) tab.selectedIcon else tab.icon,
+                ) { Text(tab.label) }
             }
         }
     }
@@ -178,20 +179,23 @@ fun DanmakuControls(style: DanmakuStyle, onChange: (DanmakuStyle) -> Unit) {
     }
 }
 
+/** Where every settings row starts its label (and a pill row its first pill), inside a [SettingsGroup]. */
+internal val ROW_INSET = 20.dp
+
 @Composable
 internal fun SettingsGroup(horizontal: Dp = Etkn.space.screen, content: @Composable () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(24.dp),
+        shape = Corner.panel,
         color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.fillMaxWidth().padding(horizontal = horizontal, vertical = 4.dp),
     ) { Column(Modifier.padding(vertical = 8.dp)) { content() } }
 }
 
-/** Connected button group (M3E replacement for segmented buttons). */
+/** A labelled row of [PillToggle]s; the first pill starts exactly under the label. */
 @Composable
 internal fun <T> ChoiceRow(label: String, options: List<T>, selected: T, name: (T) -> String, onSelect: (T) -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+    Column(Modifier.fillMaxWidth().padding(horizontal = ROW_INSET, vertical = 8.dp)) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(bottom = 8.dp))
         Row(
             Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(PillGap),
@@ -208,7 +212,7 @@ internal fun <T> ChoiceRow(label: String, options: List<T>, selected: T, name: (
 @Composable
 internal fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(horizontal = 20.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(horizontal = ROW_INSET, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
@@ -228,7 +232,7 @@ private fun SliderRow(
 ) {
     var local by remember(value) { mutableFloatStateOf(value) }
     val steps = (((range.endInclusive - range.start) / step).roundToInt() - 1).coerceAtLeast(0)
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = ROW_INSET, vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
             Text(format(local), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)

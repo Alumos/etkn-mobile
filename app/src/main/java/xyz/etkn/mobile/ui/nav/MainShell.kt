@@ -157,7 +157,8 @@ fun MainShell(session: ActiveSession) {
                 Modifier.align(if (side) Alignment.BottomEnd else Alignment.BottomCenter)
                     .then(if (wide) Modifier.widthIn(max = if (side) 520.dp else 640.dp) else Modifier).fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(horizontal = 14.dp)
+                    // Same side margin as the top bars and the content, so their edges line up.
+                    .padding(horizontal = Etkn.space.screen)
                     .padding(bottom = if (dockVisible) 10.dp else 12.dp),
             ) {
                 AnimatedVisibility(showMini, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {

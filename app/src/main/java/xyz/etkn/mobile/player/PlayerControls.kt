@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
@@ -64,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import xyz.etkn.mobile.ui.components.Artwork
 import xyz.etkn.mobile.ui.components.formatClock
+import xyz.etkn.mobile.ui.theme.Corner
 
 @Composable
 internal fun Controls(
@@ -184,8 +184,8 @@ private fun SeekThumbnail(previews: SeekPreviews, fraction: Float, duration: Lon
         val x = ((maxWidth - width) * fraction.coerceIn(0f, 1f))
         Artwork(
             previews.urlAt((fraction * duration).toLong()),
-            Modifier.offset(x = x).width(width).height(height).clip(RoundedCornerShape(10.dp))
-                .border(1.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
+            Modifier.offset(x = x).width(width).height(height).clip(Corner.card)
+                .border(1.dp, Color.White.copy(alpha = 0.5f), Corner.card),
             background = Color.Black,
         )
     }

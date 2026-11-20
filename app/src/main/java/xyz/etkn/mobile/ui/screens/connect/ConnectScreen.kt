@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -68,6 +67,7 @@ import xyz.etkn.mobile.data.model.ServerIdentity
 import xyz.etkn.mobile.data.session.SavedAccount
 import xyz.etkn.mobile.data.session.StoredSessions
 import xyz.etkn.mobile.graph
+import xyz.etkn.mobile.ui.theme.Corner
 
 private sealed interface Step {
     data object Server : Step
@@ -191,7 +191,7 @@ private fun ServerStep(
             supportingText = if (error != null) { { Text(error) } } else null,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(onGo = { if (address.isNotBlank()) onSubmit(address) }),
-            shape = RoundedCornerShape(16.dp),
+            shape = Corner.card,
             modifier = Modifier.fillMaxWidth(),
         )
         PrimaryAction("连接", busy, enabled = address.isNotBlank()) { onSubmit(address) }
@@ -201,9 +201,9 @@ private fun ServerStep(
 @Composable
 private fun AccountRow(account: SavedAccount, enabled: Boolean, onClick: () -> Unit, onForget: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = Corner.panel,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).clickable(enabled = enabled, onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clip(Corner.panel).clickable(enabled = enabled, onClick = onClick),
     ) {
         Row(Modifier.padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -240,9 +240,9 @@ private fun LoginStep(
     var visible by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Surface(
-            shape = RoundedCornerShape(50),
+            shape = Corner.pill,
             color = MaterialTheme.colorScheme.secondaryContainer,
-            modifier = Modifier.clip(RoundedCornerShape(50)).clickable(enabled = !busy, onClick = onBack),
+            modifier = Modifier.clip(Corner.pill).clickable(enabled = !busy, onClick = onBack),
         ) {
             Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, Modifier.size(18.dp))
@@ -254,7 +254,7 @@ private fun LoginStep(
             label = { Text("用户名") }, singleLine = true, enabled = !busy,
             leadingIcon = { Icon(Icons.Rounded.Person, null) },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth(),
+            shape = Corner.card, modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
             value = password, onValueChange = { password = it },
@@ -269,7 +269,7 @@ private fun LoginStep(
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { if (user.isNotBlank()) onSubmit(user, password) }),
-            shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth(),
+            shape = Corner.card, modifier = Modifier.fillMaxWidth(),
         )
         PrimaryAction("登录", busy, enabled = user.isNotBlank()) { onSubmit(user, password) }
     }

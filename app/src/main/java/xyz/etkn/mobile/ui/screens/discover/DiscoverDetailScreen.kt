@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Movie
@@ -63,7 +62,7 @@ import xyz.etkn.mobile.ui.components.GlassBackBar
 import xyz.etkn.mobile.ui.components.GlassDialog
 import xyz.etkn.mobile.ui.components.InlineLoading
 import xyz.etkn.mobile.ui.components.SectionHeader
-import xyz.etkn.mobile.ui.components.SmallCardShape
+import xyz.etkn.mobile.ui.components.CardShape
 import xyz.etkn.mobile.ui.components.formatRating
 import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.components.images
@@ -74,6 +73,7 @@ import xyz.etkn.mobile.ui.nav.DiscoverPersonRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.theme.Etkn
+import xyz.etkn.mobile.ui.theme.Corner
 
 @Composable
 fun DiscoverDetailScreen(route: DiscoverDetailRoute) {
@@ -244,7 +244,7 @@ internal fun ExpandableText(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = if (expanded) Int.MAX_VALUE else 4,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.clip(SmallCardShape).clickable { expanded = !expanded },
+        modifier = Modifier.clip(CardShape).clickable { expanded = !expanded },
     )
 }
 
@@ -256,7 +256,7 @@ private fun SeasonRow(season: DiscoverSeason, busy: Boolean, onSubscribe: () -> 
     ) {
         Artwork(
             images().tmdb(season.posterPath, "w185"),
-            Modifier.width(48.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(8.dp)),
+            Modifier.width(48.dp).aspectRatio(2f / 3f).clip(Corner.small),
             season.name,
             placeholder = Icons.Rounded.Movie,
         )

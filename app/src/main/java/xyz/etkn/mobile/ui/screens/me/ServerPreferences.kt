@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -40,6 +39,7 @@ import xyz.etkn.mobile.data.net.bool
 import xyz.etkn.mobile.data.net.obj
 import xyz.etkn.mobile.graph
 import xyz.etkn.mobile.ui.components.GlassSheet
+import xyz.etkn.mobile.ui.theme.Corner
 
 /** Server values and labels, as the Web 个人偏好 shows them. */
 private val AudioLanguages = listOf("chi" to "国语", "yue" to "粤语", "original" to "原语言", "eng" to "英语", "jpn" to "日语", "kor" to "韩语")
@@ -146,7 +146,7 @@ private fun PrioritySheet(title: String, initial: List<String>, options: List<Pa
             options.forEach { (value, label) ->
                 val rank = picked.indexOf(value)
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    Modifier.fillMaxWidth().clip(Corner.card)
                         .clickable { picked = if (rank >= 0) picked - value else picked + value }
                         .padding(horizontal = 8.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,

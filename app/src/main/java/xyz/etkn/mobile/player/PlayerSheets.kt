@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
@@ -55,6 +54,7 @@ import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.components.px
 import xyz.etkn.mobile.ui.screens.me.DanmakuControls
 import java.util.Locale
+import xyz.etkn.mobile.ui.theme.Corner
 
 @Composable
 internal fun PlayerSheet(sheet: Sheet, ui: VideoUi, session: VideoSession, onSheet: (Sheet) -> Unit, onDismiss: () -> Unit) {
@@ -237,7 +237,7 @@ private fun EpisodeSheet(ui: VideoUi, session: VideoSession, onDismiss: () -> Un
             ) {
                 Artwork(
                     urls.primary(episode, 240.dp.px()),
-                    Modifier.width(112.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)),
+                    Modifier.width(112.dp).aspectRatio(16f / 9f).clip(Corner.card),
                     episode.name, placeholder = Icons.Rounded.Movie,
                 )
                 Column(Modifier.weight(1f).padding(start = 12.dp).fillMaxHeight()) {

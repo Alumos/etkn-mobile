@@ -25,7 +25,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -89,6 +88,7 @@ import xyz.etkn.mobile.ui.components.PillGap
 import xyz.etkn.mobile.ui.components.PillToggle
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.screens.me.SwitchRow
+import xyz.etkn.mobile.ui.theme.Corner
 
 // ---------- Refresh ----------
 
@@ -198,7 +198,7 @@ internal fun DeleteDialog(item: Item, menu: ItemMenu) {
 @Composable
 private fun VersionOption(label: String, selected: Boolean, onSelect: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).selectable(selected, role = Role.RadioButton, onClick = onSelect).padding(vertical = 4.dp),
+        Modifier.fillMaxWidth().clip(Corner.card).selectable(selected, role = Role.RadioButton, onClick = onSelect).padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected, onClick = null)
@@ -452,13 +452,13 @@ internal fun ImageSheet(item: Item, menu: ItemMenu) {
                 ) {
                     items(candidates, key = { it.str("source_url") + it.str("type") }) { image ->
                         Column(
-                            Modifier.clip(RoundedCornerShape(12.dp)).clickable(enabled = !busy) {
+                            Modifier.clip(Corner.card).clickable(enabled = !busy) {
                                 submit { graph.api.selectImage(item.id, image, kind.wire) }
                             },
                         ) {
                             Artwork(
                                 urls.absolute(image.str("thumbnail_url").ifEmpty { image.str("url") }),
-                                Modifier.fillMaxWidth().aspectRatio(kind.ratio).clip(RoundedCornerShape(12.dp)),
+                                Modifier.fillMaxWidth().aspectRatio(kind.ratio).clip(Corner.card),
                                 contentScale = if (kind == ImageKind.Logo) ContentScale.Fit else ContentScale.Crop,
                             )
                             Text(

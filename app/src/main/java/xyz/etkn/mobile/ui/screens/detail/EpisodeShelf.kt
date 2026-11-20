@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -28,7 +27,6 @@ import androidx.compose.material.icons.rounded.FirstPage
 import androidx.compose.material.icons.rounded.LastPage
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -57,8 +55,10 @@ import xyz.etkn.mobile.ui.components.CardShape
 import xyz.etkn.mobile.ui.components.InlineLoading
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.components.px
-import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.theme.Etkn
+import xyz.etkn.mobile.ui.theme.Corner
+import xyz.etkn.mobile.ui.components.PillGap
+import xyz.etkn.mobile.ui.components.PillToggle
 
 /** Episodes per range chip. */
 private const val RANGE = 20
@@ -75,9 +75,9 @@ internal fun EpisodeShelf(
     currentId: String?,
     list: EpisodeList,
     onSeason: (String) -> Unit,
+    onOpen: (Item) -> Unit,
     onAll: () -> Unit,
 ) {
-    val nav = LocalNav.current
     val row = rememberLazyListState()
     val chips = rememberLazyListState()
     val cardWidth = if (LocalWindowLayout.current.wide) 260.dp else 210.dp
@@ -114,15 +114,12 @@ internal fun EpisodeShelf(
             TextButton(onClick = onAll) { Text("全部") }
         }
         if (ranges > 1) {
-            LazyRow(state = chips, contentPadding = PaddingValues(horizontal = Etkn.space.screen), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(state = chips, contentPadding = PaddingValues(horizontal = Etkn.space.screen), horizontalArrangement = Arrangement.spacedBy(PillGap)) {
                 items(ranges) { index ->
                     val start = index * RANGE + 1
-                    FilterChip(
-                        selected = index == range,
-                        onClick = { jump(index * RANGE) },
-                        label = { Text("$start-${minOf(start + RANGE - 1, state.total)}") },
-                        shape = RoundedCornerShape(50),
-                    )
+                    PillToggle(checked = index == range, onClick = { jump(index * RANGE) }) {
+                        Text("$start-${minOf(start + RANGE - 1, state.total)}")
+                    }
                 }
             }
         }
@@ -136,7 +133,7 @@ internal fun EpisodeShelf(
                     episode,
                     current = episode.id == currentId,
                     // The page's own episode is already open.
-                    onOpen = { if (episode.id != currentId) nav.open(episode) },
+                    onOpen = { if (episode.id != currentId) onOpen(episode) },
                     modifier = Modifier.width(cardWidth),
                 )
             }
@@ -159,7 +156,7 @@ private fun SeasonTitle(seasons: List<Item>, selected: String?, onSelect: (Strin
     val anchor = rememberPopupAnchor()
     val choosable = seasons.size > 1
     Row(
-        modifier.then(anchor.modifier).clip(RoundedCornerShape(12.dp))
+        modifier.then(anchor.modifier).clip(Corner.card)
             .then(
                 if (choosable) Modifier.clickable {
                     anchor.open(seasons.map { season -> PopupChoice(season.name, selected = season.id == selected) { onSelect(season.id) } })
@@ -207,7 +204,7 @@ internal fun EpisodeCard(episode: Item, current: Boolean, onOpen: () -> Unit, mo
                 )
             }
         }
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpen).padding(top = 8.dp, start = 2.dp, end = 2.dp, bottom = 4.dp)) {
+        Column(Modifier.fillMaxWidth().clip(Corner.card).clickable(onClick = onOpen).padding(top = 8.dp, start = 2.dp, end = 2.dp, bottom = 4.dp)) {
             Text(
                 listOfNotNull(episode.indexNumber?.let { "E" + it.toString().padStart(2, '0') }, episode.name).joinToString(" · "),
                 style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,

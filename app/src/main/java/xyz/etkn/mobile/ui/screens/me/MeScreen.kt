@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
@@ -73,6 +72,7 @@ import xyz.etkn.mobile.ui.nav.SettingsRoute
 import xyz.etkn.mobile.ui.screens.connect.ConnectScreen
 import xyz.etkn.mobile.ui.screens.library.LargeTitle
 import xyz.etkn.mobile.ui.theme.Etkn
+import xyz.etkn.mobile.ui.theme.Corner
 
 @Composable
 fun MeScreen() {
@@ -90,7 +90,7 @@ fun MeScreen() {
         item { LargeTitle("我的") }
         item {
             Surface(
-                shape = RoundedCornerShape(28.dp),
+                shape = Corner.panel,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = Etkn.space.screen, vertical = 12.dp),
             ) {

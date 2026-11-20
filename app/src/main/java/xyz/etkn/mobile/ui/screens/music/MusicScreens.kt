@@ -28,7 +28,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
@@ -42,7 +41,6 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -100,6 +98,7 @@ import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.nav.MusicListRoute
 import xyz.etkn.mobile.ui.screens.library.LargeTitle
 import xyz.etkn.mobile.ui.theme.Etkn
+import xyz.etkn.mobile.ui.theme.Corner
 
 @Composable
 fun MusicHomeScreen() {
@@ -121,9 +120,9 @@ fun MusicHomeScreen() {
                     return@Column
                 }
                 if (s.value.size > 1) {
-                    LazyRow(contentPadding = PaddingValues(horizontal = Etkn.space.screen), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LazyRow(contentPadding = PaddingValues(horizontal = Etkn.space.screen), horizontalArrangement = Arrangement.spacedBy(PillGap)) {
                         items(s.value, key = { it.id }) { lib ->
-                            FilterChip(selected = lib.id == selected, onClick = { graph.music.selectLibrary(lib.id) }, label = { Text(lib.name) })
+                            PillToggle(checked = lib.id == selected, onClick = { graph.music.selectLibrary(lib.id) }) { Text(lib.name) }
                         }
                     }
                 }
@@ -353,13 +352,13 @@ fun TrackRow(track: Item, onClick: () -> Unit, horizontalPadding: androidx.compo
         )
     }
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+        Modifier.fillMaxWidth().clip(Corner.card)
             .combinedClickable(onClick = onClick, onLongClick = { more.open(choices()) })
             .background(if (playing) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f) else Color.Transparent)
             .padding(horizontal = horizontalPadding.coerceAtLeast(8.dp), vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Artwork(images().music(track, 56.dp.px()), Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)), track.name, placeholder = Icons.Rounded.MusicNote)
+        Artwork(images().music(track, 56.dp.px()), Modifier.size(48.dp).clip(Corner.small), track.name, placeholder = Icons.Rounded.MusicNote)
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(
                 track.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -398,7 +397,7 @@ private fun PlaylistPicker(track: Item, onDismiss: () -> Unit) {
                         Text(
                             "${list.name}  ·  ${list.count} 首",
                             style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable {
+                            modifier = Modifier.fillMaxWidth().clip(Corner.card).clickable {
                                 scope.launch { runCatching { graph.api.addToPlaylist(list.key, track.id) }; onDismiss() }
                             }.padding(vertical = 12.dp, horizontal = 8.dp),
                         )

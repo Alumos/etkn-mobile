@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -53,6 +52,7 @@ import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.nav.LocalStartInset
 import xyz.etkn.mobile.ui.theme.Etkn
 import xyz.etkn.mobile.ui.theme.HeroTitleStyle
+import xyz.etkn.mobile.ui.theme.Corner
 
 /**
  * Home hero: one focal point per screen. Full-bleed backdrop that fades into the page, centred
@@ -209,7 +209,7 @@ private fun HeroMeta(item: Item) {
         item.officialRating?.takeIf { it.isNotBlank() }?.let {
             Text(
                 it, style = MaterialTheme.typography.labelMedium, color = scheme.onSurface, maxLines = 1,
-                modifier = Modifier.border(1.dp, scheme.onSurface.copy(alpha = 0.6f), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 1.dp),
+                modifier = Modifier.border(1.dp, scheme.onSurface.copy(alpha = 0.6f), Corner.small).padding(horizontal = 6.dp, vertical = 1.dp),
             )
         }
     }

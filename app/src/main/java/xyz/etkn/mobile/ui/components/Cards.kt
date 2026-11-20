@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Movie
@@ -44,10 +43,9 @@ import xyz.etkn.mobile.ui.actions.rememberItemPress
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.theme.Etkn
 import java.util.Locale
+import xyz.etkn.mobile.ui.theme.Corner
 
-val CardShape = RoundedCornerShape(16.dp)
-val SmallCardShape = RoundedCornerShape(12.dp)
-val LargeCardShape = RoundedCornerShape(20.dp)
+val CardShape = Corner.card
 
 fun formatRating(value: Double?): String? = value?.takeIf { it > 0 }?.let { String.format(Locale.ROOT, "%.1f", it) }
 
@@ -66,7 +64,7 @@ fun PosterCard(
     Column(
         modifier.then(if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
             .then(press.modifier)
-            .clip(SmallCardShape)
+            .clip(CardShape)
             .combinedClickable(onClick = onClick, onLongClick = if (press.enabled) press::open else null),
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(CardShape)) {
@@ -110,7 +108,7 @@ private fun androidx.compose.foundation.layout.BoxScope.PosterBadges(item: Item)
     if (rating != null) {
         Row(
             Modifier.align(Alignment.TopStart).padding(6.dp)
-                .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+                .background(Color.Black.copy(alpha = 0.55f), Corner.small)
                 .padding(horizontal = 6.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -129,7 +127,7 @@ private fun androidx.compose.foundation.layout.BoxScope.PosterBadges(item: Item)
         )
         item.isSeries && unplayed > 0 -> Surface(
             modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = Corner.small,
             color = MaterialTheme.colorScheme.primary,
         ) {
             Text(
@@ -239,10 +237,10 @@ fun LibraryCard(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier, 
 /** Grid entry for a library or folder: clean cover, name and size underneath (fills its cell). */
 @Composable
 fun LibraryTile(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null) {
-    Column(modifier.fillMaxWidth().clip(SmallCardShape).combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
+    Column(modifier.fillMaxWidth().clip(CardShape).combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
         Artwork(
             images().primary(item, 420.dp.px()),
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(LargeCardShape),
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(CardShape),
             item.name,
             placeholder = libraryIcon(item.collectionType),
         )
@@ -304,7 +302,7 @@ fun SquareCard(
     val shape = if (round) CircleShape else CardShape
     Column(
         modifier.then(if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
-            .clip(SmallCardShape).clickable(onClick = onClick),
+            .clip(CardShape).clickable(onClick = onClick),
         horizontalAlignment = if (round) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         Artwork(url, Modifier.fillMaxWidth().aspectRatio(1f).clip(shape), item.name, placeholder = Icons.Rounded.MusicNote)
@@ -346,7 +344,7 @@ fun formatClock(ms: Long): String {
 
 @Composable
 fun Pill(text: String, modifier: Modifier = Modifier, container: Color = MaterialTheme.colorScheme.secondaryContainer, content: Color = MaterialTheme.colorScheme.onSecondaryContainer) {
-    Surface(modifier, shape = RoundedCornerShape(50), color = container, contentColor = content) {
+    Surface(modifier, shape = Corner.pill, color = container, contentColor = content) {
         Text(text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
     }
 }

@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -25,9 +24,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.InputChip
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -60,6 +57,9 @@ import xyz.etkn.mobile.data.discover.DiscoverSort
 import xyz.etkn.mobile.data.discover.PersonMatch
 import xyz.etkn.mobile.data.discover.best
 import xyz.etkn.mobile.ui.components.GlassSheet
+import xyz.etkn.mobile.ui.theme.Corner
+import xyz.etkn.mobile.ui.components.PillGap
+import xyz.etkn.mobile.ui.components.PillToggle
 
 /** [department] = TMDb department a typed name is matched in (people pickers only). */
 private enum class Picker(val title: String, val department: String = "") {
@@ -84,22 +84,21 @@ internal fun FilterSheet(
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
             FilterGroup("排序") {
                 DiscoverSort.entries.forEach { sort ->
-                    FilterChip(selected = draft.sort == sort, onClick = { draft = draft.copy(sort = sort) }, label = { Text(sort.label) })
+                    PillToggle(checked = draft.sort == sort, onClick = { draft = draft.copy(sort = sort) }) { Text(sort.label) }
                 }
             }
             if (options.genres.isNotEmpty()) {
                 FilterGroup("风格", trailing = {
                     listOf(false to "包含", true to "排除").forEach { (exclude, label) ->
-                        FilterChip(selected = draft.excludeGenres == exclude, onClick = { draft = draft.copy(excludeGenres = exclude) }, label = { Text(label) })
+                        PillToggle(checked = draft.excludeGenres == exclude, onClick = { draft = draft.copy(excludeGenres = exclude) }) { Text(label) }
                     }
                 }) {
                     options.genres.forEach { genre ->
                         val selected = genre.value in draft.genres
-                        FilterChip(
-                            selected = selected,
+                        PillToggle(
+                            checked = selected,
                             onClick = { draft = draft.copy(genres = if (selected) draft.genres - genre.value else draft.genres + genre.value) },
-                            label = { Text(genre.label) },
-                        )
+                        ) { Text(genre.label) }
                     }
                 }
             }
@@ -107,11 +106,10 @@ internal fun FilterSheet(
                 FilterGroup("分级") {
                     options.ratings.forEach { rating ->
                         val selected = draft.rating == rating.value
-                        FilterChip(
-                            selected = selected,
+                        PillToggle(
+                            checked = selected,
                             onClick = { draft = draft.copy(rating = if (selected) null else rating.value) },
-                            label = { Text(rating.label.substringAfter(". ")) },
-                        )
+                        ) { Text(rating.label.substringAfter(". ")) }
                     }
                 }
             }
@@ -164,16 +162,16 @@ private fun labels(options: List<DiscoverOption>, values: Set<String>): List<Str
 private fun FilterGroup(title: String, trailing: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
-        if (trailing != null) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { trailing() }
+        if (trailing != null) Row(horizontalArrangement = Arrangement.spacedBy(PillGap)) { trailing() }
     }
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(PillGap), verticalArrangement = Arrangement.spacedBy(PillGap)) { content() }
 }
 
 /** One line per long vocabulary: its name, what is chosen, and a tap to change it. */
 @Composable
 private fun PickerRow(title: String, chosen: List<String>, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(vertical = 12.dp, horizontal = 4.dp),
+        Modifier.fillMaxWidth().clip(Corner.card).clickable(onClick = onClick).padding(vertical = 12.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.width(72.dp))
@@ -314,14 +312,16 @@ private fun PeoplePickerSheet(
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
             Text(picker.title, style = MaterialTheme.typography.titleLarge)
             if (chosen.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(PillGap),
+                    verticalArrangement = Arrangement.spacedBy(PillGap),
+                    modifier = Modifier.padding(top = 8.dp),
+                ) {
                     chosen.forEach { person ->
-                        InputChip(
-                            selected = true,
-                            onClick = { toggle(person) },
-                            label = { Text(person.label) },
-                            trailingIcon = { Icon(Icons.Rounded.Close, "移除", Modifier.size(16.dp)) },
-                        )
+                        PillToggle(checked = true, onClick = { toggle(person) }) {
+                            Text(person.label)
+                            Icon(Icons.Rounded.Close, "移除", Modifier.padding(start = 6.dp).size(16.dp))
+                        }
                     }
                 }
             }
@@ -365,7 +365,7 @@ private fun personDetail(person: PersonMatch): String {
 private fun OptionRow(label: String, checked: Boolean, detail: String = "", onClick: () -> Unit) {
     val color = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().clip(Corner.card).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {

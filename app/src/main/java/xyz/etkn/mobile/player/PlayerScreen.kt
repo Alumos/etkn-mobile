@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.Lock
@@ -56,6 +55,7 @@ import kotlinx.coroutines.delay
 import xyz.etkn.mobile.data.settings.SkipMode
 import xyz.etkn.mobile.player.danmaku.DanmakuView
 import xyz.etkn.mobile.player.mpv.MpvPlayer
+import xyz.etkn.mobile.ui.theme.Corner
 
 internal val Speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 3f)
 private val ResizeModes = listOf(
@@ -220,7 +220,7 @@ fun PlayerScreen(session: VideoSession, inPip: Boolean, onBack: () -> Unit, onPi
                 color = Color.White,
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(top = 64.dp).background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(50))
+                    .padding(top = 64.dp).background(Color.Black.copy(alpha = 0.55f), Corner.pill)
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }

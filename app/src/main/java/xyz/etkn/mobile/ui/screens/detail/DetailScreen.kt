@@ -1,6 +1,12 @@
 package xyz.etkn.mobile.ui.screens.detail
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,7 +32,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.Download
@@ -45,7 +50,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilledTonalIconToggleButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -118,7 +122,11 @@ import xyz.etkn.mobile.ui.nav.PersonRoute
 import xyz.etkn.mobile.ui.nav.TopLevel
 import xyz.etkn.mobile.ui.theme.ArtworkTheme
 import xyz.etkn.mobile.ui.theme.Etkn
+import xyz.etkn.mobile.ui.theme.Motion
 import xyz.etkn.mobile.ui.theme.HeroTitleStyle
+import xyz.etkn.mobile.ui.theme.Corner
+import xyz.etkn.mobile.ui.components.PillGap
+import xyz.etkn.mobile.ui.components.PillToggle
 
 @Composable
 fun DetailScreen(id: String) {
@@ -132,14 +140,30 @@ fun DetailScreen(id: String) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (resumed) vm.load() else resumed = true }
     WhileStarted(vm) { vm.followServer() }
 
-    when (val s = state) {
-        Load.Loading -> LoadingState()
-        is Load.Failed -> Box(Modifier.fillMaxSize()) {
-            ErrorState(s.message, vm::load)
-            ArtworkBackButton(nav::back, Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(8.dp))
+    // The page fades in when its data arrives rather than replacing a spinner.
+    AnimatedContent(state, contentKey = { it::class }, transitionSpec = { contentSwap() }, label = "detail") { s ->
+        when (s) {
+            Load.Loading -> LoadingState()
+            is Load.Failed -> Box(Modifier.fillMaxSize()) {
+                ErrorState(s.message, vm::load)
+                ArtworkBackButton(nav::back, Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(8.dp))
+            }
+            is Load.Ready -> DetailContent(s.value, vm, nav)
         }
-        is Load.Ready -> DetailContent(s.value, vm, nav)
     }
+}
+
+private fun contentSwap() = fadeIn(tween(Motion.FADE_IN, delayMillis = Motion.FADE_OUT)) togetherWith fadeOut(tween(Motion.FADE_OUT))
+
+/** Shows [data], fading over to another item's when it changes (an episode picked on the shelf). */
+@Composable
+private fun Swap(data: DetailData, content: @Composable (DetailData) -> Unit) {
+    AnimatedContent(
+        data,
+        contentKey = { it.item.id },
+        transitionSpec = { contentSwap() using SizeTransform(clip = false) },
+        label = "swap",
+    ) { content(it) }
 }
 
 /**
@@ -159,15 +183,17 @@ private fun DetailContent(data: DetailData, vm: DetailViewModel, nav: AppNav) {
         val centered = !LocalWindowLayout.current.wide
         val seriesId = if (item.isSeries) item.id else item.seriesId
         val press = rememberItemPress(item)
+        // Another episode took this page's place: bring its header into view.
+        LaunchedEffect(item.id) { if (list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > 0) list.animateScrollToItem(0) }
 
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
             LazyColumn(state = list, modifier = Modifier.fillMaxSize().glassSource(haze)) {
-                item(key = "header", contentType = "header") { DetailHeader(data, centered) }
-                item(key = "actions", contentType = "actions") { ActionRow(data, centered, vm, nav) }
+                item(key = "header", contentType = "header") { Swap(data) { DetailHeader(it, centered) } }
+                item(key = "actions", contentType = "actions") { Swap(data) { ActionRow(it, centered, vm, nav) } }
                 if (item.mediaSources.size > 1) {
                     item(key = "versions") { VersionRow(item.mediaSources, data.selectedSource, vm::selectSource) }
                 }
-                item(key = "info", contentType = "info") { InfoBlock(item, centered) }
+                item(key = "info", contentType = "info") { Swap(data) { InfoBlock(it.item, centered) } }
                 if (seriesId != null && (item.isSeries || item.isSeason || item.isEpisode)) {
                     item(key = "episodes", contentType = "episodes") {
                         EpisodeShelf(
@@ -176,6 +202,8 @@ private fun DetailContent(data: DetailData, vm: DetailViewModel, nav: AppNav) {
                             currentId = item.id.takeIf { item.isEpisode },
                             list = vm.episodes,
                             onSeason = { vm.selectSeason(seriesId, it) },
+                            // On an episode's page the others replace it in place; elsewhere they open.
+                            onOpen = { if (item.isEpisode) vm.show(it.id) else nav.open(it) },
                             onAll = { nav.to(EpisodesRoute(seriesId, episodes.seasonId, item.seriesName ?: item.name, seed)) },
                         )
                     }
@@ -301,7 +329,7 @@ private fun RatingBadge(text: String) {
         text,
         style = MaterialTheme.typography.labelMedium,
         color = color,
-        modifier = Modifier.border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp),
+        modifier = Modifier.border(1.dp, color.copy(alpha = 0.6f), Corner.small).padding(horizontal = 5.dp, vertical = 1.dp),
     )
 }
 
@@ -451,16 +479,13 @@ private fun PlayButton(label: String, time: String?, progress: Float, enabled: B
 private fun VersionRow(sources: List<MediaSource>, selected: Int, onSelect: (Int) -> Unit) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = Etkn.space.screen),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(PillGap),
         modifier = Modifier.padding(top = 14.dp),
     ) {
         items(sources.size) { index ->
-            FilterChip(
-                selected = index == selected,
-                onClick = { onSelect(index) },
-                label = { Text(sources[index].slotLabel.ifEmpty { "版本 ${index + 1}" }, maxLines = 1) },
-                shape = RoundedCornerShape(12.dp),
-            )
+            PillToggle(checked = index == selected, onClick = { onSelect(index) }) {
+                Text(sources[index].slotLabel.ifEmpty { "版本 ${index + 1}" }, maxLines = 1)
+            }
         }
     }
 }
@@ -484,7 +509,7 @@ private fun InfoBlock(item: Item, centered: Boolean) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = if (expanded) Int.MAX_VALUE else 4,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().animateContentSize().clip(RoundedCornerShape(8.dp)).clickable { expanded = !expanded },
+                modifier = Modifier.fillMaxWidth().animateContentSize().clip(Corner.card).clickable { expanded = !expanded },
             )
         }
     }

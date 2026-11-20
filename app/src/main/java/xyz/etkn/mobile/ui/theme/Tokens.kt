@@ -1,5 +1,7 @@
 package xyz.etkn.mobile.ui.theme
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -43,7 +45,7 @@ fun etknTokens(scheme: ColorScheme, dark: Boolean): EtknTokens = EtknTokens(
     onImage = Color.White,
     onImageMuted = Color.White.copy(alpha = 0.78f),
     onImageTrack = Color.White.copy(alpha = 0.26f),
-    glassTint = scheme.surfaceContainer.copy(alpha = if (dark) 0.58f else 0.66f),
+    glassTint = scheme.surfaceContainer.copy(alpha = if (dark) 0.5f else 0.56f),
     glassFlat = scheme.surfaceContainer.copy(alpha = if (dark) 0.94f else 0.96f),
     glassBorder = scheme.outlineVariant.copy(alpha = if (dark) 0.42f else 0.55f),
     glassHighlight = Color.White.copy(alpha = if (dark) 0.07f else 0.5f),
@@ -106,4 +108,28 @@ object Spacing {
     val sideDock: Dp = 76.dp
     val sideDockInset: Dp = 92.dp
     val miniPlayer: Dp = 64.dp
+}
+
+/** Content swaps (a page's data arriving, one episode replacing another): the old fades out, then the new fades in. */
+object Motion {
+    const val FADE_OUT = 180
+    const val FADE_IN = 320
+}
+
+/**
+ * The one corner scale. Every rounded thing uses one of these by what it is, never a radius of
+ * its own: [small] for thumbnails under ~64 dp, badges and tags; [card] for artwork, rows and
+ * fields; [panel] for surfaces that hold other things (groups, sheets, dialogs, menus, the dock,
+ * the mini player); [pill] for buttons, toggles and bars. Something set inside a panel near its
+ * edge takes [inPanel] so the two curves share a centre.
+ */
+object Corner {
+    val panelRadius: Dp = 28.dp
+    val small = RoundedCornerShape(8.dp)
+    val card = RoundedCornerShape(16.dp)
+    val panel = RoundedCornerShape(panelRadius)
+    val pill = CircleShape
+
+    /** Concentric with a [panel] whose edge is [gap] away. */
+    fun inPanel(gap: Dp) = RoundedCornerShape((panelRadius - gap).coerceAtLeast(0.dp))
 }
