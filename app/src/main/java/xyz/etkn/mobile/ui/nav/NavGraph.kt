@@ -3,19 +3,22 @@ package xyz.etkn.mobile.ui.nav
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDp
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerScope
 import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -65,9 +68,8 @@ val LocalTabActive = compositionLocalOf { true }
 
 /** Every destination inside the shell. */
 @Composable
-internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pager: PagerState, modifier: Modifier = Modifier) {
-    // Theme motion (Material 3 Expressive springs) instead of fixed tweens: interrupted or
-    // scrubbed transitions keep their velocity and settle naturally.
+internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pager: PagerState, verticalTabs: Boolean, modifier: Modifier = Modifier) {
+    // Opening a page: theme motion (Material 3 Expressive springs), which keeps its velocity when interrupted.
     val motion = MaterialTheme.motionScheme
     val move = motion.defaultSpatialSpec<IntOffset>()
     val zoom = motion.defaultSpatialSpec<Float>()
@@ -76,15 +78,17 @@ internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pag
         navController = controller,
         startDestination = TabsRoute,
         modifier = modifier,
-        // Pop transitions are what the predictive back gesture scrubs: the page being
-        // left shrinks into a rounded card and drifts with the finger while the page
-        // underneath (already laid out, opaque) settles back from a slight zoom.
         enterTransition = { fadeIn(fade) + slideInHorizontally(move) { it / 12 } },
         exitTransition = { fadeOut(fade) + scaleOut(zoom, targetScale = 0.96f) },
-        popEnterTransition = { fadeIn(fade) + scaleIn(zoom, initialScale = 0.96f) },
-        popExitTransition = { scaleOut(zoom, targetScale = 0.88f) + slideOutHorizontally(move) { it / 8 } },
+        // Going back is what the predictive back gesture scrubs, so it runs on a fixed timeline
+        // the gesture's progress maps onto (springs front-load their motion and jump ahead of the
+        // finger). Material's in-app back: the page leaving shrinks to at most 90 % with rounded
+        // corners and stays opaque while the finger moves; the page underneath comes back from
+        // a slight offset. Letting go plays the rest, and the page leaving fades at the very end.
+        popEnterTransition = { slideInHorizontally(backSpec()) { -it / 12 } },
+        popExitTransition = { scaleOut(backSpec(), targetScale = 0.9f) + fadeOut(backFade) },
     ) {
-        page<TabsRoute> { TabPager(tabs, pager) }
+        page<TabsRoute> { TabPager(tabs, pager, verticalTabs) }
         // Tabs left out of the dock still open as ordinary pages.
         page<HomeRoute> { HomeScreen() }
         page<LibrariesRoute> { LibrariesScreen() }
@@ -115,34 +119,39 @@ internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pag
 /**
  * The dock's tabs side by side: switching is a pager scroll, not a navigation, so the screens
  * stay composed (scroll position, loaded data), the neighbour is laid out in advance and a
- * horizontal swipe moves between tabs. Back returns to 首页 first.
+ * horizontal swipe on a page moves between tabs (bottom dock only). Back returns to 首页 first.
  */
 @Composable
-private fun TabPager(tabs: List<TopLevel>, pager: PagerState) {
+private fun TabPager(tabs: List<TopLevel>, pager: PagerState, vertical: Boolean) {
     val scope = rememberCoroutineScope()
     val spring = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
     BackHandler(enabled = pager.currentPage != 0) { scope.launch { pager.animateScrollToPage(0, animationSpec = spring) } }
-    HorizontalPager(
-        state = pager,
-        modifier = Modifier.fillMaxSize(),
-        beyondViewportPageCount = 1,
-        key = { tabs.getOrNull(it)?.name ?: it },
-    ) { page ->
-        val tab = tabs.getOrNull(page)
-        // 首页 runs its poster under the side dock and insets the rest itself; other tabs just start after it.
-        val inset = LocalStartInset.current
-        val ownInset = tab == TopLevel.Home
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(start = if (ownInset) 0.dp else inset)) {
-            CompositionLocalProvider(LocalTabActive provides (pager.settledPage == page), LocalStartInset provides if (ownInset) inset else 0.dp) {
-                when (tab) {
-                    TopLevel.Home -> HomeScreen()
-                    TopLevel.Libraries -> LibrariesScreen()
-                    TopLevel.Music -> MusicHomeScreen()
-                    TopLevel.Discover -> DiscoverScreen()
-                    TopLevel.Search -> SearchScreen()
-                    TopLevel.Me -> MeScreen()
-                    null -> Unit
-                }
+    val key = { page: Int -> tabs.getOrNull(page)?.name ?: page }
+    val content: @Composable PagerScope.(Int) -> Unit = { page -> TabPage(tabs.getOrNull(page), pager.settledPage == page) }
+    // Pages run the way the dock does. Beside a side dock they slide vertically and only the dock
+    // moves them: a vertical swipe on a page scrolls the page.
+    if (vertical) {
+        VerticalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = false, key = key, pageContent = content)
+    } else {
+        HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, key = key, pageContent = content)
+    }
+}
+
+@Composable
+private fun TabPage(tab: TopLevel?, active: Boolean) {
+    // 首页 runs its poster under the side dock and insets the rest itself; other tabs just start after it.
+    val inset = LocalStartInset.current
+    val ownInset = tab == TopLevel.Home
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(start = if (ownInset) 0.dp else inset)) {
+        CompositionLocalProvider(LocalTabActive provides active, LocalStartInset provides if (ownInset) inset else 0.dp) {
+            when (tab) {
+                TopLevel.Home -> HomeScreen()
+                TopLevel.Libraries -> LibrariesScreen()
+                TopLevel.Music -> MusicHomeScreen()
+                TopLevel.Discover -> DiscoverScreen()
+                TopLevel.Search -> SearchScreen()
+                TopLevel.Me -> MeScreen()
+                null -> Unit
             }
         }
     }
@@ -159,7 +168,7 @@ private inline fun <reified T : Any> NavGraphBuilder.page(
 
 @Composable
 private fun AnimatedContentScope.PageFrame(content: @Composable () -> Unit) {
-    val corner = transition.animateDp(label = "pageCorner") { if (it == EnterExitState.Visible) 0.dp else 32.dp }
+    val corner = transition.animateDp(transitionSpec = { backSpec() }, label = "pageCorner") { if (it == EnterExitState.Visible) 0.dp else 28.dp }
     val background = MaterialTheme.colorScheme.surface
     Box(
         Modifier.fillMaxSize()
@@ -171,3 +180,15 @@ private fun AnimatedContentScope.PageFrame(content: @Composable () -> Unit) {
             .background(background),
     ) { content() }
 }
+
+/** The back timeline (see [AppNavHost]): linear, so the page tracks the gesture's progress. */
+private fun <T> backSpec() = tween<T>(BACK_MS, easing = LinearEasing)
+
+/** Opaque while the gesture can still be cancelled; gone by the end of the commit. */
+private val backFade = keyframes<Float> {
+    durationMillis = BACK_MS
+    1f at (BACK_MS * 0.75f).toInt()
+    0f at BACK_MS
+}
+
+private const val BACK_MS = 320

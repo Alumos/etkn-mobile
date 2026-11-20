@@ -142,7 +142,7 @@ fun MainShell(session: ActiveSession) {
         LocalItemMenu provides itemMenu,
     ) {
         Box(Modifier.fillMaxSize()) {
-            AppNavHost(controller, tabs, pager, Modifier.fillMaxSize().glassSource(hazeState))
+            AppNavHost(controller, tabs, pager, verticalTabs = side, modifier = Modifier.fillMaxSize().glassSource(hazeState))
             AnimatedVisibility(
                 sideVisible,
                 modifier = Modifier.align(Alignment.CenterStart)
