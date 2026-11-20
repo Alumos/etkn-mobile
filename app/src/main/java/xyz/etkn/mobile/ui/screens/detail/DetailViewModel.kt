@@ -122,8 +122,10 @@ class DetailViewModel(private val graph: AppGraph, routeId: String) : ViewModel(
     }
 
     /** Re-reads the page when the server reports changes to its rows (metadata, images, versions). */
-    suspend fun followServer() = shown.collectLatest { id ->
-        graph.events.stream(id).collect { if (it is ServerEvent.Items && !it.initial) load() }
+    suspend fun followServer() {
+        shown.collectLatest { id ->
+            graph.events.stream(id).collect { if (it is ServerEvent.Items && !it.initial) load() }
+        }
     }
 
     fun selectSeason(seriesId: String, seasonId: String) = episodes.select(seriesId, seasonId)
