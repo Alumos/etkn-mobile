@@ -11,12 +11,13 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Crashes the app cannot log itself. A native crash (libmpv, MediaCodec, the disc reader) kills
- * the process before any Java handler runs, and the system's tombstone is not in this UID's
- * logcat. On the next start Android's exit records are read instead: native crashes keep the
- * tombstone (decoded here: signal, abort message, crashing thread's backtrace), ANRs keep their
- * thread dump. Each new record is written to crash.log at the time it happened, in the log's
- * line format, so 导出日志 includes it for that day and hour.
+ * Deaths the app cannot log itself. A native crash, a libmpv fatal error (`exit(1)`) or a kill
+ * ends the process before any Java handler runs, and the log recorder dies with it, often before
+ * it has written the last lines. On the next start Android's exit records are read instead: each
+ * new [abnormal] exit is written to crash.log at the time it happened, with the dead process's
+ * final log lines (still in the system log buffer), the decoded tombstone of a native crash
+ * (signal, abort message, crashing thread's backtrace) and the main thread of an ANR, so
+ * 导出日志 includes it for that day and hour.
  */
 internal object ExitRecords {
     private const val PREFS = "diagnostics"
@@ -26,6 +27,35 @@ internal object ExitRecords {
     fun record(context: Context, crashLog: File) {
         if (Build.VERSION.SDK_INT < 30) return
         runCatching { collect(context, crashLog) }
+    }
+
+    /**
+     * Crashes and ANRs always; a process that ended itself with a failure status; any other death
+     * while on screen. Deaths the user or an update asked for, and background reclaims, are normal.
+     */
+    @RequiresApi(30)
+    fun abnormal(exit: ApplicationExitInfo): Boolean = when (exit.reason) {
+        ApplicationExitInfo.REASON_CRASH, ApplicationExitInfo.REASON_CRASH_NATIVE, ApplicationExitInfo.REASON_ANR -> true
+        ApplicationExitInfo.REASON_EXIT_SELF -> exit.status != 0
+        ApplicationExitInfo.REASON_USER_REQUESTED, ApplicationExitInfo.REASON_USER_STOPPED,
+        ApplicationExitInfo.REASON_PERMISSION_CHANGE, ApplicationExitInfo.REASON_PACKAGE_STATE_CHANGE,
+        ApplicationExitInfo.REASON_PACKAGE_UPDATED -> false
+        else -> exit.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
+    }
+
+    @RequiresApi(30)
+    fun label(exit: ApplicationExitInfo): String = when (exit.reason) {
+        ApplicationExitInfo.REASON_CRASH -> "JavaCrash"
+        ApplicationExitInfo.REASON_CRASH_NATIVE -> "NativeCrash"
+        ApplicationExitInfo.REASON_ANR -> "ANR"
+        ApplicationExitInfo.REASON_EXIT_SELF -> "ExitSelf"
+        ApplicationExitInfo.REASON_SIGNALED -> "Signaled"
+        ApplicationExitInfo.REASON_LOW_MEMORY -> "LowMemory"
+        ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "InitFailure"
+        ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "ExcessiveResources"
+        ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "DependencyDied"
+        ApplicationExitInfo.REASON_FREEZER -> "Freezer"
+        else -> "Exit${exit.reason}"
     }
 
     @RequiresApi(30)
@@ -39,17 +69,11 @@ internal object ExitRecords {
         prefs.edit().putLong(SEEN, exits.maxOf { it.timestamp }).apply()
         val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
         val out = StringBuilder()
-        for (exit in exits.sortedBy { it.timestamp }) {
-            val kind = when (exit.reason) {
-                ApplicationExitInfo.REASON_CRASH_NATIVE -> "NativeCrash"
-                ApplicationExitInfo.REASON_ANR -> "ANR"
-                ApplicationExitInfo.REASON_CRASH -> "JavaCrash"
-                ApplicationExitInfo.REASON_LOW_MEMORY -> "LowMemory"
-                else -> continue
-            }
-            val head = "${stamp.format(Date(exit.timestamp))} ${exit.pid} ${exit.pid} F $kind: "
+        for (exit in exits.filter(::abnormal).sortedBy { it.timestamp }) {
+            Diagnostics.processLog(exit.pid).forEach { out.append(it).append('\n') }
+            val head = "${stamp.format(Date(exit.timestamp))} ${exit.pid} ${exit.pid} F ${label(exit)}: "
             val lines = ArrayList<String>()
-            lines += "exit ${exit.description.orEmpty()} pss=${exit.pss}kB rss=${exit.rss}kB importance=${exit.importance}"
+            lines += "exit status=${exit.status} ${exit.description.orEmpty()} pss=${exit.pss}kB rss=${exit.rss}kB importance=${exit.importance}"
             when (exit.reason) {
                 ApplicationExitInfo.REASON_CRASH_NATIVE -> if (Build.VERSION.SDK_INT >= 31) {
                     exit.traceInputStream?.use { lines += Tombstone.describe(it.readBytes(), MAX_FRAMES) }

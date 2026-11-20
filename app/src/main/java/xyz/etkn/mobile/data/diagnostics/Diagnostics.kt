@@ -1,7 +1,6 @@
 package xyz.etkn.mobile.data.diagnostics
 
 import android.app.ActivityManager
-import android.app.ApplicationExitInfo
 import android.content.Context
 import android.hardware.display.DisplayManager
 import android.media.MediaCodecList
@@ -10,6 +9,7 @@ import android.os.Build
 import android.os.Process
 import android.util.Log
 import android.view.Display
+import androidx.annotation.RequiresApi
 import xyz.etkn.mobile.BuildConfig
 import java.io.File
 import java.text.SimpleDateFormat
@@ -36,6 +36,7 @@ object Diagnostics {
 
     /** Tags written at info level; everything else only at error level. */
     private val TAGS = listOf("ETKN", "ETKN-Play", "ETKN-Disc", "ETKN-Player", "ETKN-Mpv")
+    private val FILTER = TAGS.map { "$it:I" } + "*:E"
 
     fun start(context: Context) {
         val dir = directory(context)
@@ -44,8 +45,7 @@ object Diagnostics {
         runCatching {
             val since = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US).format(Date())
             ProcessBuilder(
-                listOf("logcat", "-v", "threadtime,year", "-T", since, "-f", File(dir, LOG).path, "-r", "256", "-n", FILES.toString()) +
-                    TAGS.map { "$it:I" } + "*:E",
+                listOf("logcat", "-v", "threadtime,year", "-T", since, "-f", File(dir, LOG).path, "-r", "256", "-n", FILES.toString()) + FILTER,
             ).redirectErrorStream(true).start()
         }.onFailure { Log.w(TAG, "log recorder unavailable", it) }
         val previous = Thread.getDefaultUncaughtExceptionHandler()
@@ -61,6 +61,18 @@ object Diagnostics {
         // Native crashes / ANRs of earlier runs (no Java handler sees them): from Android's exit records.
         Thread({ ExitRecords.record(context.applicationContext, File(dir, CRASH)) }, "etkn-exit-records").start()
     }
+
+    /**
+     * The last lines a dead process of this app left in the system log buffer, in the recorder's
+     * format and filter: the recorder dies with the process and usually misses exactly these.
+     */
+    internal fun processLog(pid: Int): List<String> = runCatching {
+        val process = ProcessBuilder(listOf("logcat", "-d", "-v", "threadtime,year", "--pid=$pid", "-t", "300") + FILTER)
+            .redirectErrorStream(true).start()
+        val lines = process.inputStream.bufferedReader().use { it.readLines() }
+        process.waitFor(5, TimeUnit.SECONDS)
+        lines.filter { DAY.matches(it.take(10)) }
+    }.getOrDefault(emptyList())
 
     /** Days that have log lines, newest first. */
     fun days(context: Context): List<LocalDate> {
@@ -80,6 +92,7 @@ object Diagnostics {
             appendLine("== $prefix ${"%02d:00".format(fromHour)}–${"%02d:00".format(toHour)} ==")
             val lines = files(directory(context)).flatMap { file -> file.readLines().filter { it.startsWith(prefix) } }
             lines.filter { (it.substring(11, minOf(13, it.length)).toIntOrNull() ?: -1) in fromHour until toHour }
+                .distinct() // a dead process's last lines may be in both app.log and crash.log
                 .sortedBy { it.take(23) }
                 .forEach(::appendLine)
         }
@@ -101,7 +114,7 @@ object Diagnostics {
         if (Build.VERSION.SDK_INT >= 31) append(" · ${Build.SOC_MODEL}")
         appendLine(" · HDR ${hdr(context)}")
         decoders(this)
-        exits(context, this)
+        if (Build.VERSION.SDK_INT >= 30) exits(context, this)
     }
 
     private fun hdr(context: Context): String = runCatching {
@@ -133,22 +146,14 @@ object Diagnostics {
         byType.forEach { (type, names) -> out.appendLine("$type: ${names.joinToString(" ")}") }
     }
 
+    @RequiresApi(30)
     private fun exits(context: Context, out: StringBuilder) {
-        if (Build.VERSION.SDK_INT < 30) return
         runCatching {
             val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
             context.getSystemService(ActivityManager::class.java).getHistoricalProcessExitReasons(context.packageName, 0, 5)
-                .filter { it.reason in ABNORMAL }
-                .forEach { out.appendLine("exit ${stamp.format(Date(it.timestamp))} ${reason(it.reason)} ${it.description.orEmpty()}") }
+                .filter(ExitRecords::abnormal)
+                .forEach { out.appendLine("exit ${stamp.format(Date(it.timestamp))} ${ExitRecords.label(it)} status=${it.status} ${it.description.orEmpty()}") }
         }
-    }
-
-    private fun reason(code: Int): String = when (code) {
-        ApplicationExitInfo.REASON_CRASH -> "java-crash"
-        ApplicationExitInfo.REASON_CRASH_NATIVE -> "native-crash"
-        ApplicationExitInfo.REASON_ANR -> "anr"
-        ApplicationExitInfo.REASON_LOW_MEMORY -> "low-memory"
-        else -> "reason-$code"
     }
 
     /** Removes credentials: whole URL query strings and any token-like key/value. */
@@ -168,7 +173,6 @@ object Diagnostics {
     private fun directory(context: Context) = File(context.filesDir, "logs").apply { mkdirs() }
 
     private val DAY = Regex("^\\d{4}-\\d{2}-\\d{2}$")
-    private val ABNORMAL = setOf(ApplicationExitInfo.REASON_CRASH, ApplicationExitInfo.REASON_CRASH_NATIVE, ApplicationExitInfo.REASON_ANR, ApplicationExitInfo.REASON_LOW_MEMORY)
     private val WATCHED = setOf(
         "video/hevc", "video/dolby-vision", "video/avc", "video/av01", "video/x-vnd.on2.vp9",
         "audio/vnd.dts", "audio/vnd.dts.hd", "audio/true-hd", "audio/eac3", "audio/eac3-joc", "audio/ac4",

@@ -308,8 +308,7 @@ class MpvPlayer(
             MPVLib.command("stop")
         }.onFailure { Log.e(TAG, "mpv stop", it) }
         MPVLib.removeObserver(this)
-        // The view must stop touching mpv before the core goes; then the core itself is
-        // destroyed directly (the view's own destroy() was what failed to stop playback).
+        // The view must stop touching mpv before the core goes.
         runCatching { view.holder.removeCallback(view) }
         runCatching { MPVLib.destroy() }.onFailure { Log.e(TAG, "mpv destroy", it) }
         Log.i(TAG, "released")
@@ -533,7 +532,14 @@ class MpvPlayer(
             "track-list" to MPVLib.MpvFormat.MPV_FORMAT_NONE,
         )
 
+        /**
+         * Every command a `handle…` override serves. [SimpleBasePlayer] silently ignores a call
+         * whose command is missing: without [Player.COMMAND_RELEASE], `release()` never reached
+         * [handleRelease], libmpv was never destroyed, and the next player's `MPVLib.create`
+         * ended the process ("mpv is already initialized").
+         */
         private val COMMANDS = Player.Commands.Builder().addAll(
+            Player.COMMAND_RELEASE,
             Player.COMMAND_PLAY_PAUSE,
             Player.COMMAND_PREPARE,
             Player.COMMAND_STOP,

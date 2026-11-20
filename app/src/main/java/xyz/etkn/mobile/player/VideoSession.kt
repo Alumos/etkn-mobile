@@ -18,7 +18,9 @@ import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.mediacodec.MediaCodecRenderer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -114,7 +116,8 @@ enum class Engine(val label: String) { Exo("ExoPlayer"), Mpv("mpv") }
 /**
  * Owns the video core for the player screen and talks to ETKN:
  * PlaybackInfo → direct stream → Playing / Progress (every 10 s and on state changes) / Stopped.
- * Reports run on the application scope so the final Stopped survives the activity.
+ * Reports run on the application scope so the final Stopped survives the activity; everything
+ * else runs in the session's own scope (a child of [parent]), which [release] cancels.
  *
  * The core is chosen per source ([engineFor]): discs and HDR / Dolby Vision play on ExoPlayer,
  * which hands HDR straight to the display; everything else on mpv. A core that fails switches
@@ -123,8 +126,9 @@ enum class Engine(val label: String) { Exo("ExoPlayer"), Mpv("mpv") }
 class VideoSession(
     private val context: Context,
     private val graph: AppGraph,
-    private val scope: CoroutineScope,
+    parent: CoroutineScope,
 ) {
+    private val scope = CoroutineScope(parent.coroutineContext + SupervisorJob(parent.coroutineContext[Job]))
     private val api = graph.api
     private val _player = MutableStateFlow<Player?>(null)
     /** Current core; null until the first source is known. */
@@ -856,10 +860,10 @@ class VideoSession(
     }
 
     fun release() {
-        loadJob?.cancel()
-        sleepJob?.cancel()
-        closeDanmaku()
+        if (released) return
         released = true
+        scope.cancel()
+        closeDanmaku()
         stopReporting()
         val core = player
         _player.value = null

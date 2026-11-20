@@ -2,6 +2,7 @@ package xyz.etkn.mobile.player
 
 import android.app.PictureInPictureParams
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -12,8 +13,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -22,6 +25,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.VideoSize
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import xyz.etkn.mobile.data.settings.Settings
@@ -36,7 +41,8 @@ class PlayerActivity : ComponentActivity() {
         UiScale.applyTo(this, newBase)
     }
 
-    private var session: VideoSession? = null
+    /** The title on screen; a new intent (singleTask: another title picked while in PiP or playing in the background) replaces it. */
+    private var session by mutableStateOf<VideoSession?>(null)
     private var inPip by mutableStateOf(false)
     private var wasPlaying = false
     private var backgroundPlay = false
@@ -51,15 +57,50 @@ class PlayerActivity : ComponentActivity() {
         hideSystemBars()
 
         val active = graph.sessions.current
-        if (active == null) {
+        if (active == null || !open(intent)) {
             finish()
             return
         }
-        val itemId = intent.getStringExtra(PlayerLauncher.EXTRA_ITEM)
-        if (itemId == null) {
-            finish()
-            return
+        // 后台播放: a media session around whichever core is playing, while the setting is on.
+        lifecycleScope.launch {
+            val players = snapshotFlow { session }.flatMapLatest { it?.players ?: flowOf(null) }
+            combine(graph.settings.flow.map { it.backgroundPlay }.distinctUntilChanged(), players) { on, player -> on to player }
+                .collect { (on, player) ->
+                    backgroundPlay = on
+                    if (on && player != null) VideoPlaybackService.attach(this@PlayerActivity, player) else VideoPlaybackService.detach(this@PlayerActivity)
+                }
         }
+        val urls = graph.images(active)
+        updatePipParams()
+        setContent {
+            val settings by graph.settings.flow.collectAsStateWithLifecycle(initialValue = Settings())
+            EtknTheme(settings, forceDark = true) {
+                CompositionLocalProvider(LocalImages provides urls) {
+                    session?.let { video ->
+                        key(video) {
+                            PlayerScreen(
+                                session = video,
+                                inPip = inPip,
+                                onBack = { finish() },
+                                onPip = { enterPip() },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        close()
+        if (!open(intent)) finish()
+    }
+
+    /** Starts the title [intent] names; false when there is nothing to play. */
+    private fun open(intent: Intent): Boolean {
+        val itemId = intent.getStringExtra(PlayerLauncher.EXTRA_ITEM) ?: return false
         graph.music.pause()
         val video = VideoSession(this, graph, lifecycleScope)
         session = video
@@ -74,29 +115,14 @@ class PlayerActivity : ComponentActivity() {
             resume = intent.getBooleanExtra(PlayerLauncher.EXTRA_RESUME, true),
             sourceId = intent.getStringExtra(PlayerLauncher.EXTRA_SOURCE),
         )
-        // 后台播放: a media session around whichever core is playing, while the setting is on.
-        lifecycleScope.launch {
-            combine(graph.settings.flow.map { it.backgroundPlay }.distinctUntilChanged(), video.players) { on, player -> on to player }
-                .collect { (on, player) ->
-                    backgroundPlay = on
-                    if (on && player != null) VideoPlaybackService.attach(this@PlayerActivity, player) else VideoPlaybackService.detach(this@PlayerActivity)
-                }
-        }
-        val urls = graph.images(active)
-        updatePipParams()
-        setContent {
-            val settings by graph.settings.flow.collectAsStateWithLifecycle(initialValue = Settings())
-            EtknTheme(settings, forceDark = true) {
-                CompositionLocalProvider(LocalImages provides urls) {
-                    PlayerScreen(
-                        session = video,
-                        inPip = inPip,
-                        onBack = { finish() },
-                        onPip = { enterPip() },
-                    )
-                }
-            }
-        }
+        return true
+    }
+
+    /** Ends the current title: media session first, then its core (libmpv allows one per process). */
+    private fun close() {
+        VideoPlaybackService.detach(this)
+        session?.release()
+        session = null
     }
 
     private fun hideSystemBars() {
@@ -154,11 +180,7 @@ class PlayerActivity : ComponentActivity() {
         super.onPause()
         // Release now, not in onDestroy: that can run after the next player activity has already
         // started its own core, and libmpv allows one instance per process.
-        if (isFinishing) {
-            VideoPlaybackService.detach(this)
-            session?.release()
-            session = null
-        }
+        if (isFinishing) close()
     }
 
     override fun onStop() {
@@ -176,9 +198,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        VideoPlaybackService.detach(this)
-        session?.release()
-        session = null
+        close()
         super.onDestroy()
     }
 }
