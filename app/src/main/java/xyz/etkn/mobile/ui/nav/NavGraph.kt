@@ -2,13 +2,14 @@ package xyz.etkn.mobile.ui.nav
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,12 +22,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
@@ -67,46 +70,44 @@ val LocalTabActive = compositionLocalOf { true }
 /** Every destination inside the shell. */
 @Composable
 internal fun AppNavHost(controller: NavHostController, tabs: List<TopLevel>, pager: PagerState, verticalTabs: Boolean, modifier: Modifier = Modifier) {
-    // Pages move on one horizontal axis and only move (no scaling, fading or clipping, so a
-    // transition costs a translation per frame). A page comes in from the end edge over the one it
-    // covers, which drifts a quarter back; back reverses it. Opening rides a critically damped
-    // spring (an overshoot would bare the window edge). Going back is what the predictive back
-    // gesture scrubs, so it runs on a fixed linear timeline the gesture's progress maps onto:
-    // the page follows the finger off to the side and the one underneath slides back in.
-    val open = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow, visibilityThreshold = IntOffset.VisibilityThreshold)
-    NavHost(
-        navController = controller,
-        startDestination = TabsRoute,
-        modifier = modifier,
-        enterTransition = { slideInHorizontally(open) { it } },
-        exitTransition = { slideOutHorizontally(open) { -it / 4 } },
-        popEnterTransition = { slideInHorizontally(back) { -it / 4 } },
-        popExitTransition = { slideOutHorizontally(back) { it } },
-    ) {
-        page<TabsRoute> { TabPager(tabs, pager, verticalTabs) }
-        // Tabs left out of the dock still open as ordinary pages.
-        page<HomeRoute> { HomeScreen() }
-        page<LibrariesRoute> { LibrariesScreen() }
-        page<MusicRoute> { MusicHomeScreen() }
-        page<SearchRoute> { SearchScreen() }
-        page<MeRoute> { MeScreen() }
-        page<LibraryRoute> { LibraryScreen(it.toRoute()) }
-        page<FacetRoute> { FacetScreen(it.toRoute()) }
-        page<DetailRoute> { DetailScreen(it.toRoute<DetailRoute>().id) }
-        page<EpisodesRoute> { EpisodesScreen(it.toRoute()) }
-        page<PersonRoute> { PersonScreen(it.toRoute()) }
-        page<FavoritesRoute> { FavoritesScreen() }
-        page<MusicListRoute> { MusicListScreen(it.toRoute()) }
-        page<NowPlayingRoute> { NowPlayingScreen() }
-        page<AccountsRoute> { AccountsScreen() }
-        page<DownloadsRoute> { DownloadsScreen() }
-        page<DiscoverRoute> { DiscoverScreen() }
-        page<DiscoverDetailRoute> { DiscoverDetailScreen(it.toRoute()) }
-        page<DiscoverPersonRoute> { DiscoverPersonScreen(it.toRoute()) }
-        page<CloudRoute> { CloudScreen(it.toRoute()) }
-        page<SettingsRoute> { entry ->
-            val page = entry.toRoute<SettingsRoute>().page
-            SettingsScreen(SettingsPage.entries.firstOrNull { it.name == page } ?: SettingsPage.Appearance)
+    // Pages turn like the leaves of a book (see PageFrame): NavHost itself only keeps both pages
+    // composed for the length of the turn and records which way it goes.
+    val turn = remember { PageTurn() }
+    CompositionLocalProvider(LocalPageTurn provides turn) {
+        NavHost(
+            navController = controller,
+            startDestination = TabsRoute,
+            modifier = modifier,
+            enterTransition = { turn.back = false; EnterTransition.None },
+            exitTransition = { turn.back = false; ExitTransition.KeepUntilTransitionsFinished },
+            popEnterTransition = { turn.back = true; EnterTransition.None },
+            popExitTransition = { turn.back = true; ExitTransition.KeepUntilTransitionsFinished },
+        ) {
+            page<TabsRoute> { TabPager(tabs, pager, verticalTabs) }
+            // Tabs left out of the dock still open as ordinary pages.
+            page<HomeRoute> { HomeScreen() }
+            page<LibrariesRoute> { LibrariesScreen() }
+            page<MusicRoute> { MusicHomeScreen() }
+            page<SearchRoute> { SearchScreen() }
+            page<MeRoute> { MeScreen() }
+            page<LibraryRoute> { LibraryScreen(it.toRoute()) }
+            page<FacetRoute> { FacetScreen(it.toRoute()) }
+            page<DetailRoute> { DetailScreen(it.toRoute<DetailRoute>().id) }
+            page<EpisodesRoute> { EpisodesScreen(it.toRoute()) }
+            page<PersonRoute> { PersonScreen(it.toRoute()) }
+            page<FavoritesRoute> { FavoritesScreen() }
+            page<MusicListRoute> { MusicListScreen(it.toRoute()) }
+            page<NowPlayingRoute> { NowPlayingScreen() }
+            page<AccountsRoute> { AccountsScreen() }
+            page<DownloadsRoute> { DownloadsScreen() }
+            page<DiscoverRoute> { DiscoverScreen() }
+            page<DiscoverDetailRoute> { DiscoverDetailScreen(it.toRoute()) }
+            page<DiscoverPersonRoute> { DiscoverPersonScreen(it.toRoute()) }
+            page<CloudRoute> { CloudScreen(it.toRoute()) }
+            page<SettingsRoute> { entry ->
+                val page = entry.toRoute<SettingsRoute>().page
+                SettingsScreen(SettingsPage.entries.firstOrNull { it.name == page } ?: SettingsPage.Appearance)
+            }
         }
     }
 }
@@ -153,17 +154,63 @@ private fun TabPage(tab: TopLevel?, active: Boolean) {
 }
 
 /**
- * Every destination draws its own opaque page, so a page moving over another never shows through.
- * Its shadow lies outside the screen at rest and only shows along the edge of a page in motion.
+ * Every destination draws its own opaque page, so a page turning over another never shows through.
  */
 private inline fun <reified T : Any> NavGraphBuilder.page(
     noinline content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
 ) = composable<T> { entry -> PageFrame { content(entry) } }
 
-@Composable
-private fun PageFrame(content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize().shadow(12.dp, RectangleShape, clip = false).background(MaterialTheme.colorScheme.surface)) { content() }
+/** Which way the running page transition goes: set where NavHost picks a transition, read while drawing. */
+private class PageTurn {
+    var back = false
 }
 
-/** The back timeline (see [AppNavHost]): linear, so the page tracks the gesture's progress. */
-private val back = tween<IntOffset>(300, easing = LinearEasing)
+private val LocalPageTurn = staticCompositionLocalOf { PageTurn() }
+
+/**
+ * The page turn, the same for every page and both directions. The page on top is a leaf hinged
+ * on its right edge: opening lays it down over the current page, going back lifts it off to
+ * reveal the page underneath, which brightens as it is uncovered. Back is what the predictive
+ * back gesture scrubs, so it runs on a fixed linear timeline the gesture's progress maps onto and
+ * the leaf's free edge follows the finger. Only layer properties change (rotation, alpha, one
+ * dim rect), so a turn costs no relayout or recomposition per frame.
+ */
+@Composable
+private fun AnimatedContentScope.PageFrame(content: @Composable () -> Unit) {
+    val turn = LocalPageTurn.current
+    // 1 = lying flat on the stack; 0 = turned off it (where an opening leaf starts, a leaving one ends).
+    val flat = transition.animateFloat(transitionSpec = { if (turn.back) BackTurn else OpenTurn }, label = "pageTurn") {
+        if (it == EnterExitState.Visible) 1f else 0f
+    }
+    // The leaf is the page entering when opening and the page leaving when going back.
+    fun onTop() = (transition.targetState == EnterExitState.Visible) != turn.back
+    Box(
+        Modifier.fillMaxSize()
+            .graphicsLayer {
+                val lifted = 1f - flat.value
+                if (lifted > 0f && onTop()) {
+                    transformOrigin = TransformOrigin(1f, 0.5f)
+                    cameraDistance = 14f * density
+                    rotationY = MAX_TURN_DEGREES * lifted
+                    alpha = ((1f - lifted) / FADE_SPAN).coerceIn(0f, 1f)
+                } else {
+                    rotationY = 0f
+                    alpha = 1f
+                }
+            }
+            .drawWithContent {
+                drawContent()
+                val lifted = 1f - flat.value
+                if (lifted > 0f && !onTop()) drawRect(Color.Black, alpha = UNDER_DIM * lifted)
+            }
+            .background(MaterialTheme.colorScheme.surface),
+    ) { content() }
+}
+
+private val OpenTurn = tween<Float>(380, easing = FastOutSlowInEasing)
+private val BackTurn = tween<Float>(320, easing = LinearEasing)
+private const val MAX_TURN_DEGREES = 80f
+/** The leaf stays opaque until the last part of its turn, then fades out edge-on. */
+private const val FADE_SPAN = 0.35f
+/** How dark the page underneath is while fully covered. */
+private const val UNDER_DIM = 0.3f
