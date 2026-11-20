@@ -13,6 +13,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -127,9 +128,13 @@ private fun TabPager(tabs: List<TopLevel>, pager: PagerState) {
         beyondViewportPageCount = 1,
         key = { tabs.getOrNull(it)?.name ?: it },
     ) { page ->
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
-            CompositionLocalProvider(LocalTabActive provides (pager.settledPage == page)) {
-                when (tabs.getOrNull(page)) {
+        val tab = tabs.getOrNull(page)
+        // 首页 runs its poster under the side dock and insets the rest itself; other tabs just start after it.
+        val inset = LocalStartInset.current
+        val ownInset = tab == TopLevel.Home
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(start = if (ownInset) 0.dp else inset)) {
+            CompositionLocalProvider(LocalTabActive provides (pager.settledPage == page), LocalStartInset provides if (ownInset) inset else 0.dp) {
+                when (tab) {
                     TopLevel.Home -> HomeScreen()
                     TopLevel.Libraries -> LibrariesScreen()
                     TopLevel.Music -> MusicHomeScreen()

@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import xyz.etkn.mobile.data.model.Item
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
+import xyz.etkn.mobile.ui.nav.LocalStartInset
 import xyz.etkn.mobile.ui.theme.Etkn
 import xyz.etkn.mobile.ui.theme.HeroTitleStyle
 
@@ -138,7 +139,7 @@ private fun HeroPage(
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.62f).background(tokens.heroBottomScrim))
         Column(
             Modifier.align(if (wide) Alignment.BottomStart else Alignment.BottomCenter)
-                .then(if (wide) Modifier.widthIn(max = 560.dp).padding(start = 40.dp) else Modifier)
+                .then(if (wide) Modifier.padding(start = LocalStartInset.current + 40.dp).widthIn(max = 560.dp) else Modifier)
                 .fillMaxWidth()
                 .padding(horizontal = Etkn.space.screen).padding(bottom = 30.dp),
             horizontalAlignment = align,

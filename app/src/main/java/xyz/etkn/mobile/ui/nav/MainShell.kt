@@ -9,25 +9,25 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.WideNavigationRail
-import androidx.compose.material3.WideNavigationRailItem
-import androidx.compose.material3.rememberWideNavigationRailState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -58,7 +58,6 @@ import xyz.etkn.mobile.ui.actions.ItemMenuHost
 import xyz.etkn.mobile.ui.actions.LocalItemMenu
 import xyz.etkn.mobile.ui.common.LocalWindowLayout
 import xyz.etkn.mobile.ui.common.WhileStarted
-import xyz.etkn.mobile.ui.common.WindowLayout
 import xyz.etkn.mobile.ui.common.currentWindowLayout
 import xyz.etkn.mobile.ui.components.LocalHaze
 import xyz.etkn.mobile.ui.components.glassSource
@@ -68,6 +67,12 @@ import xyz.etkn.mobile.ui.theme.LocalSettings
 
 /** Space screens must leave at the bottom for the floating dock / mini player. */
 val LocalBottomInset = staticCompositionLocalOf { 0.dp }
+
+/**
+ * Space a tab page's content leaves at the start for the side dock. Pages under it get it as
+ * padding; 首页 takes it itself so its poster runs on under the glass.
+ */
+val LocalStartInset = staticCompositionLocalOf { 0.dp }
 
 @Composable
 fun MainShell(session: ActiveSession) {
@@ -85,7 +90,7 @@ fun MainShell(session: ActiveSession) {
     val wide = layout.wide
     val canDiscover by context.graph.discover.allowed.collectAsStateWithLifecycle()
     val settings = LocalSettings.current
-    // Phones always use the dock; wide windows use the rail unless the user prefers the dock.
+    // Phones always use the bottom dock; wide windows use the side dock unless the user prefers the bottom one.
     val side = wide && settings.navPosition == NavPosition.Side
     val tabs = visibleTabs(settings.tabs, canDiscover, side)
     val pager = rememberPagerState { tabs.size }
@@ -109,12 +114,9 @@ fun MainShell(session: ActiveSession) {
     }
 
     val dockVisible = onTabs && !side
+    val sideVisible = onTabs && side
     val bottomInset: Dp = (if (dockVisible) Etkn.space.dockBottomInset else 24.dp) +
         (if (showMini) Etkn.space.miniPlayer + 8.dp else 0.dp)
-
-    val rail = rememberWideNavigationRailState()
-    val railExpanded = layout == WindowLayout.Expanded
-    LaunchedEffect(railExpanded) { if (railExpanded) rail.expand() else rail.collapse() }
 
     LaunchedEffect(Unit) {
         context.graph.openRequests.collect { request ->
@@ -135,40 +137,34 @@ fun MainShell(session: ActiveSession) {
         LocalNav provides nav,
         LocalHaze provides hazeState,
         LocalBottomInset provides bottomInset,
+        LocalStartInset provides if (sideVisible) Etkn.space.sideDockInset else 0.dp,
         LocalWindowLayout provides layout,
         LocalItemMenu provides itemMenu,
     ) {
         Box(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxSize()) {
-                if (side) {
-                    WideNavigationRail(state = rail, modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
-                        tabs.forEach { tab ->
-                            WideNavigationRailItem(
-                                railExpanded = railExpanded,
-                                selected = current == tab,
-                                onClick = { nav.top(tab) },
-                                icon = { Icon(if (current == tab) tab.selectedIcon else tab.icon, null) },
-                                label = { Text(tab.label) },
-                            )
-                        }
-                    }
+            AppNavHost(controller, tabs, pager, Modifier.fillMaxSize().glassSource(hazeState))
+            AnimatedVisibility(
+                sideVisible,
+                modifier = Modifier.align(Alignment.CenterStart)
+                    .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Start))
+                    .padding(start = 12.dp),
+                enter = fadeIn() + slideInHorizontally { -it },
+                exit = fadeOut() + slideOutHorizontally { -it },
+            ) {
+                Dock(tabs, current, nav, pager, vertical = true)
+            }
+            Column(
+                Modifier.align(if (side) Alignment.BottomEnd else Alignment.BottomCenter)
+                    .then(if (wide) Modifier.widthIn(max = if (side) 520.dp else 640.dp) else Modifier).fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(horizontal = 14.dp)
+                    .padding(bottom = if (dockVisible) 10.dp else 12.dp),
+            ) {
+                AnimatedVisibility(showMini, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {
+                    MiniPlayer(onOpen = { nav.to(NowPlayingRoute) }, modifier = Modifier.padding(bottom = 8.dp))
                 }
-                Box(Modifier.weight(1f).fillMaxSize()) {
-                    AppNavHost(controller, tabs, pager, Modifier.fillMaxSize().glassSource(hazeState))
-                    Column(
-                        Modifier.align(if (side) Alignment.BottomEnd else Alignment.BottomCenter)
-                            .then(if (wide) Modifier.widthIn(max = if (side) 520.dp else 640.dp) else Modifier).fillMaxWidth()
-                            .windowInsetsPadding(WindowInsets.navigationBars)
-                            .padding(horizontal = 14.dp)
-                            .padding(bottom = if (dockVisible) 10.dp else 12.dp),
-                    ) {
-                        AnimatedVisibility(showMini, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {
-                            MiniPlayer(onOpen = { nav.to(NowPlayingRoute) }, modifier = Modifier.padding(bottom = 8.dp))
-                        }
-                        AnimatedVisibility(dockVisible, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
-                            Dock(tabs, current, nav, position = { pager.currentPage + pager.currentPageOffsetFraction })
-                        }
-                    }
+                AnimatedVisibility(dockVisible, enter = fadeIn() + slideInVertically { it }, exit = fadeOut() + slideOutVertically { it }) {
+                    Dock(tabs, current, nav, pager, vertical = false)
                 }
             }
             ItemMenuHost(itemMenu, hazeState)

@@ -102,5 +102,8 @@ object Spacing {
     val wideCardWide: Dp = 300.dp
     val wideCard: Dp = 236.dp
     val dockBottomInset: Dp = 104.dp
+    /** Tablet side dock: its width, and the space tab pages leave for it (margin + dock + gap). */
+    val sideDock: Dp = 76.dp
+    val sideDockInset: Dp = 92.dp
     val miniPlayer: Dp = 64.dp
 }

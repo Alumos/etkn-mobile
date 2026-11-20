@@ -100,6 +100,7 @@ import xyz.etkn.mobile.ui.components.GlassBackBar
 import xyz.etkn.mobile.ui.components.LoadingState
 import xyz.etkn.mobile.ui.components.PersonAvatar
 import xyz.etkn.mobile.ui.components.PosterCard
+import xyz.etkn.mobile.ui.components.RatingScore
 import xyz.etkn.mobile.ui.components.SectionHeader
 import xyz.etkn.mobile.ui.components.formatClock
 import xyz.etkn.mobile.ui.components.formatDuration
@@ -269,13 +270,7 @@ private fun MetaLines(item: Item, source: MediaSource?, align: Alignment.Horizon
                 horizontalArrangement = Arrangement.spacedBy(14.dp, align),
                 itemVerticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Rounded.Star, null, Modifier.size(16.dp), tint = Etkn.tokens.rating)
-                ratings.forEach { (name, value) ->
-                    Row {
-                        Text(name, style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.alignByBaseline())
-                        Text(value, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, modifier = Modifier.alignByBaseline().padding(start = 4.dp))
-                    }
-                }
+                ratings.forEach { RatingScore(it) }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

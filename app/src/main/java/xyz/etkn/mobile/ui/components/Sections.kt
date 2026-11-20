@@ -21,12 +21,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import xyz.etkn.mobile.data.model.Item
+import xyz.etkn.mobile.ui.nav.LocalStartInset
 import xyz.etkn.mobile.ui.theme.Etkn
 
 @Composable
 fun SectionHeader(title: String, modifier: Modifier = Modifier, onMore: (() -> Unit)? = null) {
     Row(
-        modifier.fillMaxWidth().padding(start = Etkn.space.screen, end = 8.dp),
+        modifier.fillMaxWidth().padding(start = LocalStartInset.current + Etkn.space.screen, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -54,7 +55,8 @@ fun Shelf(
     Column(modifier.fillMaxWidth().padding(top = Etkn.space.section)) {
         SectionHeader(title, onMore = onMore)
         LazyRow(
-            contentPadding = PaddingValues(horizontal = Etkn.space.screen),
+            // Starts clear of the side dock but scrolls on under its glass.
+            contentPadding = PaddingValues(start = LocalStartInset.current + Etkn.space.screen, end = Etkn.space.screen),
             horizontalArrangement = Arrangement.spacedBy(Etkn.space.item),
             modifier = Modifier.padding(top = 4.dp),
         ) {

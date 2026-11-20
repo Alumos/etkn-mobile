@@ -152,7 +152,8 @@ class VideoSession(
     private var lastTracks: Tracks = Tracks.EMPTY
     /** Formats whose decoder failed on this source; never offered again. */
     private val failedFormats = HashSet<String>()
-    private var defaultsApplied = false
+    /** Track types whose server default is still to be applied to the current media. */
+    private var pendingDefaults = emptySet<Int>()
     private var playSession = ""
     private var started = false
     private var stopped = true
@@ -365,7 +366,7 @@ class VideoSession(
             lastTracks = Tracks.EMPTY
         }
         // New media in the player (new source or the other core): its tracks start from the server's defaults again.
-        defaultsApplied = false
+        pendingDefaults = setOf(C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_TEXT)
         source = chosen
         discTried = discTried || disc
         val player = ensurePlayer(engineFor(chosen, disc))
@@ -569,32 +570,39 @@ class VideoSession(
 
     /**
      * Starts on the server's default audio and subtitle, which follow the account's language
-     * priority (默认音轨 / 默认字幕): disc tracks matched by PID, external subtitles by their
-     * sideloaded id, the rest by their order among the file's own streams; `-1` turns subtitles
-     * off. Once per loaded source, so the user's own picks stay.
+     * priority (默认音轨 / 默认字幕); without one, the subtitle the source marks as default. Disc
+     * tracks are matched by PID, external subtitles by their sideloaded id, the rest by their
+     * order among the file's own streams; `-1` turns subtitles off.
+     *
+     * Each type is settled once its track exists: mpv adds external subtitles only after the file
+     * has loaded, so the first track list may not have them yet. A pick by the user settles it too.
      */
     private fun applyServerTracks(tracks: Tracks) {
-        if (defaultsApplied || tracks.isEmpty) return
+        if (pendingDefaults.isEmpty() || tracks.isEmpty) return
         val src = source ?: return
         val player = player ?: return
-        defaultsApplied = true
         val params = player.trackSelectionParameters.buildUpon()
         var changed = false
-        fun select(found: Pair<Tracks.Group, Int>?) {
-            val (group, index) = found ?: return
+        fun settle(type: Int, wanted: MediaStream?, streams: List<MediaStream>) {
+            if (type !in pendingDefaults) return
+            if (wanted == null) {
+                pendingDefaults -= type
+                return
+            }
+            val (group, index) = findTrack(tracks, type, streams, wanted) ?: return // not in the player yet
+            pendingDefaults -= type
             if (!group.isTrackSupported(index) || group.isTrackSelected(index)) return
-            params.setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, index)).setTrackTypeDisabled(group.type, false)
+            params.setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, index)).setTrackTypeDisabled(type, false)
             changed = true
         }
-        src.audio.firstOrNull { it.index == src.defaultAudioIndex }?.let { select(findTrack(tracks, C.TRACK_TYPE_AUDIO, src.audio, it)) }
-        when (val index = src.defaultSubtitleIndex) {
-            null -> Unit
-            -1 -> {
-                params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                changed = true
-            }
-            else -> src.subtitles.firstOrNull { it.index == index }?.let { select(findTrack(tracks, C.TRACK_TYPE_TEXT, src.subtitles, it)) }
+        settle(C.TRACK_TYPE_AUDIO, src.audio.firstOrNull { it.index == src.defaultAudioIndex }, src.audio)
+        val subtitle = src.defaultSubtitleIndex ?: src.subtitles.firstOrNull { it.isDefault }?.index
+        if (subtitle == -1 && C.TRACK_TYPE_TEXT in pendingDefaults) {
+            pendingDefaults -= C.TRACK_TYPE_TEXT
+            params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            changed = true
         }
+        settle(C.TRACK_TYPE_TEXT, src.subtitles.firstOrNull { it.index == subtitle }, src.subtitles)
         if (changed) player.trackSelectionParameters = params.build()
     }
 
@@ -645,6 +653,7 @@ class VideoSession(
     fun selectTrack(option: TrackOption) {
         val player = player ?: return
         val group = player.currentTracks.groups.getOrNull(option.groupIndex) ?: return
+        pendingDefaults -= group.type
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, option.trackIndex))
             .setTrackTypeDisabled(group.type, false)
@@ -653,6 +662,7 @@ class VideoSession(
 
     fun disableSubtitles() {
         val player = player ?: return
+        pendingDefaults -= C.TRACK_TYPE_TEXT
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             .build()

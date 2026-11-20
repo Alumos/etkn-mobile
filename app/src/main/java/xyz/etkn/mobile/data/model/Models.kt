@@ -325,13 +325,13 @@ data class Item(
         }
 
     /** Every score the server sent, by source, for the ratings line. */
-    val ratings: List<Pair<String, String>>
-        get() = listOfNotNull(
-            tmdbRating?.takeIf { it > 0 }?.let { "TMDb" to "%.1f".format(Locale.ROOT, it) },
-            imdbRating?.takeIf { it > 0 }?.let { "IMDb" to "%.1f".format(Locale.ROOT, it) },
-            doubanRating?.takeIf { it > 0 }?.let { "豆瓣" to "%.1f".format(Locale.ROOT, it) },
-            criticRating?.takeIf { it > 0 }?.let { "烂番茄" to "${it.toInt()}%" },
-        )
+    val ratings: List<Rating>
+        get() = listOf(
+            RatingSource.Tmdb to tmdbRating,
+            RatingSource.Imdb to imdbRating,
+            RatingSource.Douban to doubanRating,
+            RatingSource.RottenTomatoes to criticRating,
+        ).mapNotNull { (source, score) -> score?.takeIf { it > 0 }?.let { Rating(source, it) } }
 
     val artistLine: String get() = artists.joinToString(" / ")
 
@@ -466,3 +466,14 @@ fun JsonObject.items(): List<Item> = rows().map(Item::from)
 
 /** Helper for arrays that are not under one of the standard list keys. */
 fun JsonObject.itemList(key: String): List<Item> = (arr(key) ?: return emptyList()).mapNotNull { it as? JsonObject }.map(Item::from)
+
+enum class RatingSource(val label: String) { Tmdb("TMDb"), Imdb("IMDb"), Douban("豆瓣"), RottenTomatoes("烂番茄") }
+
+/** One source's score: out of 10, or for Rotten Tomatoes the Tomatometer percentage. */
+@Immutable
+data class Rating(val source: RatingSource, val score: Double) {
+    val text: String get() = if (source == RatingSource.RottenTomatoes) "${score.toInt()}%" else "%.1f".format(Locale.ROOT, score)
+
+    /** Tomatometer 60 % and up is "fresh". */
+    val fresh: Boolean get() = score >= 60
+}
