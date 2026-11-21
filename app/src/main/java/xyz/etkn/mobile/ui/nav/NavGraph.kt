@@ -27,8 +27,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
@@ -208,6 +208,10 @@ private fun AnimatedContentScope.PageFrame(content: @Composable () -> Unit) {
     ) { if (it == EnterExitState.Visible) 1f else 0f }
     // The leaf is the page entering when opening and the page leaving when going back.
     fun onTop() = (transition.targetState == EnterExitState.Visible) == (turn.kind == Turn.Open)
+    // Every per-frame value is a layer property, so a turn never re-records either page: the leaf
+    // only changes its layer's rotation / alpha, and the page underneath is dimmed by a separate
+    // black layer whose alpha changes (drawing the dim inside the page's own layer would re-record
+    // the whole page, and every blur sampling it, on each frame).
     Box(
         Modifier.fillMaxSize()
             .graphicsLayer {
@@ -222,14 +226,19 @@ private fun AnimatedContentScope.PageFrame(content: @Composable () -> Unit) {
                     rotationY = 0f
                     alpha = 1f
                 }
-            }
-            .drawWithContent {
-                drawContent()
-                val lifted = 1f - flat.value
-                if (lifted > 0f && !onTop()) drawRect(Color.Black, alpha = UNDER_DIM * lifted)
+                // A nearly edge-on leaf fading out needs no full-screen offscreen buffer.
+                compositingStrategy = CompositingStrategy.ModulateAlpha
             }
             .background(MaterialTheme.colorScheme.surface),
-    ) { content() }
+    ) {
+        content()
+        Box(
+            Modifier.matchParentSize().graphicsLayer {
+                val lifted = 1f - flat.value
+                alpha = if (lifted > 0f && !onTop()) UNDER_DIM * lifted else 0f
+            }.background(Color.Black),
+        )
+    }
 }
 
 private val OpenTurn = tween<Float>(480, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f))

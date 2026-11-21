@@ -143,6 +143,17 @@ class EtknApi(
 
     suspend fun views(): List<Item> = get("${u()}/Views").items()
 
+    /**
+     * Every library the user can see. `Views` lists a library group (分组) in place of its members,
+     * so anything looking for libraries by type (music, the newest shelves) asks here, where each
+     * group is opened into its libraries in place.
+     */
+    suspend fun libraries(): List<Item> = coroutineScope {
+        views().map { view ->
+            async { if (view.isLibraryGroup) children(view.id) else listOf(view) }
+        }.flatMap { it.await() }
+    }
+
     suspend fun resume(limit: Int = 24): List<Item> =
         get(query("${u()}/Items/Resume", "Limit" to limit, "Fields" to "Overview")).items()
 
@@ -260,6 +271,36 @@ class EtknApi(
         val result = get(path)
         val items = result.items()
         return ItemsPage(items, result.int("TotalRecordCount", start + items.size))
+    }
+
+    /**
+     * Albums whose name or artist matches (pinyin too), across every music library the user sees:
+     * `U/Music` without `ParentId` reads all of them, groups included.
+     */
+    suspend fun searchMusic(term: String, start: Int, limit: Int): ItemsPage {
+        val result = get(
+            query(
+                "${u()}/Music", "Tab" to "albums", "SearchTerm" to term,
+                "SortBy" to "Name", "SortOrder" to "Ascending", "StartIndex" to start, "Limit" to limit,
+            ),
+        )
+        val items = result.items()
+        return ItemsPage(items, result.int("TotalRecordCount", start + items.size))
+    }
+
+    /**
+     * Music videos matching [term]: the server files them as `Video` items flagged `MusicVideo`, and
+     * no query narrows to that flag, so one generous page of videos is filtered here.
+     */
+    suspend fun searchMusicVideos(term: String): ItemsPage {
+        val result = get(
+            query(
+                "${u()}/Items", "Recursive" to true, "IncludeItemTypes" to "Video", "SearchTerm" to term,
+                "SortBy" to "SortName", "Limit" to MV_SEARCH_LIMIT, "Fields" to "PrimaryImageAspectRatio,ProductionYear,UserData",
+            ),
+        )
+        val items = result.rows().filter { it.bool("MusicVideo") }.map(Item::from)
+        return ItemsPage(items, items.size)
     }
 
     // ---------- Detail ----------
@@ -632,6 +673,7 @@ class EtknApi(
     companion object {
         val EMPTY = JsonObject(emptyMap())
         private const val D = "/api/tv/discover"
+        private const val MV_SEARCH_LIMIT = 200
         const val LIST_FIELDS =
             "PrimaryImageAspectRatio,Overview,CommunityRating,TMDbRating,DoubanRating,IMDbRating,CriticRating,ProductionYear,RecursiveItemCount,UserData"
         const val DETAIL_FIELDS = "MediaSources,MediaStreams,Overview"

@@ -55,7 +55,7 @@ class AppNav(private val controller: NavHostController, private val context: Con
             context.graph.music.selectLibrary(library.id)
             top(TopLevel.Music)
         } else {
-            to(LibraryRoute(library.id, library.name, library.collectionType ?: if (library.sourceType == "group") "group" else null))
+            to(LibraryRoute(library.id, library.name, if (library.isLibraryGroup) "group" else library.collectionType))
         }
     }
 

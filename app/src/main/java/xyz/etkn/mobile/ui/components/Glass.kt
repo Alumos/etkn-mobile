@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.ExperimentalHazeApi
+import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
@@ -59,6 +61,7 @@ val GlassBlur = 40.dp
  * Glass surface: real backdrop blur (Android 12+ via Haze, translucent fallback below), a soft
  * drop shadow and a faint top highlight.
  */
+@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun Modifier.glass(
     shape: Shape,
@@ -90,7 +93,11 @@ fun Modifier.glass(
                 noiseFactor = 0.06f,
                 fallbackTint = HazeTint(tint ?: tokens.glassFlat),
             ),
-        )
+        ) {
+            // Blur a downscaled copy: at this radius it looks the same and costs a fraction,
+            // which matters while a page turn changes what is behind the glass every frame.
+            inputScale = HazeInputScale.Auto
+        }
     }
     if (border) m = m.border(1.dp, tokens.glassBorder, shape)
     return m

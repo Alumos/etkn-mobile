@@ -2,6 +2,7 @@ package xyz.etkn.mobile
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        preferFastestRefreshRate()
         openFrom(intent)
         setContent { EtknRoot(graph) }
     }
@@ -48,6 +50,26 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         openFrom(intent)
+    }
+
+    /**
+     * Several ROMs keep apps at 60 Hz unless they ask, which makes page turns and scrolling stutter
+     * on 90 / 120 / 144 Hz panels. Ask for the panel's fastest mode at the current resolution (a
+     * different resolution would rescale the UI). Only this window asks; the player sets its own
+     * rate from the video, and an adaptive (LTPO) panel still drops its rate while nothing moves.
+     * Re-runs when a fold or a resolution change recreates the activity.
+     */
+    private fun preferFastestRefreshRate() {
+        val display = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else null)
+            ?: @Suppress("DEPRECATION") windowManager.defaultDisplay
+            ?: return
+        val current = display.mode
+        val fastest = display.supportedModes
+            .filter { it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight }
+            .maxByOrNull { it.refreshRate } ?: return
+        if (window.attributes.preferredDisplayModeId != fastest.modeId) {
+            window.attributes = window.attributes.apply { preferredDisplayModeId = fastest.modeId }
+        }
     }
 
     /** Notification, shortcut or widget: the shell opens it from [AppGraph.openRequests]. */

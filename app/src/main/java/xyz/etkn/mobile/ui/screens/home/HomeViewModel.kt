@@ -103,10 +103,13 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
 
     private suspend fun fetch(): HomeData = coroutineScope {
         val viewsJob = async { api.views() }
+        // Shelves come from the libraries themselves, including those inside a group.
+        val librariesJob = async { api.libraries() }
         val resumeJob = async { runCatching { api.resume(20) }.getOrDefault(emptyList()) }
         val countsJob = async { runCatching { api.libraryCounts() }.getOrNull() }
         val views = viewsJob.await()
-        val videoLibraries = views.filter { it.collectionType !in NON_LATEST }
+        val libraries = librariesJob.await()
+        val videoLibraries = libraries.filter { it.collectionType !in NON_LATEST }
         val shelves = videoLibraries.map { library ->
             async {
                 val types = when (library.collectionType) {
@@ -117,7 +120,7 @@ class HomeViewModel(private val graph: AppGraph) : ViewModel() {
                 LatestShelf(library, runCatching { api.latest(library.id, types, 20) }.getOrDefault(emptyList()))
             }
         }
-        val music = views.firstOrNull { it.collectionType == "music" }?.let { library ->
+        val music = libraries.firstOrNull { it.collectionType == "music" }?.let { library ->
             async {
                 runCatching {
                     library to api.musicList(library.id, "albums", "", 0, 20, newest = true).items

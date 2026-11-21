@@ -280,6 +280,8 @@ data class Item(
     val isMovie get() = type == "Movie"
     val isAudio get() = type == "Audio"
     val isMusicGroup get() = !kind.isNullOrEmpty()
+    /** A library group (分组) as `Views` lists it in place of its member libraries: `library-group-N`, mixed type. */
+    val isLibraryGroup get() = sourceType == "group" || id.startsWith("library-group-")
     val isPlayable get() = type in PLAYABLE_TYPES
 
     /** A category card from `U/Facets` (name = value to browse by, [kind] = its field). */

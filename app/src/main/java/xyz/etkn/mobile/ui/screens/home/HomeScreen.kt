@@ -74,7 +74,6 @@ import xyz.etkn.mobile.ui.components.glassSource
 import xyz.etkn.mobile.ui.components.images
 import xyz.etkn.mobile.ui.components.shelf
 import xyz.etkn.mobile.ui.nav.FavoritesRoute
-import xyz.etkn.mobile.ui.nav.LibraryRoute
 import xyz.etkn.mobile.ui.nav.LocalBottomInset
 import xyz.etkn.mobile.ui.nav.LocalNav
 import xyz.etkn.mobile.ui.nav.LocalStartInset
@@ -144,7 +143,7 @@ private fun HomeContent(data: HomeData, vm: HomeViewModel) {
             data.latest.forEach { shelfData ->
                 val library = shelfData.library
                 shelf("latest-${library.id}", "最新 · ${library.name}", shelfData.items, onMore = {
-                    nav.to(LibraryRoute(library.id, library.name, library.collectionType))
+                    nav.openLibrary(library)
                 }) { item -> PosterCard(item, onClick = { nav.open(item) }) }
             }
             data.musicLatest?.let { (library, albums) ->

@@ -21,15 +21,24 @@ import xyz.etkn.mobile.ui.common.Paged
 import xyz.etkn.mobile.ui.common.userMessage
 import xyz.etkn.mobile.ui.screens.library.PagedViewModel
 
+/** What a search looks through; 影视 by default. */
+enum class SearchScope(val label: String, val hint: String, val none: String) {
+    Video("影视", "搜索电影、剧集", "没有找到相关影视"),
+    Music("音乐", "搜索专辑、歌手", "没有找到相关音乐"),
+    MusicVideo("MV", "搜索 MV", "没有找到相关 MV"),
+}
+
 /**
- * Library search first; when the library has nothing for the term and the account may discover,
- * TMDb is searched for movies and series at the same time (no type switch needed).
+ * Library search in one [SearchScope]. For 影视, when the library has nothing for the term and
+ * the account may discover, TMDb is searched for movies and series at the same time.
  */
 class SearchViewModel(private val graph: AppGraph) : PagedViewModel() {
     private val api = graph.api
     private val term = MutableStateFlow("")
     var current = ""
         private set
+    private val _scope = MutableStateFlow(SearchScope.Video)
+    val scope: StateFlow<SearchScope> = _scope.asStateFlow()
     private val _discover = MutableStateFlow<Map<DiscoverKind, Load<List<DiscoverItem>>>?>(null)
     /** Null while the library answers (or has answers); otherwise one result per kind. */
     val discover: StateFlow<Map<DiscoverKind, Load<List<DiscoverItem>>>?> = _discover.asStateFlow()
@@ -50,7 +59,7 @@ class SearchViewModel(private val graph: AppGraph) : PagedViewModel() {
         viewModelScope.launch {
             combine(paged, graph.discover.allowed) { page, allowed -> page to allowed }.collect { (page, allowed) ->
                 val empty = page.items.isEmpty() && page.endReached && page.error == null
-                if (allowed && empty && current.isNotEmpty() && discoverTerm != current) searchDiscover(current)
+                if (allowed && empty && _scope.value == SearchScope.Video && current.isNotEmpty() && discoverTerm != current) searchDiscover(current)
             }
         }
     }
@@ -79,5 +88,19 @@ class SearchViewModel(private val graph: AppGraph) : PagedViewModel() {
         term.value = value
     }
 
-    override suspend fun fetch(start: Int, limit: Int): ItemsPage = api.search(current, start, limit)
+    fun setScope(scope: SearchScope) {
+        if (scope == _scope.value) return
+        _scope.value = scope
+        discoverJob?.cancel()
+        discoverTerm = ""
+        _discover.value = null
+        if (current.isNotEmpty()) reset()
+    }
+
+    override suspend fun fetch(start: Int, limit: Int): ItemsPage = when (_scope.value) {
+        SearchScope.Video -> api.search(current, start, limit)
+        SearchScope.Music -> api.searchMusic(current, start, limit)
+        // One filtered page: later pages would only repeat the filter on fewer matches.
+        SearchScope.MusicVideo -> if (start == 0) api.searchMusicVideos(current) else ItemsPage(emptyList(), 0)
+    }
 }

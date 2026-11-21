@@ -33,7 +33,7 @@ class MusicLibrariesViewModel(private val graph: AppGraph) : ViewModel() {
     fun load() {
         _libraries.value = Load.Loading
         viewModelScope.launch {
-            _libraries.value = runCatching { graph.api.views().filter { it.collectionType == "music" } }
+            _libraries.value = runCatching { graph.api.libraries().filter { it.collectionType == "music" } }
                 .fold({ list ->
                     if (graph.music.libraryId.value == null || list.none { it.id == graph.music.libraryId.value }) {
                         list.firstOrNull()?.let { graph.music.selectLibrary(it.id) }

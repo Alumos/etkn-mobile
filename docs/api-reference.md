@@ -101,7 +101,7 @@
 
 | 方法 | 路径与参数 | 用途 |
 |---|---|---|
-| GET | `U/Views` | 媒体库列表（带 `CollectionType`） |
+| GET | `U/Views` | 媒体库列表（带 `CollectionType`）。媒体库「所属分组」会以一项代替其成员：`Id=library-group-N`、`CollectionType=mixed`、`SourceType=group`；成员库用 `U/Items?ParentId=library-group-N` 取（返回各库的 `CollectionFolder`）。按类型找库（音乐库、首页「最新」）时必须先展开分组，否则分组里的库会被漏掉 |
 | GET | `U/Items/Resume?Limit=24&Fields=Overview` | 继续观看 |
 | GET | `U/Items/Latest?ParentId=&IncludeItemTypes=&Limit=24` | 各库最新入库 |
 | GET | `U/Items/PersonalRecommendations?Stream=true&Limit=1&Fields=Overview&ShuffleSeed=&Cursor=` | 首页轮播推荐。逐条拉取，返回 `Items` 和 `NextCursor`（字符串，用于下一页） |
@@ -110,7 +110,8 @@
 | GET | `U/Browse?Limit=&StartIndex=&SortBy=DateCreated&SortOrder=Descending&Filters=IsFavorite` | 收藏 |
 | GET | `U/Items?Recursive=true&IncludeItemTypes=BoxSet&SortBy=SortName&Limit=1000` | 收藏的合集：`Filters=IsFavorite` 不会返回 BoxSet，所以读合集列表，只保留 `UserData.IsFavorite` 为真的条目，排在「我的收藏」最前面 |
 | GET | `U/Items?Recursive=true&IncludeItemTypes=Movie&Limit=0`（`Series`、`Episode` 同） | 首页底部的电影 / 剧集 / 总集数：三个类型并发，只读 `TotalRecordCount`（不带排序时服务端走计数快速路径，不加载条目；受限账号按其可见范围计数）。Emby 的 `Items/Counts` 不在 `/api/tv` 下，不用 |
-| GET | `U/Items?Recursive=true&IncludeItemTypes=Movie,Series&SearchTerm=&SortBy=SortName&Limit=&StartIndex=&Fields=…` | 库内搜索 |
+| GET | `U/Items?Recursive=true&IncludeItemTypes=Movie,Series&SearchTerm=&SortBy=SortName&Limit=&StartIndex=&Fields=…` | 库内搜索（搜索页「影视」） |
+| GET | `U/Items?Recursive=true&IncludeItemTypes=Video&SearchTerm=&SortBy=SortName&Limit=200` | 搜索页「MV」：MV 是带 `MusicVideo: true` 的 `Video`，没有能按此标记筛选的参数，客户端取一页后自行过滤 |
 | GET | `U/Libraries/{libraryId}/Collections?Limit=200` | 库内合集（库页「合集」，仅 path 来源的库有结果）；成员用 `U/Items?ParentId=<合集ID>` |
 | GET | `U/Items/{id}/Collections?Limit=60` | 电影所属合集（详情「所属合集」） |
 | GET | `U/Facets?ParentId=&Kind={Types\|Networks\|Companies}` | 分类卡片：`Items[]{Id, Name, Kind(Genres/Tags/Networks/Companies), Value, Type=TvFacet, ImageTags.Primary}` |
@@ -303,6 +304,7 @@
 | GET | `M?ParentId=&Key=&Tab=recommended&SortBy=Name&SortOrder=Ascending&FrequentLimit=12` | 音乐首页，返回 `Latest`、`Recent`、`Frequent` |
 | GET | `M?ParentId=&Tab=&Key=&SortBy=&SortOrder=[&Tracks=1]&StartIndex=&Limit=60` | 分类列表。`Tab` 取 `albums`、`artists`、`songs`、`playlists` 等；`Key` 指定进入某个专辑、歌手或文件夹。返回 `Items`、`Folders`、`TotalRecordCount`、`Title`、`Artist.Overview` |
 | GET | `M?ParentId=&Tab=playlists&Key=&SortBy=Name&SortOrder=Ascending` | 歌单，返回 `Playlists[]{Key,Name,Count}` |
+| GET | `M?Tab=albums&SearchTerm=&SortBy=Name&SortOrder=Ascending&StartIndex=&Limit=` | 搜索页「音乐」：按专辑名或歌手匹配（支持拼音），不带 `ParentId` 即覆盖用户可见的全部音乐库（含分组内的）。打开结果时 `ParentId` 也留空，因为专辑可能来自任一音乐库 |
 | POST | `M/Playlists` | 新建歌单，请求体 `{"Name"}`（最多 80 字），返回 `Key` |
 | DELETE | `M/Playlists/{key}` | 删除歌单 |
 | POST / DELETE | `M/Playlists/{key}/Items/{itemId}` | 加入 / 移出歌单 |

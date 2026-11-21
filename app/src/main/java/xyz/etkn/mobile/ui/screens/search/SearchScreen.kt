@@ -65,12 +65,22 @@ import xyz.etkn.mobile.ui.screens.discover.DiscoverCard
 import xyz.etkn.mobile.ui.screens.library.PosterGrid
 import xyz.etkn.mobile.ui.theme.Etkn
 import xyz.etkn.mobile.ui.theme.Corner
+import xyz.etkn.mobile.ui.nav.MusicListRoute
+import xyz.etkn.mobile.ui.nav.AppNav
+import xyz.etkn.mobile.ui.components.SquareCard
+import xyz.etkn.mobile.ui.components.PillToggle
+import xyz.etkn.mobile.ui.components.PillGap
+import xyz.etkn.mobile.ui.components.LibraryTile
+import xyz.etkn.mobile.ui.components.GlassPiece
+import xyz.etkn.mobile.data.model.Item
+import androidx.compose.foundation.layout.Column
 
 @Composable
 fun SearchScreen() {
     val vm = graphViewModel { SearchViewModel(it) }
     val paged by vm.paged.collectAsStateWithLifecycle()
     val discover by vm.discover.collectAsStateWithLifecycle()
+    val scope by vm.scope.collectAsStateWithLifecycle()
     val nav = LocalNav.current
     val text = rememberTextFieldState()
     // Standalone field: SearchBar(state, …) hands focus to an expanded overlay we don't use,
@@ -81,7 +91,8 @@ fun SearchScreen() {
     val grid = rememberLazyGridState()
     val haze = rememberHazeState()
     val shape = Corner.pill
-    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp
+    // Field (56) + gap + scope pills (48) + gap, below the status bar.
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 132.dp
 
     LaunchedEffect(text) {
         snapshotFlow { text.text.toString() }.collect(vm::onQuery)
@@ -102,27 +113,41 @@ fun SearchScreen() {
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().glassSource(haze)) {
             when {
-                vm.current.isEmpty() && text.text.isEmpty() -> MessageState("输入片名开始搜索", icon = Icons.Rounded.Search)
+                vm.current.isEmpty() && text.text.isEmpty() -> MessageState(scope.hint, icon = Icons.Rounded.Search)
                 paged.items.isEmpty() && paged.loading -> LoadingState()
                 paged.items.isEmpty() && paged.endReached -> discover?.let { results ->
                     DiscoverFallback(results, top, vm::retryDiscover) { item ->
                         keyboard?.hide()
                         nav.to(DiscoverDetailRoute(item.id, item.kind.wire, item.title))
                     }
-                } ?: MessageState("没有找到相关影视")
-                else -> PosterGrid(paged, grid, vm::loadMore, vm::retry, top = top) { keyboard?.hide(); nav.open(it) }
+                } ?: MessageState(scope.none)
+                else -> {
+                    val open: (Item) -> Unit = { keyboard?.hide(); openResult(nav, scope, it) }
+                    when (scope) {
+                        SearchScope.Video -> PosterGrid(paged, grid, vm::loadMore, vm::retry, top = top, onOpen = open)
+                        SearchScope.Music -> PosterGrid(
+                            paged, grid, vm::loadMore, vm::retry, top = top, cell = 140.dp,
+                            card = { SquareCard(it, onClick = { open(it) }, width = null) }, onOpen = open,
+                        )
+                        SearchScope.MusicVideo -> PosterGrid(
+                            paged, grid, vm::loadMore, vm::retry, top = top, cell = 200.dp,
+                            card = { LibraryTile(it, onClick = { open(it) }) }, onOpen = open,
+                        )
+                    }
+                }
             }
         }
-        Box(
+        Column(
             Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = Etkn.space.screen, vertical = 8.dp)
-                .glass(shape, elevation = 8.dp, state = haze),
+                .padding(horizontal = Etkn.space.screen, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+        Box(Modifier.fillMaxWidth().glass(shape, elevation = 8.dp, state = haze)) {
             SearchBarDefaults.InputField(
                 textFieldState = text,
                 searchBarState = barState,
                 onSearch = { keyboard?.hide() },
-                placeholder = { Text("搜索电影、剧集") },
+                placeholder = { Text(scope.hint) },
                 leadingIcon = { Icon(Icons.Rounded.Search, null) },
                 trailingIcon = {
                     if (text.text.isNotEmpty()) {
@@ -132,6 +157,27 @@ fun SearchScreen() {
                 modifier = Modifier.fillMaxWidth().focusRequester(focus).onFocusChanged { focused = it.isFocused },
             )
         }
+        // Same glass pill of choices as 探索's type switch.
+        GlassPiece(haze, Corner.pill) {
+            Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(PillGap)) {
+                SearchScope.entries.forEach { option ->
+                    PillToggle(checked = option == scope, onClick = { vm.setScope(option) }) { Text(option.label) }
+                }
+            }
+        }
+        }
+    }
+}
+
+/**
+ * Albums open in the music pages across every music library (they may come from any of them);
+ * films, series and music videos open their detail page.
+ */
+private fun openResult(nav: AppNav, scope: SearchScope, item: Item) {
+    if (scope == SearchScope.Music && item.isMusicGroup) {
+        nav.to(MusicListRoute(parentId = "", tab = item.kind ?: "albums", key = item.key.orEmpty(), title = item.name))
+    } else {
+        nav.open(item)
     }
 }
 
